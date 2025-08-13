@@ -100,9 +100,11 @@ def upload_file(file, upload_type='receipt'):
         upload_dir = f"uploads/{upload_type}"
         os.makedirs(upload_dir, exist_ok=True)
         
-        # Generate unique filename
+        # Generate unique filename with safer handling
         file_id = str(uuid.uuid4())
-        file_extension = file.name.split('.')[-1] if '.' in file.name else 'bin'
+        # Clean filename to avoid issues with special characters
+        clean_name = "".join(c for c in file.name if c.isalnum() or c in '._-')
+        file_extension = clean_name.split('.')[-1] if '.' in clean_name else 'bin'
         unique_filename = f"{file_id}.{file_extension}"
         file_path = os.path.join(upload_dir, unique_filename)
         

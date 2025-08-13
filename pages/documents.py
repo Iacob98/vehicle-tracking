@@ -489,12 +489,12 @@ def get_vehicles_for_select(language='ru'):
     """Get vehicles for select dropdown"""
     try:
         vehicles = execute_query("""
-            SELECT id, CONCAT(name, ' (', license_plate, ')') as display_name 
+            SELECT id, name || ' (' || license_plate || ')' as display_name 
             FROM vehicles 
             ORDER BY name
         """)
-        return vehicles
-    except:
+        return vehicles if vehicles else []
+    except Exception as e:
         return []
 
 def get_current_user_id():
@@ -523,7 +523,18 @@ def show_file_viewer(file_url, title, language='ru'):
                 file_extension = file_url.split('.')[-1].lower()
                 
                 if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
-                    st.image(file_url, caption=title, use_column_width=True)
+                    try:
+                        import os
+                        if file_url.startswith('/'):
+                            file_path = file_url.lstrip('/')
+                            if os.path.exists(file_path):
+                                st.image(file_path, caption=title, use_container_width=True)
+                            else:
+                                st.error("Файл изображения не найден/Bilddatei nicht gefunden")
+                        else:
+                            st.image(file_url, caption=title, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
                 elif file_extension == 'pdf':
                     st.write("📄 PDF файл/PDF-Datei")
                     # For PDF, show a link since Streamlit can't display PDFs directly
