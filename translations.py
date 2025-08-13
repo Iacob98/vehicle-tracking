@@ -41,6 +41,14 @@ TRANSLATIONS = {
         'ru': 'Расходы',
         'de': 'Ausgaben'
     },
+    'car_expenses': {
+        'ru': 'Расходы на авто',
+        'de': 'Fahrzeugausgaben'
+    },
+    'brigade_expenses': {
+        'ru': 'Расходы на бригады',
+        'de': 'Brigadeausgaben'
+    },
     
     # Common actions
     'add': {

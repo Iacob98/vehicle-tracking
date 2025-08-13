@@ -30,6 +30,16 @@ Preferred communication style: Simple, everyday language.
 - Fixed all direct currency references to use euro symbol consistently
 - All financial displays now show amounts in euros (expenses, penalties, materials costs)
 
+### Enhanced Expense Management System
+- Restructured expenses into two specialized systems:
+  - Car Expenses (car_expenses table): repair, maintenance, fuel, insurance, toll, car_wash, other
+  - Brigade Expenses (brigade_expenses table): broken_equipment, fine
+- Created dedicated PostgreSQL enum types for expense categories
+- Implemented separate management interfaces for car and brigade expenses
+- Added comprehensive analytics and reporting for both expense types
+- Integrated file upload support for receipts and documentation
+- All expense amounts displayed in euros with proper formatting
+
 ### Enhanced System Logic Requirements
 - Bidirectional entity relationships with automatic updates
 - Snapshot system for team compositions at specific events
