@@ -42,7 +42,7 @@ def show_vehicles_list(language='ru'):
             status_filter = st.selectbox(
                 get_text('status', language),
                 options=['all', 'active', 'repair', 'unavailable'],
-                format_func=lambda x: get_text(x, language) if x != 'all' else 'Все/Alle'
+                format_func=lambda x: get_text(x, language) if x != 'all' else get_text('all', language)
             )
         
         with col3:
@@ -128,9 +128,13 @@ def show_vehicles_list(language='ru'):
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_{vehicle['id']}"):
-                            show_edit_vehicle_form(vehicle, language)
+                            st.session_state[f"edit_vehicle_{vehicle['id']}"] = True
                         if st.button(f"🗑️", key=f"delete_{vehicle['id']}"):
                             delete_vehicle(vehicle['id'], language)
+                    
+                    # Show edit form if requested
+                    if st.session_state.get(f"edit_vehicle_{vehicle['id']}", False):
+                        show_edit_vehicle_form(vehicle, language)
                     
                     st.divider()
             
@@ -246,7 +250,13 @@ def show_edit_vehicle_form(vehicle, language='ru'):
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
             
             if cancelled:
+                if f"edit_vehicle_{vehicle['id']}" in st.session_state:
+                    del st.session_state[f"edit_vehicle_{vehicle['id']}"]
                 st.rerun()
+            
+            if submitted:
+                if f"edit_vehicle_{vehicle['id']}" in st.session_state:
+                    del st.session_state[f"edit_vehicle_{vehicle['id']}"]
 
 def delete_vehicle(vehicle_id, language='ru'):
     """Delete vehicle"""

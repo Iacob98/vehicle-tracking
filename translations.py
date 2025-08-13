@@ -127,6 +127,38 @@ TRANSLATIONS = {
         'ru': 'Название автомобиля',
         'de': 'Fahrzeugname'
     },
+    'all': {
+        'ru': 'Все',
+        'de': 'Alle'
+    },
+    'team': {
+        'ru': 'Бригада',
+        'de': 'Team'
+    },
+    'no_data': {
+        'ru': 'Нет данных',
+        'de': 'Keine Daten'
+    },
+    'success_save': {
+        'ru': 'Успешно сохранено',
+        'de': 'Erfolgreich gespeichert'
+    },
+    'error_save': {
+        'ru': 'Ошибка сохранения',
+        'de': 'Fehler beim Speichern'
+    },
+    'success_delete': {
+        'ru': 'Успешно удалено',
+        'de': 'Erfolgreich gelöscht'
+    },
+    'error_delete': {
+        'ru': 'Ошибка удаления',
+        'de': 'Fehler beim Löschen'
+    },
+    'vehicle_name': {
+        'ru': 'Название автомобиля',
+        'de': 'Fahrzeugname'
+    },
     
     # Status values
     'active': {
