@@ -327,7 +327,7 @@ def show_team_details(team_id, language='ru'):
                     with col1:
                         st.write(expense[0].strftime('%d.%m.%Y'))
                     with col2:
-                        st.write(f"{float(expense[1]):,.2f} ₽")
+                        st.write(f"{float(expense[1]):,.2f} €")
                     with col3:
                         st.write(expense[2] or '')
             else:

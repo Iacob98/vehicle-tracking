@@ -5,7 +5,7 @@ from database import execute_query
 from translations import get_text
 import uuid
 
-def format_currency(amount, currency='₽'):
+def format_currency(amount, currency='€'):
     """Format currency amount"""
     if amount is None:
         return '0.00'

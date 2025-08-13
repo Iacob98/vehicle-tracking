@@ -24,6 +24,12 @@ Preferred communication style: Simple, everyday language.
 - Added document type translations for Russian and German languages
 - Integrated file viewer with full-width display for optimal document viewing
 
+### Currency System Update
+- Changed system currency from rubles (₽) to euros (€) throughout the entire application
+- Updated format_currency function in utils.py to use euro symbol as default
+- Fixed all direct currency references to use euro symbol consistently
+- All financial displays now show amounts in euros (expenses, penalties, materials costs)
+
 ### Enhanced System Logic Requirements
 - Bidirectional entity relationships with automatic updates
 - Snapshot system for team compositions at specific events
