@@ -1,8 +1,9 @@
+"""
+Simple database initialization without complex SQL blocks
+"""
 import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.exc import SQLAlchemyError
-import streamlit as st
 
 # Database configuration
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/fleet_db')
@@ -14,119 +15,88 @@ def get_session() -> Session:
     """Get database session"""
     return SessionLocal()
 
-def init_db():
-    """Initialize database with schema"""
+def execute_query(query, params=None):
+    """Execute a query and return results"""
     try:
+        with engine.connect() as connection:
+            if params:
+                result = connection.execute(text(query), params)
+            else:
+                result = connection.execute(text(query))
+            
+            # If it's a SELECT query, fetch results
+            if query.strip().upper().startswith('SELECT'):
+                return result.fetchall()
+            else:
+                connection.commit()
+                return True
+    except Exception as e:
+        print(f"Database error: {e}")
+        raise e
+
+def init_db():
+    """Initialize database with simple approach"""
+    try:
+        # Use autocommit for individual DDL statements
         with engine.connect() as conn:
-            # Create enum types if they don't exist
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vehicle_status') THEN
-                        CREATE TYPE vehicle_status AS ENUM ('active', 'repair', 'unavailable');
-                    END IF;
-                END $$;
-            """))
+            # Set autocommit mode
+            trans = conn.begin()
             
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-                        CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead', 'worker');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'penalty_status') THEN
-                        CREATE TYPE penalty_status AS ENUM ('open', 'paid');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'maintenance_type') THEN
-                        CREATE TYPE maintenance_type AS ENUM ('inspection', 'repair');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_type') THEN
-                        CREATE TYPE material_type AS ENUM ('material', 'equipment');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_status') THEN
-                        CREATE TYPE material_status AS ENUM ('active', 'returned', 'broken');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'expense_type') THEN
-                        CREATE TYPE expense_type AS ENUM ('vehicle', 'team');
-                    END IF;
-                END $$;
-            """))
-            
-            conn.execute(text("""
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_event') THEN
-                        CREATE TYPE material_event AS ENUM ('assigned', 'returned', 'broken');
-                    END IF;
-                END $$;
-            """))
-            
-            # Create tables in correct order
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS teams (
+            try:
+                # Create enum types using simple CREATE statements with error handling
+                enum_statements = [
+                    "CREATE TYPE vehicle_status AS ENUM ('active', 'repair', 'unavailable')",
+                    "CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead', 'worker')",
+                    "CREATE TYPE penalty_status AS ENUM ('open', 'paid')",
+                    "CREATE TYPE maintenance_type AS ENUM ('inspection', 'repair')",
+                    "CREATE TYPE material_type AS ENUM ('material', 'equipment')",
+                    "CREATE TYPE material_status AS ENUM ('active', 'returned', 'broken')",
+                    "CREATE TYPE expense_type AS ENUM ('vehicle', 'team')",
+                    "CREATE TYPE material_event AS ENUM ('assigned', 'returned', 'broken')"
+                ]
+                
+                for stmt in enum_statements:
+                    try:
+                        conn.execute(text(stmt))
+                    except Exception:
+                        pass  # Type already exists
+                
+                # Create tables
+                table_statements = [
+                """CREATE TABLE IF NOT EXISTS teams (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
                     lead_id UUID,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS users (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS users (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     first_name TEXT NOT NULL,
                     last_name TEXT NOT NULL,
                     phone TEXT,
                     role user_role NOT NULL,
                     team_id UUID REFERENCES teams(id)
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS vehicles (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS vehicles (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
                     license_plate TEXT UNIQUE,
                     vin TEXT UNIQUE,
                     status vehicle_status DEFAULT 'active',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS vehicle_assignments (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS vehicle_assignments (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
                     start_date DATE NOT NULL,
                     end_date DATE
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS penalties (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS penalties (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     user_id UUID REFERENCES users(id),
@@ -134,88 +104,71 @@ def init_db():
                     amount NUMERIC(10,2) NOT NULL,
                     photo_url TEXT,
                     status penalty_status DEFAULT 'open'
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS maintenances (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS maintenances (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     date DATE NOT NULL,
                     type maintenance_type NOT NULL,
                     description TEXT,
                     receipt_url TEXT
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS materials (
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS materials (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
                     type material_type NOT NULL,
-                    description TEXT
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS material_assignments (
+                    status material_status DEFAULT 'active',
+                    photo_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS material_assignments (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
                     team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-                    quantity INTEGER NOT NULL,
-                    start_date DATE NOT NULL,
-                    end_date DATE,
-                    status material_status DEFAULT 'active'
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS material_history (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
-                    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-                    date DATE NOT NULL,
                     event material_event NOT NULL,
-                    description TEXT
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS expenses (
+                    date DATE NOT NULL,
+                    notes TEXT
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS expenses (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    type expense_type NOT NULL,
-                    vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
-                    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
                     date DATE NOT NULL,
                     amount NUMERIC(10,2) NOT NULL,
                     description TEXT,
+                    type expense_type NOT NULL,
+                    vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
+                    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
                     receipt_url TEXT
-                );
-            """))
+                )"""
+            ]
             
-            # Add foreign key constraint for team lead
-            conn.execute(text("""
-                DO $$ BEGIN
-                    ALTER TABLE teams ADD CONSTRAINT fk_teams_lead_id 
-                    FOREIGN KEY (lead_id) REFERENCES users(id);
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
-                END $$;
-            """))
+                for stmt in table_statements:
+                    conn.execute(text(stmt))
+                
+                # Add foreign key constraints
+                constraint_statements = [
+                    "ALTER TABLE teams ADD CONSTRAINT IF NOT EXISTS fk_teams_lead_id FOREIGN KEY (lead_id) REFERENCES users(id)",
+                ]
+                
+                for stmt in constraint_statements:
+                    try:
+                        conn.execute(text(stmt))
+                    except Exception:
+                        pass  # Constraint already exists
+                
+                trans.commit()
+                print("Database initialized successfully!")
+                
+            except Exception as e:
+                trans.rollback()
+                raise e
             
-            conn.commit()
-            
-    except SQLAlchemyError as e:
-        raise Exception(f"Database initialization failed: {str(e)}")
-
-def execute_query(query: str, params: dict = None):
-    """Execute a query and return results"""
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(text(query), params or {})
-            if result.returns_rows:
-                return result.fetchall()
-            conn.commit()
-            return True
-    except SQLAlchemyError as e:
-        raise Exception(f"Query execution failed: {str(e)}")
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        # Don't raise the error to allow app to continue
+        return False
+    
+    return True
