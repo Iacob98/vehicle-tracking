@@ -62,8 +62,10 @@ def show_materials_list(language='ru'):
                 m.type,
                 m.description,
                 m.unit_price,
+                m.total_quantity,
                 COUNT(DISTINCT ma.id) as assignments_count,
-                COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0) as active_quantity
+                COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0) as active_quantity,
+                (m.total_quantity - COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0)) as available_quantity
             FROM materials m
             LEFT JOIN material_assignments ma ON m.id = ma.material_id
             WHERE 1=1
@@ -79,7 +81,7 @@ def show_materials_list(language='ru'):
             params['type'] = type_filter
         
         query += """
-            GROUP BY m.id, m.name, m.type, m.description, m.unit_price
+            GROUP BY m.id, m.name, m.type, m.description, m.unit_price, m.total_quantity
             ORDER BY m.name
         """
         
@@ -102,8 +104,11 @@ def show_materials_list(language='ru'):
                         st.write(f"💰 {format_currency(material[4])}/ед.")
                     
                     with col3:
-                        st.write(f"📋 Назначений/Zuweisungen: {material[5]}")
-                        st.write(f"📊 Активно/Aktiv: {material[6]}")
+                        st.write(f"📦 Всего/Gesamt: {material[5]}")
+                        st.write(f"📊 Выдано/Ausgegeben: {material[7]}")
+                        available = material[8]
+                        color = "🟢" if available > 0 else "🔴"
+                        st.write(f"{color} Доступно/Verfügbar: {available}")
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_btn_material_{material[0]}"):
@@ -150,6 +155,13 @@ def show_add_material_form(language='ru'):
                 step=0.01,
                 key="new_material_unit_price"
             )
+            total_quantity = st.number_input(
+                "Общее количество/Gesamtmenge",
+                min_value=1,
+                value=1,
+                step=1,
+                key="new_material_total_quantity"
+            )
         
         submitted = st.form_submit_button(get_text('save', language))
         
@@ -160,14 +172,15 @@ def show_add_material_form(language='ru'):
                 try:
                     material_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO materials (id, name, type, description, unit_price)
-                        VALUES (:id, :name, :type, :description, :unit_price)
+                        INSERT INTO materials (id, name, type, description, unit_price, total_quantity)
+                        VALUES (:id, :name, :type, :description, :unit_price, :total_quantity)
                     """, {
                         'id': material_id,
                         'name': name,
                         'type': material_type,
                         'description': description if description else None,
-                        'unit_price': unit_price
+                        'unit_price': unit_price,
+                        'total_quantity': total_quantity
                     })
                     st.success(get_text('success_save', language))
                     st.rerun()
@@ -207,6 +220,13 @@ def show_edit_material_form(material, language='ru'):
                     step=0.01,
                     key=f"edit_material_unit_price_{material[0]}"
                 )
+                total_quantity = st.number_input(
+                    "Общее количество/Gesamtmenge",
+                    min_value=1,
+                    value=int(material[5]) if material[5] else 1,
+                    step=1,
+                    key=f"edit_material_total_quantity_{material[0]}"
+                )
             
             col_save, col_cancel = st.columns(2)
             
@@ -220,14 +240,15 @@ def show_edit_material_form(material, language='ru'):
                 try:
                     execute_query("""
                         UPDATE materials 
-                        SET name = :name, type = :type, description = :description, unit_price = :unit_price
+                        SET name = :name, type = :type, description = :description, unit_price = :unit_price, total_quantity = :total_quantity
                         WHERE id = :id
                     """, {
                         'id': material[0],
                         'name': name,
                         'type': material_type,
                         'description': description if description else None,
-                        'unit_price': unit_price
+                        'unit_price': unit_price,
+                        'total_quantity': total_quantity
                     })
                     if f"edit_material_{material[0]}" in st.session_state:
                         del st.session_state[f"edit_material_{material[0]}"]
@@ -366,8 +387,16 @@ def show_add_assignment_form(language='ru'):
     with st.form("add_assignment_form"):
         col1, col2, col3 = st.columns(3)
         
-        # Get materials and teams for selection
-        materials = execute_query("SELECT id, name, type FROM materials ORDER BY name")
+        # Get materials with available quantities for selection
+        materials = execute_query("""
+            SELECT m.id, m.name, m.type, 
+                   (m.total_quantity - COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0)) as available_quantity
+            FROM materials m
+            LEFT JOIN material_assignments ma ON m.id = ma.material_id
+            GROUP BY m.id, m.name, m.type, m.total_quantity
+            HAVING (m.total_quantity - COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0)) > 0
+            ORDER BY m.name
+        """)
         teams = get_teams_for_select(language)
         
         if not materials or not teams:
@@ -375,13 +404,17 @@ def show_add_assignment_form(language='ru'):
             return
         
         with col1:
-            material_options = [(str(m[0]), f"{m[1]} ({get_text(m[2], language)})") for m in materials]
+            material_options = [(str(m[0]), f"{m[1]} ({get_text(m[2], language)}) - Доступно: {m[3]}") for m in materials]
             material_id = st.selectbox(
                 get_text('materials', language),
                 options=[m[0] for m in material_options],
                 format_func=lambda x: next(m[1] for m in material_options if m[0] == x),
                 key="assign_material_id"
             )
+            
+            # Get selected material's available quantity
+            selected_material = next((m for m in materials if str(m[0]) == material_id), None)
+            max_quantity = selected_material[3] if selected_material else 1
         
         with col2:
             team_id = st.selectbox(
@@ -395,7 +428,9 @@ def show_add_assignment_form(language='ru'):
             quantity = st.number_input(
                 get_text('quantity', language),
                 min_value=1,
+                max_value=max_quantity,
                 value=1,
+                help=f"Максимум доступно: {max_quantity}",
                 key="assign_quantity"
             )
             
@@ -408,6 +443,11 @@ def show_add_assignment_form(language='ru'):
         submitted = st.form_submit_button(get_text('save', language))
         
         if submitted:
+            # Check if enough quantity is available
+            if quantity > max_quantity:
+                st.error(f"Недостаточно материала! Доступно: {max_quantity} / Nicht genügend Material! Verfügbar: {max_quantity}")
+                return
+                
             try:
                 assignment_id = str(uuid.uuid4())
                 execute_query("""
