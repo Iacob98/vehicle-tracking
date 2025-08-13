@@ -108,24 +108,27 @@ def show_brigade_expenses_list(language='ru'):
             FROM brigade_expenses be
             JOIN teams t ON be.brigade_id = t.id
             LEFT JOIN users u ON be.created_by = u.id
-            WHERE be.date BETWEEN %s AND %s
+            WHERE be.date BETWEEN %(date_from)s AND %(date_to)s
         """
-        params = [date_from, date_to]
+        params = {
+            'date_from': date_from,
+            'date_to': date_to
+        }
         
         if search_term:
             query += """ AND (
-                t.name ILIKE %s OR 
-                be.description ILIKE %s
+                t.name ILIKE %(search)s OR 
+                be.description ILIKE %(search)s
             )"""
-            params.extend([f"%{search_term}%", f"%{search_term}%"])
+            params['search'] = f"%{search_term}%"
         
         if brigade_filter != 'all':
-            query += " AND be.brigade_id = %s"
-            params.append(brigade_filter)
+            query += " AND be.brigade_id = %(brigade_id)s"
+            params['brigade_id'] = brigade_filter
         
         if category_filter != 'all':
-            query += " AND be.category = %s"
-            params.append(category_filter)
+            query += " AND be.category = %(category)s"
+            params['category'] = category_filter
         
         query += " ORDER BY be.date DESC, be.created_at DESC"
         
@@ -273,16 +276,16 @@ def show_add_brigade_expense_form(language='ru'):
                     execute_query("""
                         INSERT INTO brigade_expenses 
                         (brigade_id, date, category, amount, description, file_url, created_by)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, [
-                        brigade_id,
-                        expense_date,
-                        category,
-                        amount,
-                        description if description else None,
-                        file_url,
-                        created_by
-                    ])
+                        VALUES (%(brigade_id)s, %(date)s, %(category)s, %(amount)s, %(description)s, %(file_url)s, %(created_by)s)
+                    """, {
+                        'brigade_id': brigade_id,
+                        'date': expense_date,
+                        'category': category,
+                        'amount': amount,
+                        'description': description if description else None,
+                        'file_url': file_url,
+                        'created_by': created_by
+                    })
                     
                     st.success("Расход успешно добавлен/Ausgabe erfolgreich hinzugefügt")
                     st.rerun()
@@ -382,18 +385,18 @@ def show_edit_brigade_expense_form(exp, language='ru'):
                 
                 execute_query("""
                     UPDATE brigade_expenses 
-                    SET brigade_id = %s, date = %s, category = %s, 
-                        amount = %s, description = %s, file_url = %s
-                    WHERE id = %s
-                """, [
-                    brigade_id,
-                    expense_date,
-                    category,
-                    amount,
-                    description if description else None,
-                    file_url,
-                    exp[0]
-                ])
+                    SET brigade_id = %(brigade_id)s, date = %(date)s, category = %(category)s, 
+                        amount = %(amount)s, description = %(description)s, file_url = %(file_url)s
+                    WHERE id = %(id)s
+                """, {
+                    'id': exp[0],
+                    'brigade_id': brigade_id,
+                    'date': expense_date,
+                    'category': category,
+                    'amount': amount,
+                    'description': description if description else None,
+                    'file_url': file_url
+                })
                 
                 if f"edit_brigade_exp_{exp[0]}" in st.session_state:
                     del st.session_state[f"edit_brigade_exp_{exp[0]}"]
@@ -410,7 +413,7 @@ def show_edit_brigade_expense_form(exp, language='ru'):
 def delete_brigade_expense(expense_id, language='ru'):
     """Delete brigade expense"""
     try:
-        execute_query("DELETE FROM brigade_expenses WHERE id = %s", [expense_id])
+        execute_query("DELETE FROM brigade_expenses WHERE id = %(id)s", {'id': expense_id})
         st.success("Расход удален/Ausgabe gelöscht")
         st.rerun()
     except Exception as e:
