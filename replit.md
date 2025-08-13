@@ -40,6 +40,14 @@ Preferred communication style: Simple, everyday language.
 - Integrated file upload support for receipts and documentation
 - All expense amounts displayed in euros with proper formatting
 
+### Maintenance and Expenses Integration
+- Unified maintenance repairs and car expenses into single entity system
+- Automatic expense creation when repair maintenance is recorded with cost
+- Added maintenance_id foreign key to car_expenses table for linking
+- Visual indicators showing expense source (manual entry vs maintenance-linked)
+- Protection against accidental deletion of maintenance-linked expenses
+- Removed separate maintenance page - now managed through car expenses
+
 ### Enhanced System Logic Requirements
 - Bidirectional entity relationships with automatic updates
 - Snapshot system for team compositions at specific events

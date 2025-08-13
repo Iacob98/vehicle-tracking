@@ -7,7 +7,7 @@ from translations import get_text, LANGUAGES
 # Ensure local pages directory is in Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pages import dashboard, vehicles, teams, users, penalties, maintenance, materials, expenses, car_expenses, brigade_expenses
+from pages import dashboard, vehicles, teams, users, penalties, materials, expenses, car_expenses, brigade_expenses
 
 # Page configuration
 st.set_page_config(
@@ -49,7 +49,6 @@ with st.sidebar:
         'teams': {'icon': '👥', 'key': 'teams'},
         'users': {'icon': '👤', 'key': 'users'},
         'penalties': {'icon': '🚧', 'key': 'penalties'},
-        'maintenance': {'icon': '🔧', 'key': 'maintenance'},
         'materials': {'icon': '📦', 'key': 'materials'},
         'documents': {'icon': '📄', 'key': 'documents'},
         'car_expenses': {'icon': '🚗💰', 'key': 'car_expenses'},
@@ -81,8 +80,6 @@ try:
         users.show_page(st.session_state.language)
     elif st.session_state.current_page == 'penalties':
         penalties.show_page(st.session_state.language)
-    elif st.session_state.current_page == 'maintenance':
-        maintenance.show_page(st.session_state.language)
     elif st.session_state.current_page == 'materials':
         materials.show_page(st.session_state.language)
     elif st.session_state.current_page == 'documents':
