@@ -94,10 +94,26 @@ def get_materials_for_select(language='ru'):
 def upload_file(file, upload_type='receipt'):
     """Handle file upload and return URL"""
     if file is not None:
-        # In a real application, you would upload to a file storage service
-        # For now, we'll just return a placeholder URL
+        import os
+        
+        # Create uploads directory if it doesn't exist
+        upload_dir = f"uploads/{upload_type}"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
         file_id = str(uuid.uuid4())
-        return f"/uploads/{upload_type}/{file_id}_{file.name}"
+        file_extension = file.name.split('.')[-1] if '.' in file.name else 'bin'
+        unique_filename = f"{file_id}.{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        try:
+            with open(file_path, "wb") as f:
+                f.write(file.getbuffer())
+            return f"/{file_path}"
+        except Exception as e:
+            # Fallback to simulated URL if file save fails
+            return f"/uploads/{upload_type}/{file_id}_{file.name}"
     return None
 
 def paginate_data(data, page_size=10):

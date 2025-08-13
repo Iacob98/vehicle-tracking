@@ -147,7 +147,7 @@ def show_documents_list(language='ru'):
                         if st.button(f"🗑️", key=f"delete_doc_{doc[0]}"):
                             delete_document(doc[0], language)
                         if doc[5] and st.button(f"📎", key=f"view_doc_{doc[0]}"):
-                            st.write(f"[Открыть файл/Datei öffnen]({doc[5]})")
+                            show_file_viewer(doc[5], doc[2], language)
                     
                     # Show edit form if requested
                     if st.session_state.get(f"edit_doc_{doc[0]}", False):
@@ -511,6 +511,66 @@ def delete_document(doc_id, language='ru'):
         st.rerun()
     except Exception as e:
         st.error(f"{get_text('error_delete', language)}: {str(e)}")
+
+def show_file_viewer(file_url, title, language='ru'):
+    """Show file viewer in modal"""
+    if file_url:
+        with st.expander(f"📎 {title}", expanded=True):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Determine file type
+                file_extension = file_url.split('.')[-1].lower()
+                
+                if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+                    st.image(file_url, caption=title, use_column_width=True)
+                elif file_extension == 'pdf':
+                    st.write("📄 PDF файл/PDF-Datei")
+                    # For PDF, show a link since Streamlit can't display PDFs directly
+                    st.markdown(f"[Открыть PDF в новом окне/PDF in neuem Fenster öffnen]({file_url})")
+                else:
+                    st.write(f"📎 Файл: {file_url.split('/')[-1]}")
+            
+            with col2:
+                # Download button
+                try:
+                    import os
+                    if file_url.startswith('/'):
+                        # Local file
+                        file_path = file_url.lstrip('/')
+                        if os.path.exists(file_path):
+                            with open(file_path, "rb") as f:
+                                st.download_button(
+                                    label="⬇️ Скачать/Download",
+                                    data=f.read(),
+                                    file_name=file_url.split('/')[-1],
+                                    mime=get_mime_type(file_extension)
+                                )
+                        else:
+                            st.write("Файл не найден/Datei nicht gefunden")
+                    else:
+                        # External URL
+                        st.write(f"[Скачать файл/Datei herunterladen]({file_url})")
+                except Exception as e:
+                    st.write(f"[Скачать файл/Datei herunterladen]({file_url})")
+                
+                if st.button("❌ Закрыть/Schließen", key=f"close_viewer_{title}"):
+                    st.rerun()
+
+def get_mime_type(file_extension):
+    """Get MIME type for file extension"""
+    mime_types = {
+        'pdf': 'application/pdf',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }
+    return mime_types.get(file_extension.lower(), 'application/octet-stream')
 
 def export_documents_data(documents, language='ru'):
     """Export documents data to CSV"""
