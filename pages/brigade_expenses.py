@@ -54,12 +54,16 @@ def show_brigade_expenses_list(language='ru'):
         with col2:
             # Brigade filter
             brigades = execute_query("SELECT id, name FROM teams ORDER BY name")
-            brigade_options = ['all'] + [b[0] for b in brigades] if brigades else ['all']
-            brigade_filter = st.selectbox(
-                "Бригада/Brigade",
-                options=brigade_options,
-                format_func=lambda x: 'Все/Alle' if x == 'all' else next((b[1] for b in brigades if b[0] == x), x) if brigades else x
-            )
+            if brigades and isinstance(brigades, list):
+                brigade_options = ['all'] + [b[0] for b in brigades]
+                brigade_filter = st.selectbox(
+                    "Бригада/Brigade",
+                    options=brigade_options,
+                    format_func=lambda x: 'Все/Alle' if x == 'all' else next((b[1] for b in brigades if b[0] == x), x)
+                )
+            else:
+                brigade_filter = 'all'
+                st.selectbox("Бригада/Brigade", options=['all'], format_func=lambda x: 'Нет бригад/Keine Brigaden')
         
         with col3:
             # Category filter
@@ -104,27 +108,24 @@ def show_brigade_expenses_list(language='ru'):
             FROM brigade_expenses be
             JOIN teams t ON be.brigade_id = t.id
             LEFT JOIN users u ON be.created_by = u.id
-            WHERE be.date BETWEEN :date_from AND :date_to
+            WHERE be.date BETWEEN %s AND %s
         """
-        params = {
-            'date_from': date_from,
-            'date_to': date_to
-        }
+        params = [date_from, date_to]
         
         if search_term:
             query += """ AND (
-                t.name ILIKE :search OR 
-                be.description ILIKE :search
+                t.name ILIKE %s OR 
+                be.description ILIKE %s
             )"""
-            params['search'] = f"%{search_term}%"
+            params.extend([f"%{search_term}%", f"%{search_term}%"])
         
         if brigade_filter != 'all':
-            query += " AND be.brigade_id = :brigade_id"
-            params['brigade_id'] = brigade_filter
+            query += " AND be.brigade_id = %s"
+            params.append(brigade_filter)
         
         if category_filter != 'all':
-            query += " AND be.category = :category"
-            params['category'] = category_filter
+            query += " AND be.category = %s"
+            params.append(category_filter)
         
         query += " ORDER BY be.date DESC, be.created_at DESC"
         
@@ -205,6 +206,7 @@ def show_add_brigade_expense_form(language='ru'):
             brigades = execute_query("SELECT id, name FROM teams ORDER BY name")
             if not brigades or not isinstance(brigades, list) or len(brigades) == 0:
                 st.warning("Необходимо создать бригады / Brigaden müssen erstellt werden")
+                st.form_submit_button("💾 Сохранить/Speichern", disabled=True)
                 return
             
             brigade_id = st.selectbox(
@@ -271,16 +273,16 @@ def show_add_brigade_expense_form(language='ru'):
                     execute_query("""
                         INSERT INTO brigade_expenses 
                         (brigade_id, date, category, amount, description, file_url, created_by)
-                        VALUES (:brigade_id, :date, :category, :amount, :description, :file_url, :created_by)
-                    """, {
-                        'brigade_id': brigade_id,
-                        'date': expense_date,
-                        'category': category,
-                        'amount': amount,
-                        'description': description if description else None,
-                        'file_url': file_url,
-                        'created_by': created_by
-                    })
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, [
+                        brigade_id,
+                        expense_date,
+                        category,
+                        amount,
+                        description if description else None,
+                        file_url,
+                        created_by
+                    ])
                     
                     st.success("Расход успешно добавлен/Ausgabe erfolgreich hinzugefügt")
                     st.rerun()
@@ -380,18 +382,18 @@ def show_edit_brigade_expense_form(exp, language='ru'):
                 
                 execute_query("""
                     UPDATE brigade_expenses 
-                    SET brigade_id = :brigade_id, date = :date, category = :category, 
-                        amount = :amount, description = :description, file_url = :file_url
-                    WHERE id = :id
-                """, {
-                    'id': exp[0],
-                    'brigade_id': brigade_id,
-                    'date': expense_date,
-                    'category': category,
-                    'amount': amount,
-                    'description': description if description else None,
-                    'file_url': file_url
-                })
+                    SET brigade_id = %s, date = %s, category = %s, 
+                        amount = %s, description = %s, file_url = %s
+                    WHERE id = %s
+                """, [
+                    brigade_id,
+                    expense_date,
+                    category,
+                    amount,
+                    description if description else None,
+                    file_url,
+                    exp[0]
+                ])
                 
                 if f"edit_brigade_exp_{exp[0]}" in st.session_state:
                     del st.session_state[f"edit_brigade_exp_{exp[0]}"]
@@ -408,7 +410,7 @@ def show_edit_brigade_expense_form(exp, language='ru'):
 def delete_brigade_expense(expense_id, language='ru'):
     """Delete brigade expense"""
     try:
-        execute_query("DELETE FROM brigade_expenses WHERE id = :id", {'id': expense_id})
+        execute_query("DELETE FROM brigade_expenses WHERE id = %s", [expense_id])
         st.success("Расход удален/Ausgabe gelöscht")
         st.rerun()
     except Exception as e:
@@ -547,7 +549,7 @@ def export_brigade_expenses_data(language='ru'):
             ])
             
             # Export to CSV
-            csv_data = export_to_csv(df, f"brigade_expenses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            csv_data = df.to_csv(index=False)
             
             st.download_button(
                 label="📥 Скачать CSV/CSV herunterladen",

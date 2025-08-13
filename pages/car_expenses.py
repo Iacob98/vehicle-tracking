@@ -64,12 +64,16 @@ def show_car_expenses_list(language='ru'):
         with col2:
             # Vehicle filter
             vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
-            vehicle_options = ['all'] + [v[0] for v in vehicles] if vehicles else ['all']
-            vehicle_filter = st.selectbox(
-                "Автомобиль/Fahrzeug",
-                options=vehicle_options,
-                format_func=lambda x: 'Все/Alle' if x == 'all' else next((v[1] for v in vehicles if v[0] == x), x) if vehicles else x
-            )
+            if vehicles and isinstance(vehicles, list):
+                vehicle_options = ['all'] + [v[0] for v in vehicles]
+                vehicle_filter = st.selectbox(
+                    "Автомобиль/Fahrzeug",
+                    options=vehicle_options,
+                    format_func=lambda x: 'Все/Alle' if x == 'all' else next((v[1] for v in vehicles if v[0] == x), x)
+                )
+            else:
+                vehicle_filter = 'all'
+                st.selectbox("Автомобиль/Fahrzeug", options=['all'], format_func=lambda x: 'Нет автомобилей/Keine Fahrzeuge')
         
         with col3:
             # Category filter
@@ -114,27 +118,24 @@ def show_car_expenses_list(language='ru'):
             FROM car_expenses ce
             JOIN vehicles v ON ce.car_id = v.id
             LEFT JOIN users u ON ce.created_by = u.id
-            WHERE ce.date BETWEEN :date_from AND :date_to
+            WHERE ce.date BETWEEN %s AND %s
         """
-        params = {
-            'date_from': date_from,
-            'date_to': date_to
-        }
+        params = [date_from, date_to]
         
         if search_term:
             query += """ AND (
-                v.name ILIKE :search OR 
-                ce.description ILIKE :search
+                v.name ILIKE %s OR 
+                ce.description ILIKE %s
             )"""
-            params['search'] = f"%{search_term}%"
+            params.extend([f"%{search_term}%", f"%{search_term}%"])
         
         if vehicle_filter != 'all':
-            query += " AND ce.car_id = :vehicle_id"
-            params['vehicle_id'] = vehicle_filter
+            query += " AND ce.car_id = %s"
+            params.append(vehicle_filter)
         
         if category_filter != 'all':
-            query += " AND ce.category = :category"
-            params['category'] = category_filter
+            query += " AND ce.category = %s"
+            params.append(category_filter)
         
         query += " ORDER BY ce.date DESC, ce.created_at DESC"
         
@@ -214,6 +215,7 @@ def show_add_car_expense_form(language='ru'):
             vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
             if not vehicles or not isinstance(vehicles, list) or len(vehicles) == 0:
                 st.warning("Необходимо создать автомобили / Fahrzeuge müssen erstellt werden")
+                st.form_submit_button("💾 Сохранить/Speichern", disabled=True)
                 return
             
             car_id = st.selectbox(
@@ -280,16 +282,16 @@ def show_add_car_expense_form(language='ru'):
                     execute_query("""
                         INSERT INTO car_expenses 
                         (car_id, date, category, amount, description, file_url, created_by)
-                        VALUES (:car_id, :date, :category, :amount, :description, :file_url, :created_by)
-                    """, {
-                        'car_id': car_id,
-                        'date': expense_date,
-                        'category': category,
-                        'amount': amount,
-                        'description': description if description else None,
-                        'file_url': file_url,
-                        'created_by': created_by
-                    })
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, [
+                        car_id,
+                        expense_date,
+                        category,
+                        amount,
+                        description if description else None,
+                        file_url,
+                        created_by
+                    ])
                     
                     st.success("Расход успешно добавлен/Ausgabe erfolgreich hinzugefügt")
                     st.rerun()
@@ -389,18 +391,18 @@ def show_edit_car_expense_form(exp, language='ru'):
                 
                 execute_query("""
                     UPDATE car_expenses 
-                    SET car_id = :car_id, date = :date, category = :category, 
-                        amount = :amount, description = :description, file_url = :file_url
-                    WHERE id = :id
-                """, {
-                    'id': exp[0],
-                    'car_id': car_id,
-                    'date': expense_date,
-                    'category': category,
-                    'amount': amount,
-                    'description': description if description else None,
-                    'file_url': file_url
-                })
+                    SET car_id = %s, date = %s, category = %s, 
+                        amount = %s, description = %s, file_url = %s
+                    WHERE id = %s
+                """, [
+                    car_id,
+                    expense_date,
+                    category,
+                    amount,
+                    description if description else None,
+                    file_url,
+                    exp[0]
+                ])
                 
                 if f"edit_car_exp_{exp[0]}" in st.session_state:
                     del st.session_state[f"edit_car_exp_{exp[0]}"]
@@ -417,7 +419,7 @@ def show_edit_car_expense_form(exp, language='ru'):
 def delete_car_expense(expense_id, language='ru'):
     """Delete car expense"""
     try:
-        execute_query("DELETE FROM car_expenses WHERE id = :id", {'id': expense_id})
+        execute_query("DELETE FROM car_expenses WHERE id = %s", [expense_id])
         st.success("Расход удален/Ausgabe gelöscht")
         st.rerun()
     except Exception as e:
@@ -555,7 +557,7 @@ def export_car_expenses_data(language='ru'):
             ])
             
             # Export to CSV
-            csv_data = export_to_csv(df, f"car_expenses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            csv_data = df.to_csv(index=False)
             
             st.download_button(
                 label="📥 Скачать CSV/CSV herunterladen",
