@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, get_teams_for_select, get_materials_for_select
+from utils import export_to_csv, get_teams_for_select, get_materials_for_select, format_currency
 from datetime import datetime, date
 import uuid
 
@@ -61,6 +61,7 @@ def show_materials_list(language='ru'):
                 m.name,
                 m.type,
                 m.description,
+                m.unit_price,
                 COUNT(DISTINCT ma.id) as assignments_count,
                 COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0) as active_quantity
             FROM materials m
@@ -78,7 +79,7 @@ def show_materials_list(language='ru'):
             params['type'] = type_filter
         
         query += """
-            GROUP BY m.id, m.name, m.type, m.description
+            GROUP BY m.id, m.name, m.type, m.description, m.unit_price
             ORDER BY m.name
         """
         
@@ -98,10 +99,11 @@ def show_materials_list(language='ru'):
                     with col2:
                         type_icon = '📦' if material[2] == 'material' else '🔧'
                         st.write(f"{type_icon} {get_text(material[2], language)}")
+                        st.write(f"💰 {format_currency(material[4])}/ед.")
                     
                     with col3:
-                        st.write(f"📋 Назначений/Zuweisungen: {material[4]}")
-                        st.write(f"📊 Активно/Aktiv: {material[5]}")
+                        st.write(f"📋 Назначений/Zuweisungen: {material[5]}")
+                        st.write(f"📊 Активно/Aktiv: {material[6]}")
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_btn_material_{material[0]}"):
@@ -141,6 +143,13 @@ def show_add_material_form(language='ru'):
                 get_text('description', language),
                 key="new_material_description"
             )
+            unit_price = st.number_input(
+                "Цена за единицу (€)/Preis pro Einheit (€)",
+                min_value=0.01,
+                value=1.00,
+                step=0.01,
+                key="new_material_unit_price"
+            )
         
         submitted = st.form_submit_button(get_text('save', language))
         
@@ -151,13 +160,14 @@ def show_add_material_form(language='ru'):
                 try:
                     material_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO materials (id, name, type, description)
-                        VALUES (:id, :name, :type, :description)
+                        INSERT INTO materials (id, name, type, description, unit_price)
+                        VALUES (:id, :name, :type, :description, :unit_price)
                     """, {
                         'id': material_id,
                         'name': name,
                         'type': material_type,
-                        'description': description if description else None
+                        'description': description if description else None,
+                        'unit_price': unit_price
                     })
                     st.success(get_text('success_save', language))
                     st.rerun()
@@ -190,6 +200,13 @@ def show_edit_material_form(material, language='ru'):
                     value=material[3] or '',
                     key=f"edit_material_description_{material[0]}"
                 )
+                unit_price = st.number_input(
+                    "Цена за единицу (€)/Preis pro Einheit (€)",
+                    min_value=0.01,
+                    value=float(material[4]) if material[4] else 1.00,
+                    step=0.01,
+                    key=f"edit_material_unit_price_{material[0]}"
+                )
             
             col_save, col_cancel = st.columns(2)
             
@@ -203,13 +220,14 @@ def show_edit_material_form(material, language='ru'):
                 try:
                     execute_query("""
                         UPDATE materials 
-                        SET name = :name, type = :type, description = :description
+                        SET name = :name, type = :type, description = :description, unit_price = :unit_price
                         WHERE id = :id
                     """, {
                         'id': material[0],
                         'name': name,
                         'type': material_type,
-                        'description': description if description else None
+                        'description': description if description else None,
+                        'unit_price': unit_price
                     })
                     if f"edit_material_{material[0]}" in st.session_state:
                         del st.session_state[f"edit_material_{material[0]}"]
@@ -241,6 +259,31 @@ def delete_material(material_id, language='ru'):
         st.rerun()
     except Exception as e:
         st.error(f"{get_text('error_delete', language)}: {str(e)}")
+
+def create_penalty_for_broken_material(material_assignment_id, team_id, material_name, unit_price, quantity, language='ru'):
+    """Create penalty when material is marked as broken"""
+    try:
+        # Calculate penalty amount
+        penalty_amount = float(unit_price) * int(quantity)
+        
+        # Create penalty
+        penalty_id = str(uuid.uuid4())
+        execute_query("""
+            INSERT INTO penalties (id, team_id, amount, description, status, created_at)
+            VALUES (:id, :team_id, :amount, :description, 'open', :created_at)
+        """, {
+            'id': penalty_id,
+            'team_id': team_id,
+            'amount': penalty_amount,
+            'description': f"Поломка материала: {material_name} ({quantity} ед.) / Defektes Material: {material_name} ({quantity} St.)",
+            'created_at': datetime.now()
+        })
+        
+        st.warning(f"🚧 Создан штраф на сумму {format_currency(penalty_amount)} за поломку материала")
+        st.warning(f"🚧 Strafe über {format_currency(penalty_amount)} für defektes Material erstellt")
+        
+    except Exception as e:
+        st.error(f"Ошибка создания штрафа: {str(e)}")
 
 def show_material_assignments(language='ru'):
     """Show material assignments to teams"""
@@ -429,12 +472,17 @@ def return_material(assignment_id, language='ru'):
         st.error(f"Ошибка возврата материала / Fehler bei der Materialrückgabe: {str(e)}")
 
 def mark_material_broken(assignment_id, language='ru'):
-    """Mark material as broken"""
+    """Mark material as broken and create penalty"""
     try:
-        # Get assignment details for history
+        # Get assignment details including material info
         assignment = execute_query("""
-            SELECT material_id, team_id, quantity FROM material_assignments WHERE id = :id
+            SELECT ma.material_id, ma.team_id, ma.quantity, m.name, m.unit_price
+            FROM material_assignments ma
+            JOIN materials m ON ma.material_id = m.id
+            WHERE ma.id = :id
         """, {'id': assignment_id})[0]
+        
+        material_id, team_id, quantity, material_name, unit_price = assignment
         
         # Update assignment
         execute_query("""
@@ -450,10 +498,13 @@ def mark_material_broken(assignment_id, language='ru'):
             VALUES (:id, :material_id, :team_id, CURRENT_DATE, 'broken', :description)
         """, {
             'id': history_id,
-            'material_id': assignment[0],
-            'team_id': assignment[1],
-            'description': f"Сломано {assignment[2]} единиц / {assignment[2]} Einheiten kaputt"
+            'material_id': material_id,
+            'team_id': team_id,
+            'description': f"Сломано {quantity} единиц / {quantity} Einheiten kaputt"
         })
+        
+        # Create penalty for broken material
+        create_penalty_for_broken_material(assignment_id, team_id, material_name, unit_price, quantity, language)
         
         st.success("Материал отмечен как сломанный / Material als kaputt markiert")
         st.rerun()

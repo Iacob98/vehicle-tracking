@@ -48,6 +48,14 @@ Preferred communication style: Simple, everyday language.
 - Protection against accidental deletion of maintenance-linked expenses
 - Removed separate maintenance page - now managed through car expenses
 
+### Materials and Penalty System Integration
+- Removed "Brigade Expenses" page as it duplicated penalty functionality
+- Added unit_price field to materials table for cost tracking
+- Updated materials interface to display price per unit in euros
+- Automatic penalty creation when materials are marked as broken
+- Penalty amount calculated as unit_price × quantity for broken materials
+- Integrated broken material penalties with existing penalty system
+
 ### Enhanced System Logic Requirements
 - Bidirectional entity relationships with automatic updates
 - Snapshot system for team compositions at specific events
