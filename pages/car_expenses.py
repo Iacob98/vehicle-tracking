@@ -114,7 +114,9 @@ def show_car_expenses_list(language='ru'):
                 ce.file_url,
                 v.name as vehicle_name,
                 u.first_name || ' ' || u.last_name as created_by_name,
-                ce.created_at
+                ce.created_at,
+                ce.maintenance_id,
+                CASE WHEN ce.maintenance_id IS NOT NULL THEN 'Связан с ТО' ELSE 'Ручной ввод' END as source_type
             FROM car_expenses ce
             JOIN vehicles v ON ce.car_id = v.id
             LEFT JOIN users u ON ce.created_by = u.id
@@ -166,6 +168,12 @@ def show_car_expenses_list(language='ru'):
                             st.write(f"📝 {exp[4]}")
                         if exp[7]:  # created_by_name
                             st.write(f"👤 {exp[7]}")
+                        
+                        # Show source type (manual entry or linked to maintenance)
+                        if len(exp) > 10 and exp[9]:  # maintenance_id exists
+                            st.write("🔧 Связан с техобслуживанием")
+                        else:
+                            st.write("✍️ Ручной ввод")
                     
                     with col3:
                         if exp[5]:  # file_url
@@ -186,8 +194,12 @@ def show_car_expenses_list(language='ru'):
                     with col4:
                         if st.button(f"✏️", key=f"edit_car_exp_{exp[0]}"):
                             st.session_state[f"edit_car_exp_{exp[0]}"] = True
-                        if st.button(f"🗑️", key=f"delete_car_exp_{exp[0]}"):
-                            delete_car_expense(exp[0], language)
+                        # Don't allow deletion of maintenance-linked expenses
+                        if len(exp) > 10 and exp[9]:  # maintenance_id exists
+                            st.caption("🔒 Удалить через ТО")
+                        else:
+                            if st.button(f"🗑️", key=f"delete_car_exp_{exp[0]}"):
+                                delete_car_expense(exp[0], language)
                         if exp[5] and st.button(f"📎", key=f"view_car_exp_{exp[0]}"):
                             st.session_state[f"view_car_file_{exp[0]}"] = {
                                 'url': exp[5],

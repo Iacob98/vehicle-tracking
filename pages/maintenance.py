@@ -178,6 +178,16 @@ def show_add_maintenance_form(language='ru'):
             )
         
         with col2:
+            # Amount/Cost field
+            amount = st.number_input(
+                "Сумма (€)/Betrag (€)",
+                min_value=0.0,
+                value=0.0,
+                step=0.01,
+                key="new_maintenance_amount",
+                help="Стоимость работ / Kosten der Arbeiten"
+            )
+            
             description = st.text_area(
                 get_text('description', language),
                 placeholder="Описание работ... / Beschreibung der Arbeiten...",
@@ -209,7 +219,34 @@ def show_add_maintenance_form(language='ru'):
                     'description': description if description else None,
                     'receipt_url': receipt_url
                 })
-                st.success(get_text('success_save', language))
+                
+                # If it's a repair and has a cost, automatically create a car expense
+                if maintenance_type == 'repair' and amount > 0:
+                    # Get current user ID
+                    current_user = execute_query("SELECT id FROM users LIMIT 1")
+                    created_by = current_user[0][0] if current_user else None
+                    
+                    expense_id = str(uuid.uuid4())
+                    execute_query("""
+                        INSERT INTO car_expenses 
+                        (id, car_id, date, category, amount, description, file_url, created_by, maintenance_id)
+                        VALUES (:id, :car_id, :date, :category, :amount, :description, :file_url, :created_by, :maintenance_id)
+                    """, {
+                        'id': expense_id,
+                        'car_id': vehicle_id,
+                        'date': maintenance_date,
+                        'category': 'repair',
+                        'amount': amount,
+                        'description': f"Ремонт: {description}" if description else "Ремонт автомобиля",
+                        'file_url': receipt_url,
+                        'created_by': created_by,
+                        'maintenance_id': maintenance_id
+                    })
+                    
+                    st.success("Техобслуживание сохранено и расход автоматически создан / Wartung gespeichert und Ausgabe automatisch erstellt")
+                else:
+                    st.success(get_text('success_save', language))
+                    
                 st.rerun()
             except Exception as e:
                 st.error(f"{get_text('error_save', language)}: {str(e)}")
@@ -249,6 +286,26 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                 )
             
             with col2:
+                # Amount field for repairs
+                if maintenance[4] == 'repair':  # If it's a repair
+                    # Try to get existing expense amount
+                    existing_expense = execute_query("""
+                        SELECT amount FROM car_expenses 
+                        WHERE maintenance_id = :maintenance_id
+                    """, {'maintenance_id': maintenance[0]})
+                    
+                    current_amount = existing_expense[0][0] if existing_expense else 0.0
+                    
+                    amount = st.number_input(
+                        "Сумма (€)/Betrag (€)",
+                        min_value=0.0,
+                        value=float(current_amount),
+                        step=0.01,
+                        key=f"edit_maintenance_amount_{maintenance[0]}"
+                    )
+                else:
+                    amount = 0.0
+                
                 description = st.text_area(
                     get_text('description', language),
                     value=maintenance[5] or '',
@@ -280,6 +337,7 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                     if receipt_file:
                         receipt_url = upload_file(receipt_file, 'receipts')
                     
+                    # Update maintenance record
                     execute_query("""
                         UPDATE maintenances 
                         SET vehicle_id = :vehicle_id, date = :date, 
@@ -294,9 +352,54 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                         'description': description if description else None,
                         'receipt_url': receipt_url
                     })
+                    
+                    # Update or create car expense if it's a repair with cost
+                    if maintenance_type == 'repair' and amount > 0:
+                        # Check if expense already exists
+                        existing_expense = execute_query("""
+                            SELECT id FROM car_expenses 
+                            WHERE maintenance_id = :maintenance_id
+                        """, {'maintenance_id': maintenance[0]})
+                        
+                        if existing_expense:
+                            # Update existing expense
+                            execute_query("""
+                                UPDATE car_expenses 
+                                SET car_id = :car_id, date = :date, amount = :amount, 
+                                    description = :description, file_url = :file_url
+                                WHERE maintenance_id = :maintenance_id
+                            """, {
+                                'car_id': vehicle_id,
+                                'date': maintenance_date,
+                                'amount': amount,
+                                'description': f"Ремонт: {description}" if description else "Ремонт автомобиля",
+                                'file_url': receipt_url,
+                                'maintenance_id': maintenance[0]
+                            })
+                        else:
+                            # Create new expense
+                            current_user = execute_query("SELECT id FROM users LIMIT 1")
+                            created_by = current_user[0][0] if current_user else None
+                            
+                            execute_query("""
+                                INSERT INTO car_expenses 
+                                (id, car_id, date, category, amount, description, file_url, created_by, maintenance_id)
+                                VALUES (:id, :car_id, :date, :category, :amount, :description, :file_url, :created_by, :maintenance_id)
+                            """, {
+                                'id': str(uuid.uuid4()),
+                                'car_id': vehicle_id,
+                                'date': maintenance_date,
+                                'category': 'repair',
+                                'amount': amount,
+                                'description': f"Ремонт: {description}" if description else "Ремонт автомобиля",
+                                'file_url': receipt_url,
+                                'created_by': created_by,
+                                'maintenance_id': maintenance[0]
+                            })
+                    
                     if f"edit_maintenance_{maintenance[0]}" in st.session_state:
                         del st.session_state[f"edit_maintenance_{maintenance[0]}"]
-                    st.success(get_text('success_save', language))
+                    st.success("Техобслуживание и связанные расходы обновлены / Wartung und verbundene Ausgaben aktualisiert")
                     st.rerun()
                 except Exception as e:
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
