@@ -411,14 +411,15 @@ def show_add_assignment_form(language='ru'):
             try:
                 assignment_id = str(uuid.uuid4())
                 execute_query("""
-                    INSERT INTO material_assignments (id, material_id, team_id, quantity, start_date, status)
-                    VALUES (:id, :material_id, :team_id, :quantity, :start_date, 'active')
+                    INSERT INTO material_assignments (id, material_id, team_id, quantity, start_date, status, event, date)
+                    VALUES (:id, :material_id, :team_id, :quantity, :start_date, 'active', 'assigned', :date)
                 """, {
                     'id': assignment_id,
                     'material_id': material_id,
                     'team_id': team_id,
                     'quantity': quantity,
-                    'start_date': start_date
+                    'start_date': start_date,
+                    'date': start_date
                 })
                 
                 # Add to history
