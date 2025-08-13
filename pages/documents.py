@@ -31,10 +31,16 @@ def show_documents_list(language='ru'):
         col1, col2, col3 = st.columns(3)
         with col1:
             vehicles = get_vehicles_for_select(language)
+            vehicle_options = ['all']
+            if vehicles and isinstance(vehicles, list):
+                vehicle_options.extend([v[0] for v in vehicles])
+            
             vehicle_filter = st.selectbox(
                 get_text('vehicles', language),
-                options=['all'] + [v[0] for v in vehicles] if vehicles else ['all'],
-                format_func=lambda x: 'Все автомобили/Alle Fahrzeuge' if x == 'all' else next((v[1] for v in vehicles if v[0] == x), x)
+                options=vehicle_options,
+                format_func=lambda x: 'Все автомобили/Alle Fahrzeuge' if x == 'all' else (
+                    next((v[1] for v in vehicles if vehicles and v[0] == x), x) if vehicles else x
+                )
             )
         
         with col2:
@@ -90,7 +96,7 @@ def show_documents_list(language='ru'):
         
         documents = execute_query(query, params)
         
-        if documents:
+        if documents and isinstance(documents, list) and len(documents) > 0:
             # Statistics
             total_docs = len(documents)
             expired = len([d for d in documents if d[11] == 'expired'])
@@ -173,14 +179,14 @@ def show_add_document_form(language='ru'):
         with col1:
             # Vehicle selection
             vehicles = get_vehicles_for_select(language)
-            if not vehicles:
+            if not vehicles or not isinstance(vehicles, list) or len(vehicles) == 0:
                 st.warning("Необходимо создать автомобили / Fahrzeuge müssen erstellt werden")
                 return
             
             vehicle_id = st.selectbox(
                 get_text('vehicles', language),
                 options=[v[0] for v in vehicles],
-                format_func=lambda x: next(v[1] for v in vehicles if v[0] == x),
+                format_func=lambda x: next((v[1] for v in vehicles if v[0] == x), x),
                 key="new_doc_vehicle"
             )
             
@@ -271,16 +277,33 @@ def show_edit_document_form(doc, language='ru'):
             with col1:
                 # Vehicle selection
                 vehicles = get_vehicles_for_select(language)
-                current_vehicle = next((v[0] for v in vehicles if doc[8] in v[1]), vehicles[0][0] if vehicles else None)
+                vehicle_id = None
                 
-                if vehicles:
+                if vehicles and isinstance(vehicles, list) and len(vehicles) > 0:
+                    current_vehicle = None
+                    for v in vehicles:
+                        if doc[8] in v[1]:
+                            current_vehicle = v[0]
+                            break
+                    
+                    if not current_vehicle:
+                        current_vehicle = vehicles[0][0]
+                    
+                    try:
+                        current_index = [v[0] for v in vehicles].index(current_vehicle)
+                    except ValueError:
+                        current_index = 0
+                    
                     vehicle_id = st.selectbox(
                         get_text('vehicles', language),
                         options=[v[0] for v in vehicles],
-                        format_func=lambda x: next(v[1] for v in vehicles if v[0] == x),
-                        index=[v[0] for v in vehicles].index(current_vehicle) if current_vehicle else 0,
+                        format_func=lambda x: next((v[1] for v in vehicles if v[0] == x), x),
+                        index=current_index,
                         key=f"edit_doc_vehicle_{doc[0]}"
                     )
+                else:
+                    st.warning("Нет доступных автомобилей / Keine Fahrzeuge verfügbar")
+                    return
                 
                 # Document type
                 doc_types = get_document_types(language)
@@ -344,32 +367,35 @@ def show_edit_document_form(doc, language='ru'):
                 cancelled = st.form_submit_button(get_text('cancel', language))
             
             if submitted:
-                try:
-                    file_url = doc[5]  # Keep existing file URL
-                    if uploaded_file:
-                        file_url = upload_file(uploaded_file, 'documents')
-                    
-                    execute_query("""
-                        UPDATE vehicle_documents 
-                        SET vehicle_id = :vehicle_id, document_type = :document_type, title = :title,
-                            date_issued = :date_issued, date_expiry = :date_expiry, file_url = :file_url, note = :note
-                        WHERE id = :id
-                    """, {
-                        'id': doc[0],
-                        'vehicle_id': vehicle_id,
-                        'document_type': document_type,
-                        'title': title,
-                        'date_issued': date_issued,
-                        'date_expiry': date_expiry,
-                        'file_url': file_url,
-                        'note': note if note else None
-                    })
-                    if f"edit_doc_{doc[0]}" in st.session_state:
-                        del st.session_state[f"edit_doc_{doc[0]}"]
-                    st.success(get_text('success_save', language))
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"{get_text('error_save', language)}: {str(e)}")
+                if vehicle_id:
+                    try:
+                        file_url = doc[5]  # Keep existing file URL
+                        if uploaded_file:
+                            file_url = upload_file(uploaded_file, 'documents')
+                        
+                        execute_query("""
+                            UPDATE vehicle_documents 
+                            SET vehicle_id = :vehicle_id, document_type = :document_type, title = :title,
+                                date_issued = :date_issued, date_expiry = :date_expiry, file_url = :file_url, note = :note
+                            WHERE id = :id
+                        """, {
+                            'id': doc[0],
+                            'vehicle_id': vehicle_id,
+                            'document_type': document_type,
+                            'title': title,
+                            'date_issued': date_issued,
+                            'date_expiry': date_expiry,
+                            'file_url': file_url,
+                            'note': note if note else None
+                        })
+                        if f"edit_doc_{doc[0]}" in st.session_state:
+                            del st.session_state[f"edit_doc_{doc[0]}"]
+                        st.success(get_text('success_save', language))
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"{get_text('error_save', language)}: {str(e)}")
+                else:
+                    st.error("Выберите автомобиль / Wählen Sie ein Fahrzeug")
             
             if cancelled:
                 if f"edit_doc_{doc[0]}" in st.session_state:
@@ -407,7 +433,7 @@ def show_expiring_documents(language='ru'):
         
         expiring_docs = execute_query(query)
         
-        if expiring_docs:
+        if expiring_docs and isinstance(expiring_docs, list) and len(expiring_docs) > 0:
             doc_types = get_document_types(language)
             
             for doc in expiring_docs:
