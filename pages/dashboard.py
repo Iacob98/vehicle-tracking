@@ -92,7 +92,7 @@ def show_page(language='ru'):
                     DATE_TRUNC('month', date) as month,
                     SUM(amount) as total_amount
                 FROM expenses 
-                WHERE date >= %s
+                WHERE date >= :six_months_ago
                 GROUP BY DATE_TRUNC('month', date)
                 ORDER BY month
             """, {'six_months_ago': six_months_ago.date()})

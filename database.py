@@ -18,68 +18,68 @@ def init_db():
     """Initialize database with schema"""
     try:
         with engine.connect() as conn:
-            # Create enum types
+            # Create enum types if they don't exist
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE vehicle_status AS ENUM ('active', 'repair', 'unavailable');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vehicle_status') THEN
+                        CREATE TYPE vehicle_status AS ENUM ('active', 'repair', 'unavailable');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+                        CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE penalty_status AS ENUM ('open', 'paid');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'penalty_status') THEN
+                        CREATE TYPE penalty_status AS ENUM ('open', 'paid');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE maintenance_type AS ENUM ('inspection', 'repair');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'maintenance_type') THEN
+                        CREATE TYPE maintenance_type AS ENUM ('inspection', 'repair');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE material_type AS ENUM ('material', 'equipment');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_type') THEN
+                        CREATE TYPE material_type AS ENUM ('material', 'equipment');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE material_status AS ENUM ('active', 'returned', 'broken');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_status') THEN
+                        CREATE TYPE material_status AS ENUM ('active', 'returned', 'broken');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE expense_type AS ENUM ('vehicle', 'team');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'expense_type') THEN
+                        CREATE TYPE expense_type AS ENUM ('vehicle', 'team');
+                    END IF;
                 END $$;
             """))
             
             conn.execute(text("""
                 DO $$ BEGIN
-                    CREATE TYPE material_event AS ENUM ('assigned', 'returned', 'broken');
-                EXCEPTION
-                    WHEN duplicate_object THEN null;
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_event') THEN
+                        CREATE TYPE material_event AS ENUM ('assigned', 'returned', 'broken');
+                    END IF;
                 END $$;
             """))
             

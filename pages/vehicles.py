@@ -69,14 +69,14 @@ def show_vehicles_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                v.name ILIKE %(search)s OR 
-                v.license_plate ILIKE %(search)s OR 
-                v.vin ILIKE %(search)s
+                v.name ILIKE :search OR 
+                v.license_plate ILIKE :search OR 
+                v.vin ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
         if status_filter != 'all':
-            query += " AND v.status = %(status)s"
+            query += " AND v.status = :status"
             params['status'] = status_filter
         
         query += " ORDER BY v.name"
@@ -173,7 +173,7 @@ def show_add_vehicle_form(language='ru'):
                     vehicle_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO vehicles (id, name, license_plate, vin, status)
-                        VALUES (%(id)s, %(name)s, %(license_plate)s, %(vin)s, %(status)s)
+                        VALUES (:id, :name, :license_plate, :vin, :status)
                     """, {
                         'id': vehicle_id,
                         'name': name,
@@ -230,9 +230,9 @@ def show_edit_vehicle_form(vehicle, language='ru'):
                 try:
                     execute_query("""
                         UPDATE vehicles 
-                        SET name = %(name)s, license_plate = %(license_plate)s, 
-                            vin = %(vin)s, status = %(status)s
-                        WHERE id = %(id)s
+                        SET name = :name, license_plate = :license_plate, 
+                            vin = :vin, status = :status
+                        WHERE id = :id
                     """, {
                         'id': vehicle['id'],
                         'name': name,
@@ -251,7 +251,7 @@ def show_edit_vehicle_form(vehicle, language='ru'):
 def delete_vehicle(vehicle_id, language='ru'):
     """Delete vehicle"""
     try:
-        execute_query("DELETE FROM vehicles WHERE id = %(id)s", {'id': vehicle_id})
+        execute_query("DELETE FROM vehicles WHERE id = :id", {'id': vehicle_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:
@@ -354,8 +354,8 @@ def show_add_assignment_form(language='ru'):
                 # End any existing assignment for this vehicle
                 execute_query("""
                     UPDATE vehicle_assignments 
-                    SET end_date = %(date)s 
-                    WHERE vehicle_id = %(vehicle_id)s AND end_date IS NULL
+                    SET end_date = :date 
+                    WHERE vehicle_id = :vehicle_id AND end_date IS NULL
                 """, {
                     'date': start_date,
                     'vehicle_id': vehicle_id
@@ -365,7 +365,7 @@ def show_add_assignment_form(language='ru'):
                 assignment_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO vehicle_assignments (id, vehicle_id, team_id, start_date)
-                    VALUES (%(id)s, %(vehicle_id)s, %(team_id)s, %(start_date)s)
+                    VALUES (:id, :vehicle_id, :team_id, :start_date)
                 """, {
                     'id': assignment_id,
                     'vehicle_id': vehicle_id,
@@ -384,7 +384,7 @@ def end_assignment(assignment_id, language='ru'):
         execute_query("""
             UPDATE vehicle_assignments 
             SET end_date = CURRENT_DATE 
-            WHERE id = %(id)s
+            WHERE id = :id
         """, {'id': assignment_id})
         st.success("Назначение завершено / Zuweisung beendet")
         st.rerun()

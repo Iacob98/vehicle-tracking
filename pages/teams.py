@@ -57,7 +57,7 @@ def show_teams_list(language='ru'):
         params = {}
         
         if search_term:
-            query += " AND t.name ILIKE %(search)s"
+            query += " AND t.name ILIKE :search"
             params['search'] = f"%{search_term}%"
         
         query += """
@@ -138,7 +138,7 @@ def show_add_team_form(language='ru'):
                     team_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO teams (id, name, lead_id)
-                        VALUES (%(id)s, %(name)s, %(lead_id)s)
+                        VALUES (:id, :name, :lead_id)
                     """, {
                         'id': team_id,
                         'name': name,
@@ -199,8 +199,8 @@ def show_edit_team_form(team, language='ru'):
                 try:
                     execute_query("""
                         UPDATE teams 
-                        SET name = %(name)s, lead_id = %(lead_id)s
-                        WHERE id = %(id)s
+                        SET name = :name, lead_id = :lead_id
+                        WHERE id = :id
                     """, {
                         'id': team[0],
                         'name': name,
@@ -219,12 +219,12 @@ def delete_team(team_id, language='ru'):
     try:
         # Check if team has users or assignments
         users_count = execute_query(
-            "SELECT COUNT(*) FROM users WHERE team_id = %(id)s", 
+            "SELECT COUNT(*) FROM users WHERE team_id = :id", 
             {'id': team_id}
         )[0][0]
         
         assignments_count = execute_query(
-            "SELECT COUNT(*) FROM vehicle_assignments WHERE team_id = %(id)s", 
+            "SELECT COUNT(*) FROM vehicle_assignments WHERE team_id = :id", 
             {'id': team_id}
         )[0][0]
         
@@ -232,7 +232,7 @@ def delete_team(team_id, language='ru'):
             st.error("Нельзя удалить бригаду с пользователями или назначениями / Team mit Benutzern oder Zuweisungen kann nicht gelöscht werden")
             return
         
-        execute_query("DELETE FROM teams WHERE id = %(id)s", {'id': team_id})
+        execute_query("DELETE FROM teams WHERE id = :id", {'id': team_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:
@@ -246,7 +246,7 @@ def show_team_details(team_id, language='ru'):
             SELECT t.name, u.name as lead_name
             FROM teams t
             LEFT JOIN users u ON t.lead_id = u.id
-            WHERE t.id = %(id)s
+            WHERE t.id = :id
         """, {'id': team_id})
         
         if not team_info:
@@ -262,7 +262,7 @@ def show_team_details(team_id, language='ru'):
             members = execute_query("""
                 SELECT name, phone, role
                 FROM users
-                WHERE team_id = %(id)s
+                WHERE team_id = :id
                 ORDER BY role, name
             """, {'id': team_id})
             
@@ -285,7 +285,7 @@ def show_team_details(team_id, language='ru'):
                 SELECT v.name, v.license_plate, va.start_date
                 FROM vehicle_assignments va
                 JOIN vehicles v ON va.vehicle_id = v.id
-                WHERE va.team_id = %(id)s AND va.end_date IS NULL
+                WHERE va.team_id = :id AND va.end_date IS NULL
                 ORDER BY v.name
             """, {'id': team_id})
             
@@ -308,7 +308,7 @@ def show_team_details(team_id, language='ru'):
             expenses = execute_query("""
                 SELECT date, amount, description
                 FROM expenses
-                WHERE team_id = %(id)s
+                WHERE team_id = :id
                 ORDER BY date DESC
                 LIMIT 5
             """, {'id': team_id})

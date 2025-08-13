@@ -85,19 +85,19 @@ def show_expenses_list(language='ru'):
         params = {}
         
         if search_term:
-            query += " AND e.description ILIKE %(search)s"
+            query += " AND e.description ILIKE :search"
             params['search'] = f"%{search_term}%"
         
         if type_filter != 'all':
-            query += " AND e.type = %(type)s"
+            query += " AND e.type = :type"
             params['type'] = type_filter
         
         if date_from:
-            query += " AND e.date >= %(date_from)s"
+            query += " AND e.date >= :date_from"
             params['date_from'] = date_from
         
         if date_to:
-            query += " AND e.date <= %(date_to)s"
+            query += " AND e.date <= :date_to"
             params['date_to'] = date_to
         
         query += " ORDER BY e.date DESC"
@@ -241,7 +241,7 @@ def show_add_expense_form(language='ru'):
                     expense_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO expenses (id, type, vehicle_id, team_id, date, amount, description, receipt_url)
-                        VALUES (%(id)s, %(type)s, %(vehicle_id)s, %(team_id)s, %(date)s, %(amount)s, %(description)s, %(receipt_url)s)
+                        VALUES (:id, :type, :vehicle_id, :team_id, :date, :amount, :description, :receipt_url)
                     """, {
                         'id': expense_id,
                         'type': expense_type,
@@ -353,10 +353,10 @@ def show_edit_expense_form(expense, language='ru'):
                     
                     execute_query("""
                         UPDATE expenses 
-                        SET type = %(type)s, vehicle_id = %(vehicle_id)s, team_id = %(team_id)s,
-                            date = %(date)s, amount = %(amount)s, description = %(description)s, 
-                            receipt_url = %(receipt_url)s
-                        WHERE id = %(id)s
+                        SET type = :type, vehicle_id = :vehicle_id, team_id = :team_id,
+                            date = :date, amount = :amount, description = :description, 
+                            receipt_url = :receipt_url
+                        WHERE id = :id
                     """, {
                         'id': expense[0],
                         'type': expense_type,
@@ -378,7 +378,7 @@ def show_edit_expense_form(expense, language='ru'):
 def delete_expense(expense_id, language='ru'):
     """Delete expense"""
     try:
-        execute_query("DELETE FROM expenses WHERE id = %(id)s", {'id': expense_id})
+        execute_query("DELETE FROM expenses WHERE id = :id", {'id': expense_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:
@@ -425,7 +425,7 @@ def show_expenses_analytics(language='ru'):
             FROM expenses e
             LEFT JOIN vehicles v ON e.vehicle_id = v.id
             LEFT JOIN teams t ON e.team_id = t.id
-            WHERE e.date >= %(start_date)s AND e.date <= %(end_date)s
+            WHERE e.date >= :start_date AND e.date <= :end_date
             ORDER BY e.date
         """, {'start_date': start_date, 'end_date': end_date})
         

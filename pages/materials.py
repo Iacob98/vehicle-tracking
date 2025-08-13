@@ -70,11 +70,11 @@ def show_materials_list(language='ru'):
         params = {}
         
         if search_term:
-            query += " AND m.name ILIKE %(search)s"
+            query += " AND m.name ILIKE :search"
             params['search'] = f"%{search_term}%"
         
         if type_filter != 'all':
-            query += " AND m.type = %(type)s"
+            query += " AND m.type = :type"
             params['type'] = type_filter
         
         query += """
@@ -148,7 +148,7 @@ def show_add_material_form(language='ru'):
                     material_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO materials (id, name, type, description)
-                        VALUES (%(id)s, %(name)s, %(type)s, %(description)s)
+                        VALUES (:id, :name, :type, :description)
                     """, {
                         'id': material_id,
                         'name': name,
@@ -199,8 +199,8 @@ def show_edit_material_form(material, language='ru'):
                 try:
                     execute_query("""
                         UPDATE materials 
-                        SET name = %(name)s, type = %(type)s, description = %(description)s
-                        WHERE id = %(id)s
+                        SET name = :name, type = :type, description = :description
+                        WHERE id = :id
                     """, {
                         'id': material[0],
                         'name': name,
@@ -220,7 +220,7 @@ def delete_material(material_id, language='ru'):
     try:
         # Check if material has assignments
         assignments_count = execute_query(
-            "SELECT COUNT(*) FROM material_assignments WHERE material_id = %(id)s", 
+            "SELECT COUNT(*) FROM material_assignments WHERE material_id = :id", 
             {'id': material_id}
         )[0][0]
         
@@ -228,7 +228,7 @@ def delete_material(material_id, language='ru'):
             st.error("Нельзя удалить материал с назначениями / Material mit Zuweisungen kann nicht gelöscht werden")
             return
         
-        execute_query("DELETE FROM materials WHERE id = %(id)s", {'id': material_id})
+        execute_query("DELETE FROM materials WHERE id = :id", {'id': material_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:
@@ -361,7 +361,7 @@ def show_add_assignment_form(language='ru'):
                 assignment_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO material_assignments (id, material_id, team_id, quantity, start_date, status)
-                    VALUES (%(id)s, %(material_id)s, %(team_id)s, %(quantity)s, %(start_date)s, 'active')
+                    VALUES (:id, :material_id, :team_id, :quantity, :start_date, 'active')
                 """, {
                     'id': assignment_id,
                     'material_id': material_id,
@@ -374,7 +374,7 @@ def show_add_assignment_form(language='ru'):
                 history_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO material_history (id, material_id, team_id, date, event, description)
-                    VALUES (%(id)s, %(material_id)s, %(team_id)s, %(date)s, 'assigned', %(description)s)
+                    VALUES (:id, :material_id, :team_id, :date, 'assigned', :description)
                 """, {
                     'id': history_id,
                     'material_id': material_id,
@@ -393,21 +393,21 @@ def return_material(assignment_id, language='ru'):
     try:
         # Get assignment details for history
         assignment = execute_query("""
-            SELECT material_id, team_id, quantity FROM material_assignments WHERE id = %(id)s
+            SELECT material_id, team_id, quantity FROM material_assignments WHERE id = :id
         """, {'id': assignment_id})[0]
         
         # Update assignment
         execute_query("""
             UPDATE material_assignments 
             SET status = 'returned', end_date = CURRENT_DATE 
-            WHERE id = %(id)s
+            WHERE id = :id
         """, {'id': assignment_id})
         
         # Add to history
         history_id = str(uuid.uuid4())
         execute_query("""
             INSERT INTO material_history (id, material_id, team_id, date, event, description)
-            VALUES (%(id)s, %(material_id)s, %(team_id)s, CURRENT_DATE, 'returned', %(description)s)
+            VALUES (:id, :material_id, :team_id, CURRENT_DATE, 'returned', :description)
         """, {
             'id': history_id,
             'material_id': assignment[0],
@@ -425,21 +425,21 @@ def mark_material_broken(assignment_id, language='ru'):
     try:
         # Get assignment details for history
         assignment = execute_query("""
-            SELECT material_id, team_id, quantity FROM material_assignments WHERE id = %(id)s
+            SELECT material_id, team_id, quantity FROM material_assignments WHERE id = :id
         """, {'id': assignment_id})[0]
         
         # Update assignment
         execute_query("""
             UPDATE material_assignments 
             SET status = 'broken', end_date = CURRENT_DATE 
-            WHERE id = %(id)s
+            WHERE id = :id
         """, {'id': assignment_id})
         
         # Add to history
         history_id = str(uuid.uuid4())
         execute_query("""
             INSERT INTO material_history (id, material_id, team_id, date, event, description)
-            VALUES (%(id)s, %(material_id)s, %(team_id)s, CURRENT_DATE, 'broken', %(description)s)
+            VALUES (:id, :material_id, :team_id, CURRENT_DATE, 'broken', :description)
         """, {
             'id': history_id,
             'material_id': assignment[0],
@@ -501,11 +501,11 @@ def show_material_history(language='ru'):
         params = {}
         
         if material_filter and material_filter != 'all':
-            query += " AND mh.material_id = %(material_id)s"
+            query += " AND mh.material_id = :material_id"
             params['material_id'] = material_filter
         
         if event_filter != 'all':
-            query += " AND mh.event = %(event)s"
+            query += " AND mh.event = :event"
             params['event'] = event_filter
         
         if date_from:

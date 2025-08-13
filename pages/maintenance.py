@@ -71,17 +71,17 @@ def show_maintenance_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                v.name ILIKE %(search)s OR 
-                v.license_plate ILIKE %(search)s
+                v.name ILIKE :search OR 
+                v.license_plate ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
         if type_filter != 'all':
-            query += " AND m.type = %(type)s"
+            query += " AND m.type = :type"
             params['type'] = type_filter
         
         if date_from:
-            query += " AND m.date >= %(date_from)s"
+            query += " AND m.date >= :date_from"
             params['date_from'] = date_from
         
         query += " ORDER BY m.date DESC"
@@ -196,7 +196,7 @@ def show_add_maintenance_form(language='ru'):
                 maintenance_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO maintenances (id, vehicle_id, date, type, description, receipt_url)
-                    VALUES (%(id)s, %(vehicle_id)s, %(date)s, %(type)s, %(description)s, %(receipt_url)s)
+                    VALUES (:id, :vehicle_id, :date, :type, :description, :receipt_url)
                 """, {
                     'id': maintenance_id,
                     'vehicle_id': vehicle_id,
@@ -278,10 +278,10 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                     
                     execute_query("""
                         UPDATE maintenances 
-                        SET vehicle_id = %(vehicle_id)s, date = %(date)s, 
-                            type = %(type)s, description = %(description)s, 
-                            receipt_url = %(receipt_url)s
-                        WHERE id = %(id)s
+                        SET vehicle_id = :vehicle_id, date = :date, 
+                            type = :type, description = :description, 
+                            receipt_url = :receipt_url
+                        WHERE id = :id
                     """, {
                         'id': maintenance[0],
                         'vehicle_id': vehicle_id,
@@ -301,7 +301,7 @@ def show_edit_maintenance_form(maintenance, language='ru'):
 def delete_maintenance(maintenance_id, language='ru'):
     """Delete maintenance record"""
     try:
-        execute_query("DELETE FROM maintenances WHERE id = %(id)s", {'id': maintenance_id})
+        execute_query("DELETE FROM maintenances WHERE id = :id", {'id': maintenance_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:

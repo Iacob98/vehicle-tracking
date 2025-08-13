@@ -62,13 +62,13 @@ def show_users_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                u.name ILIKE %(search)s OR 
-                u.phone ILIKE %(search)s
+                u.name ILIKE :search OR 
+                u.phone ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
         if role_filter != 'all':
-            query += " AND u.role = %(role)s"
+            query += " AND u.role = :role"
             params['role'] = role_filter
         
         query += " ORDER BY u.name"
@@ -152,7 +152,7 @@ def show_add_user_form(language='ru'):
                     user_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO users (id, name, phone, role, team_id)
-                        VALUES (%(id)s, %(name)s, %(phone)s, %(role)s, %(team_id)s)
+                        VALUES (:id, :name, :phone, :role, :team_id)
                     """, {
                         'id': user_id,
                         'name': name,
@@ -228,8 +228,8 @@ def show_edit_user_form(user, language='ru'):
                 try:
                     execute_query("""
                         UPDATE users 
-                        SET name = %(name)s, phone = %(phone)s, role = %(role)s, team_id = %(team_id)s
-                        WHERE id = %(id)s
+                        SET name = :name, phone = :phone, role = :role, team_id = :team_id
+                        WHERE id = :id
                     """, {
                         'id': user[0],
                         'name': name,
@@ -250,7 +250,7 @@ def delete_user(user_id, language='ru'):
     try:
         # Check if user is team lead
         team_lead_count = execute_query(
-            "SELECT COUNT(*) FROM teams WHERE lead_id = %(id)s", 
+            "SELECT COUNT(*) FROM teams WHERE lead_id = :id", 
             {'id': user_id}
         )[0][0]
         
@@ -258,7 +258,7 @@ def delete_user(user_id, language='ru'):
             st.error("Нельзя удалить пользователя, который является бригадиром / Benutzer, der Teamleiter ist, kann nicht gelöscht werden")
             return
         
-        execute_query("DELETE FROM users WHERE id = %(id)s", {'id': user_id})
+        execute_query("DELETE FROM users WHERE id = :id", {'id': user_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:

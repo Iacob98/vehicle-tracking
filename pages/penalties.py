@@ -73,18 +73,18 @@ def show_penalties_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                v.name ILIKE %(search)s OR 
-                v.license_plate ILIKE %(search)s OR
-                u.name ILIKE %(search)s
+                v.name ILIKE :search OR 
+                v.license_plate ILIKE :search OR
+                u.name ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
         if status_filter != 'all':
-            query += " AND p.status = %(status)s"
+            query += " AND p.status = :status"
             params['status'] = status_filter
         
         if date_from:
-            query += " AND p.date >= %(date_from)s"
+            query += " AND p.date >= :date_from"
             params['date_from'] = date_from
         
         query += " ORDER BY p.date DESC"
@@ -216,7 +216,7 @@ def show_add_penalty_form(language='ru'):
                 penalty_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO penalties (id, vehicle_id, user_id, date, amount, photo_url, status)
-                    VALUES (%(id)s, %(vehicle_id)s, %(user_id)s, %(date)s, %(amount)s, %(photo_url)s, %(status)s)
+                    VALUES (:id, :vehicle_id, :user_id, :date, :amount, :photo_url, :status)
                 """, {
                     'id': penalty_id,
                     'vehicle_id': vehicle_id,
@@ -324,10 +324,10 @@ def show_edit_penalty_form(penalty, language='ru'):
                     
                     execute_query("""
                         UPDATE penalties 
-                        SET vehicle_id = %(vehicle_id)s, user_id = %(user_id)s, 
-                            date = %(date)s, amount = %(amount)s, 
-                            photo_url = %(photo_url)s, status = %(status)s
-                        WHERE id = %(id)s
+                        SET vehicle_id = :vehicle_id, user_id = :user_id, 
+                            date = :date, amount = :amount, 
+                            photo_url = :photo_url, status = :status
+                        WHERE id = :id
                     """, {
                         'id': penalty[0],
                         'vehicle_id': vehicle_id,
@@ -349,7 +349,7 @@ def mark_penalty_paid(penalty_id, language='ru'):
     """Mark penalty as paid"""
     try:
         execute_query("""
-            UPDATE penalties SET status = 'paid' WHERE id = %(id)s
+            UPDATE penalties SET status = 'paid' WHERE id = :id
         """, {'id': penalty_id})
         st.success("Штраф отмечен как оплаченный / Strafe als bezahlt markiert")
         st.rerun()
@@ -359,7 +359,7 @@ def mark_penalty_paid(penalty_id, language='ru'):
 def delete_penalty(penalty_id, language='ru'):
     """Delete penalty"""
     try:
-        execute_query("DELETE FROM penalties WHERE id = %(id)s", {'id': penalty_id})
+        execute_query("DELETE FROM penalties WHERE id = :id", {'id': penalty_id})
         st.success(get_text('success_delete', language))
         st.rerun()
     except Exception as e:
