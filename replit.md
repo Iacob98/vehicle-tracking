@@ -16,6 +16,14 @@ Preferred communication style: Simple, everyday language.
 - Updated all SQL queries across application to use new user structure
 - Fixed database transaction issues and completed clean database recreation
 
+### User Document Management System
+- Created user_documents table with support for 10 document types including driving licenses
+- Added comprehensive document management interface in Users section
+- Implemented full CRUD operations for user documents with file upload/viewing
+- Created expiring documents tracking for user documents with visual alerts
+- Added document type translations for Russian and German languages
+- Integrated file viewer with full-width display for optimal document viewing
+
 ### Enhanced System Logic Requirements
 - Bidirectional entity relationships with automatic updates
 - Snapshot system for team compositions at specific events
