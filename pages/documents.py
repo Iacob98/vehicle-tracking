@@ -7,6 +7,25 @@ from utils import format_currency, export_to_csv, upload_file
 
 def show_documents_page(language='ru'):
     """Main documents management page"""
+    
+    # Check if user wants to view a file
+    file_viewer_keys = [key for key in st.session_state.keys() if key.startswith('view_file_')]
+    if file_viewer_keys:
+        # Show file viewer in full width
+        file_key = file_viewer_keys[0]
+        file_data = st.session_state[file_key]
+        
+        col1, col2 = st.columns([1, 10])
+        with col1:
+            if st.button("← Назад\nZurück", use_container_width=True):
+                del st.session_state[file_key]
+                st.rerun()
+        
+        with col2:
+            show_file_viewer(file_data['url'], file_data['title'], file_data['language'])
+        
+        return
+    
     st.title(f"📄 {get_text('documents', language)}")
     
     tab1, tab2, tab3 = st.tabs([
@@ -163,7 +182,11 @@ def show_documents_list(language='ru'):
                         if st.button(f"🗑️", key=f"delete_doc_{doc[0]}"):
                             delete_document(doc[0], language)
                         if doc[5] and st.button(f"📎", key=f"view_doc_{doc[0]}"):
-                            show_file_viewer(doc[5], doc[2], language)
+                            st.session_state[f"view_file_{doc[0]}"] = {
+                                'url': doc[5],
+                                'title': doc[2],
+                                'language': language
+                            }
                     
                     # Show edit form if requested
                     if st.session_state.get(f"edit_doc_{doc[0]}", False):
@@ -549,18 +572,19 @@ def delete_document(doc_id, language='ru'):
         st.error(f"{get_text('error_delete', language)}: {str(e)}")
 
 def show_file_viewer(file_url, title, language='ru'):
-    """Show file viewer in modal"""
+    """Show file viewer in full width"""
     if file_url:
-        st.subheader(f"📎 Просмотр файла: {title}")
+        st.header(f"📎 {title}")
         
         # File info
         file_name = file_url.split('/')[-1]
         file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
         
-        col1, col2 = st.columns([4, 1])
+        # Create main layout
+        col_main, col_sidebar = st.columns([3, 1])
         
-        with col1:
-            st.info(f"📁 Файл: {file_name}")
+        with col_main:
+            st.info(f"📁 **Файл:** {file_name}")
             
             # Determine file type and display accordingly
             if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
@@ -578,20 +602,24 @@ def show_file_viewer(file_url, title, language='ru'):
                     st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
                     
             elif file_extension == 'pdf':
-                st.success("📄 PDF документ готов к просмотру/PDF-Dokument bereit zur Ansicht")
-                if file_url.startswith('/'):
-                    st.write("💡 Используйте кнопку 'Скачать' справа для просмотра PDF")
-                    st.write("💡 Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
-                else:
-                    st.markdown(f"🔗 [Открыть PDF в новом окне/PDF in neuem Fenster öffnen]({file_url})")
+                st.success("📄 **PDF документ готов к просмотру**")
+                st.success("📄 **PDF-Dokument bereit zur Ansicht**")
+                
+                col_pdf1, col_pdf2 = st.columns(2)
+                with col_pdf1:
+                    st.write("💡 **Русский:** Используйте кнопку 'Скачать' справа для просмотра PDF файла")
+                with col_pdf2:
+                    st.write("💡 **Deutsch:** Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
+                
+                if not file_url.startswith('/'):
+                    st.markdown(f"🔗 [Открыть PDF в браузере/PDF im Browser öffnen]({file_url})")
                     
             else:
-                st.warning(f"📎 Файл типа .{file_extension} - используйте кнопку скачивания")
-                st.warning(f"📎 Datei vom Typ .{file_extension} - nutzen Sie den Download-Button")
+                st.warning(f"📎 **Файл типа .{file_extension}**")
+                st.info("💡 Используйте кнопку скачивания справа / Nutzen Sie den Download-Button rechts")
         
-        with col2:
-            # Download section
-            st.write("**Действия/Aktionen:**")
+        with col_sidebar:
+            st.markdown("### Действия / Aktionen")
             
             try:
                 import os
@@ -603,7 +631,7 @@ def show_file_viewer(file_url, title, language='ru'):
                             file_data = f.read()
                         
                         st.download_button(
-                            label="⬇️ Скачать\nDownload",
+                            label="⬇️ **Скачать**\n**Download**",
                             data=file_data,
                             file_name=file_name,
                             mime=get_mime_type(file_extension),
@@ -613,30 +641,27 @@ def show_file_viewer(file_url, title, language='ru'):
                         # File info
                         file_size = len(file_data)
                         if file_size < 1024:
-                            size_str = f"{file_size} байт/Bytes"
+                            size_str = f"{file_size} байт"
                         elif file_size < 1024*1024:
-                            size_str = f"{file_size//1024} КБ/KB"
+                            size_str = f"{file_size//1024} КБ"
                         else:
-                            size_str = f"{file_size//(1024*1024)} МБ/MB"
+                            size_str = f"{file_size//(1024*1024)} МБ"
                         
-                        st.caption(f"📊 Размер: {size_str}")
+                        st.metric("Размер файла", size_str)
                         
                     else:
-                        st.error("🚫 Файл не найден/Datei nicht gefunden")
+                        st.error("🚫 Файл не найден")
+                        st.error("🚫 Datei nicht gefunden")
                 else:
                     # External URL
                     st.link_button(
-                        "🔗 Открыть/Öffnen",
+                        "🔗 **Открыть**\n**Öffnen**",
                         file_url,
                         use_container_width=True
                     )
             except Exception as e:
-                st.error(f"❌ Ошибка доступа к файлу/Dateizugriffsfehler")
-            
-            st.divider()
-            
-            if st.button("❌ Закрыть\nSchließen", key=f"close_viewer_{title}", use_container_width=True):
-                st.rerun()
+                st.error("❌ Ошибка доступа")
+                st.error("❌ Dateizugriffsfehler")
 
 def get_mime_type(file_extension):
     """Get MIME type for file extension"""
