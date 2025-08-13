@@ -127,7 +127,7 @@ def show_maintenance_list(language='ru'):
                             st.write("🧾 Чек есть/Beleg vorhanden")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_maintenance_{maintenance[0]}"):
+                        if st.button(f"✏️", key=f"edit_btn_maintenance_{maintenance[0]}"):
                             st.session_state[f"edit_maintenance_{maintenance[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_maintenance_{maintenance[0]}"):
                             delete_maintenance(maintenance[0], language)

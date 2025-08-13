@@ -131,7 +131,7 @@ def show_penalties_list(language='ru'):
                             st.write("📷 Нет фото/Kein Foto")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_penalty_{penalty[0]}"):
+                        if st.button(f"✏️", key=f"edit_btn_penalty_{penalty[0]}"):
                             st.session_state[f"edit_penalty_{penalty[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_penalty_{penalty[0]}"):
                             delete_penalty(penalty[0], language)

@@ -104,7 +104,7 @@ def show_materials_list(language='ru'):
                         st.write(f"📊 Активно/Aktiv: {material[5]}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_material_{material[0]}"):
+                        if st.button(f"✏️", key=f"edit_btn_material_{material[0]}"):
                             st.session_state[f"edit_material_{material[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_material_{material[0]}"):
                             delete_material(material[0], language)

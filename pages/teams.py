@@ -90,7 +90,7 @@ def show_teams_list(language='ru'):
                         st.write(f"{get_text('date', language)}: {created_date.strftime('%d.%m.%Y')}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_team_{team[0]}"):
+                        if st.button(f"✏️", key=f"edit_btn_team_{team[0]}"):
                             st.session_state[f"edit_team_{team[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_team_{team[0]}"):
                             delete_team(team[0], language)

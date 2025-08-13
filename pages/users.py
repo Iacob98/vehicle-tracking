@@ -101,7 +101,7 @@ def show_users_list(language='ru'):
                         st.write(f"{get_text('team', language)}: {team_name}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_user_{user[0]}"):
+                        if st.button(f"✏️", key=f"edit_btn_user_{user[0]}"):
                             st.session_state[f"edit_user_{user[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_user_{user[0]}"):
                             delete_user(user[0], language)
