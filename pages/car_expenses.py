@@ -118,7 +118,7 @@ def show_car_expenses_list(language='ru'):
             FROM car_expenses ce
             JOIN vehicles v ON ce.car_id = v.id
             LEFT JOIN users u ON ce.created_by = u.id
-            WHERE ce.date BETWEEN %(date_from)s AND %(date_to)s
+            WHERE ce.date BETWEEN :date_from AND :date_to
         """
         params = {
             'date_from': date_from,
@@ -127,17 +127,17 @@ def show_car_expenses_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                v.name ILIKE %(search)s OR 
-                ce.description ILIKE %(search)s
+                v.name ILIKE :search OR 
+                ce.description ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
         if vehicle_filter != 'all':
-            query += " AND ce.car_id = %(vehicle_id)s"
+            query += " AND ce.car_id = :vehicle_id"
             params['vehicle_id'] = vehicle_filter
         
         if category_filter != 'all':
-            query += " AND ce.category = %(category)s"
+            query += " AND ce.category = :category"
             params['category'] = category_filter
         
         query += " ORDER BY ce.date DESC, ce.created_at DESC"
@@ -285,7 +285,7 @@ def show_add_car_expense_form(language='ru'):
                     execute_query("""
                         INSERT INTO car_expenses 
                         (car_id, date, category, amount, description, file_url, created_by)
-                        VALUES (%(car_id)s, %(date)s, %(category)s, %(amount)s, %(description)s, %(file_url)s, %(created_by)s)
+                        VALUES (:car_id, :date, :category, :amount, :description, :file_url, :created_by)
                     """, {
                         'car_id': car_id,
                         'date': expense_date,
@@ -394,9 +394,9 @@ def show_edit_car_expense_form(exp, language='ru'):
                 
                 execute_query("""
                     UPDATE car_expenses 
-                    SET car_id = %(car_id)s, date = %(date)s, category = %(category)s, 
-                        amount = %(amount)s, description = %(description)s, file_url = %(file_url)s
-                    WHERE id = %(id)s
+                    SET car_id = :car_id, date = :date, category = :category, 
+                        amount = :amount, description = :description, file_url = :file_url
+                    WHERE id = :id
                 """, {
                     'id': exp[0],
                     'car_id': car_id,
@@ -422,7 +422,7 @@ def show_edit_car_expense_form(exp, language='ru'):
 def delete_car_expense(expense_id, language='ru'):
     """Delete car expense"""
     try:
-        execute_query("DELETE FROM car_expenses WHERE id = %(id)s", {'id': expense_id})
+        execute_query("DELETE FROM car_expenses WHERE id = :id", {'id': expense_id})
         st.success("Расход удален/Ausgabe gelöscht")
         st.rerun()
     except Exception as e:
