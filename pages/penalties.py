@@ -342,6 +342,8 @@ def show_edit_penalty_form(penalty, language='ru'):
                         'photo_url': photo_url,
                         'status': status
                     })
+                    if f"edit_penalty_{penalty[0]}" in st.session_state:
+                        del st.session_state[f"edit_penalty_{penalty[0]}"]
                     st.success(get_text('success_save', language))
                     st.rerun()
                 except Exception as e:
@@ -351,10 +353,6 @@ def show_edit_penalty_form(penalty, language='ru'):
                 if f"edit_penalty_{penalty[0]}" in st.session_state:
                     del st.session_state[f"edit_penalty_{penalty[0]}"]
                 st.rerun()
-            
-            if submitted:
-                if f"edit_penalty_{penalty[0]}" in st.session_state:
-                    del st.session_state[f"edit_penalty_{penalty[0]}"]
 
 def mark_penalty_paid(penalty_id, language='ru'):
     """Mark penalty as paid"""

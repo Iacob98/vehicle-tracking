@@ -252,6 +252,8 @@ def show_edit_user_form(user, language='ru'):
                         'role': role,
                         'team_id': team_id if team_id else None
                     })
+                    if f"edit_user_{user[0]}" in st.session_state:
+                        del st.session_state[f"edit_user_{user[0]}"]
                     st.success(get_text('success_save', language))
                     st.rerun()
                 except Exception as e:
@@ -261,10 +263,6 @@ def show_edit_user_form(user, language='ru'):
                 if f"edit_user_{user[0]}" in st.session_state:
                     del st.session_state[f"edit_user_{user[0]}"]
                 st.rerun()
-            
-            if submitted:
-                if f"edit_user_{user[0]}" in st.session_state:
-                    del st.session_state[f"edit_user_{user[0]}"]
 
 def delete_user(user_id, language='ru'):
     """Delete user"""

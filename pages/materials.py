@@ -211,6 +211,8 @@ def show_edit_material_form(material, language='ru'):
                         'type': material_type,
                         'description': description if description else None
                     })
+                    if f"edit_material_{material[0]}" in st.session_state:
+                        del st.session_state[f"edit_material_{material[0]}"]
                     st.success(get_text('success_save', language))
                     st.rerun()
                 except Exception as e:
@@ -220,10 +222,6 @@ def show_edit_material_form(material, language='ru'):
                 if f"edit_material_{material[0]}" in st.session_state:
                     del st.session_state[f"edit_material_{material[0]}"]
                 st.rerun()
-            
-            if submitted:
-                if f"edit_material_{material[0]}" in st.session_state:
-                    del st.session_state[f"edit_material_{material[0]}"]
 
 def delete_material(material_id, language='ru'):
     """Delete material"""

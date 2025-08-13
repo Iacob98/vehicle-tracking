@@ -294,6 +294,8 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                         'description': description if description else None,
                         'receipt_url': receipt_url
                     })
+                    if f"edit_maintenance_{maintenance[0]}" in st.session_state:
+                        del st.session_state[f"edit_maintenance_{maintenance[0]}"]
                     st.success(get_text('success_save', language))
                     st.rerun()
                 except Exception as e:
@@ -303,10 +305,6 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                 if f"edit_maintenance_{maintenance[0]}" in st.session_state:
                     del st.session_state[f"edit_maintenance_{maintenance[0]}"]
                 st.rerun()
-            
-            if submitted:
-                if f"edit_maintenance_{maintenance[0]}" in st.session_state:
-                    del st.session_state[f"edit_maintenance_{maintenance[0]}"]
 
 def delete_maintenance(maintenance_id, language='ru'):
     """Delete maintenance record"""

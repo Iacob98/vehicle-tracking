@@ -210,6 +210,8 @@ def show_edit_team_form(team, language='ru'):
                         'name': name,
                         'lead_id': lead_id if lead_id else None
                     })
+                    if f"edit_team_{team[0]}" in st.session_state:
+                        del st.session_state[f"edit_team_{team[0]}"]
                     st.success(get_text('success_save', language))
                     st.rerun()
                 except Exception as e:
@@ -219,10 +221,6 @@ def show_edit_team_form(team, language='ru'):
                 if f"edit_team_{team[0]}" in st.session_state:
                     del st.session_state[f"edit_team_{team[0]}"]
                 st.rerun()
-            
-            if submitted:
-                if f"edit_team_{team[0]}" in st.session_state:
-                    del st.session_state[f"edit_team_{team[0]}"]
 
 def delete_team(team_id, language='ru'):
     """Delete team"""
