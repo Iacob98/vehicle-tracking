@@ -94,8 +94,14 @@ def show_teams_list(language='ru'):
                             st.session_state[f"edit_team_{team[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_team_{team[0]}"):
                             delete_team(team[0], language)
-                        if st.button(f"👥", key=f"manage_team_{team[0]}"):
-                            show_team_details(team[0], language)
+                        if st.button(f"👥", key=f"members_team_{team[0]}"):
+                            # Toggle members view
+                            key = f"show_members_{team[0]}"
+                            st.session_state[key] = not st.session_state.get(key, False)
+                    
+                    # Show team members if requested
+                    if st.session_state.get(f"show_members_{team[0]}", False):
+                        show_team_members_inline(team[0], language)
                     
                     # Show edit form if requested
                     if st.session_state.get(f"edit_team_{team[0]}", False):
@@ -221,6 +227,92 @@ def show_edit_team_form(team, language='ru'):
                 if f"edit_team_{team[0]}" in st.session_state:
                     del st.session_state[f"edit_team_{team[0]}"]
                 st.rerun()
+
+def show_team_members_inline(team_id, language='ru'):
+    """Show team members inline expanded view"""
+    try:
+        with st.container():
+            st.markdown("---")
+            
+            # Get team members
+            members_query = """
+                SELECT 
+                    u.id,
+                    u.first_name,
+                    u.last_name,
+                    u.phone,
+                    u.role,
+                    t.name as team_name
+                FROM users u
+                JOIN teams t ON u.team_id = t.id
+                WHERE t.id = :team_id
+                ORDER BY u.first_name, u.last_name
+            """
+            members = execute_query(members_query, {'team_id': team_id})
+            
+            if members:
+                st.subheader(f"👥 {get_text('users', language)} ({len(members)})")
+                
+                # Create DataFrame for better display
+                members_data = []
+                for member in members:
+                    role_text = get_role_text(member[4], language)
+                    members_data.append({
+                        'Имя/Name': f"{member[1]} {member[2]}",
+                        'Телефон/Phone': member[3] or '-',
+                        'Роль/Role': role_text
+                    })
+                
+                # Display as table
+                df = pd.DataFrame(members_data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                # Show assigned vehicles
+                vehicles_query = """
+                    SELECT 
+                        v.name,
+                        v.license_plate,
+                        va.start_date
+                    FROM vehicle_assignments va
+                    JOIN vehicles v ON va.vehicle_id = v.id
+                    WHERE va.team_id = :team_id AND va.end_date IS NULL
+                    ORDER BY va.start_date DESC
+                """
+                vehicles = execute_query(vehicles_query, {'team_id': team_id})
+                
+                if vehicles:
+                    st.subheader(f"🚗 {get_text('vehicles', language)} ({len(vehicles)})")
+                    
+                    vehicles_data = []
+                    for vehicle in vehicles:
+                        vehicles_data.append({
+                            'Автомобиль/Vehicle': vehicle[0],
+                            'Номер/License': vehicle[1],
+                            'С даты/From': vehicle[2].strftime('%d.%m.%Y') if vehicle[2] else '-'
+                        })
+                    
+                    df_vehicles = pd.DataFrame(vehicles_data)
+                    st.dataframe(df_vehicles, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Нет назначенных автомобилей / Keine zugewiesenen Fahrzeuge")
+                    
+            else:
+                st.info("Нет участников в бригаде / Keine Mitglieder im Team")
+                
+            st.markdown("---")
+            
+    except Exception as e:
+        st.error(f"Ошибка загрузки участников / Fehler beim Laden der Mitglieder: {str(e)}")
+
+def get_role_text(role, language='ru'):
+    """Get role text in appropriate language"""
+    role_translations = {
+        'admin': {'ru': 'Администратор', 'de': 'Administrator'},
+        'manager': {'ru': 'Менеджер', 'de': 'Manager'},
+        'team_lead': {'ru': 'Бригадир', 'de': 'Teamleiter'},
+        'worker': {'ru': 'Рабочий', 'de': 'Arbeiter'}
+    }
+    return role_translations.get(role, {}).get(language, role)
 
 def delete_team(team_id, language='ru'):
     """Delete team"""

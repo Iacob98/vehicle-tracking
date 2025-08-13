@@ -223,6 +223,10 @@ TRANSLATIONS = {
         'ru': 'Рабочий',
         'de': 'Arbeiter'
     },
+    'worker': {
+        'ru': 'Рабочий',
+        'de': 'Arbeiter'
+    },
     
     # Type values
     'inspection': {
