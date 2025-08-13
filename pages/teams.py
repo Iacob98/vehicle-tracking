@@ -45,7 +45,7 @@ def show_teams_list(language='ru'):
                 t.id,
                 t.name,
                 t.created_at,
-                u.name as lead_name,
+                CONCAT(u.first_name, ' ', u.last_name) as lead_name,
                 COUNT(DISTINCT tm.id) as members_count,
                 COUNT(DISTINCT va.vehicle_id) as vehicles_count
             FROM teams t
@@ -61,7 +61,7 @@ def show_teams_list(language='ru'):
             params['search'] = f"%{search_term}%"
         
         query += """
-            GROUP BY t.id, t.name, t.created_at, u.name
+            GROUP BY t.id, t.name, t.created_at, u.first_name, u.last_name
             ORDER BY t.name
         """
         
@@ -334,7 +334,7 @@ def export_teams_data(language='ru'):
         teams = execute_query("""
             SELECT 
                 t.name,
-                u.name as lead_name,
+                CONCAT(u.first_name, ' ', u.last_name) as lead_name,
                 t.created_at,
                 COUNT(DISTINCT tm.id) as members_count,
                 COUNT(DISTINCT va.vehicle_id) as vehicles_count
@@ -342,7 +342,7 @@ def export_teams_data(language='ru'):
             LEFT JOIN users u ON t.lead_id = u.id
             LEFT JOIN users tm ON t.id = tm.team_id
             LEFT JOIN vehicle_assignments va ON t.id = va.team_id AND va.end_date IS NULL
-            GROUP BY t.id, t.name, t.created_at, u.name
+            GROUP BY t.id, t.name, t.created_at, u.first_name, u.last_name
             ORDER BY t.name
         """)
         

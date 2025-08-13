@@ -18,6 +18,7 @@ class UserRole(enum.Enum):
     admin = "admin"
     manager = "manager"
     team_lead = "team_lead"
+    worker = "worker"
 
 class PenaltyStatus(enum.Enum):
     open = "open"
@@ -65,7 +66,8 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
     phone = Column(String)
     role = Column(SQLEnum(UserRole), nullable=False)
     team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"))

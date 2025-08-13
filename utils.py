@@ -61,10 +61,10 @@ def get_teams_for_select(language='ru'):
 def get_users_for_select(language='ru'):
     """Get users for select box"""
     try:
-        users = execute_query("SELECT id, name FROM users ORDER BY name")
+        users = execute_query("SELECT id, first_name, last_name FROM users ORDER BY last_name, first_name")
         if not users:
             return []
-        return [(str(user[0]), user[1]) for user in users]
+        return [(str(user[0]), f"{user[1]} {user[2]}") for user in users]
     except Exception as e:
         st.error(f"Error loading users: {str(e)}")
         return []

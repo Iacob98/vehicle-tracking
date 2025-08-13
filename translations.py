@@ -171,6 +171,10 @@ TRANSLATIONS = {
         'ru': 'Бригадир',
         'de': 'Teamleiter'
     },
+    'worker': {
+        'ru': 'Рабочий',
+        'de': 'Arbeiter'
+    },
     
     # Type values
     'inspection': {

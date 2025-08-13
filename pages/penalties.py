@@ -60,7 +60,7 @@ def show_penalties_list(language='ru'):
                 p.date,
                 v.name as vehicle_name,
                 v.license_plate,
-                u.name as user_name,
+                CONCAT(u.first_name, ' ', u.last_name) as user_name,
                 p.amount,
                 p.status,
                 p.photo_url
@@ -75,7 +75,8 @@ def show_penalties_list(language='ru'):
             query += """ AND (
                 v.name ILIKE :search OR 
                 v.license_plate ILIKE :search OR
-                u.name ILIKE :search
+                u.first_name ILIKE :search OR
+                u.last_name ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
@@ -373,7 +374,7 @@ def export_penalties_data(language='ru'):
                 p.date,
                 v.name as vehicle_name,
                 v.license_plate,
-                u.name as user_name,
+                CONCAT(u.first_name, ' ', u.last_name) as user_name,
                 p.amount,
                 p.status
             FROM penalties p

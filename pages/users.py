@@ -50,7 +50,8 @@ def show_users_list(language='ru'):
         query = """
             SELECT 
                 u.id,
-                u.name,
+                u.first_name,
+                u.last_name,
                 u.phone,
                 u.role,
                 t.name as team_name
@@ -62,7 +63,8 @@ def show_users_list(language='ru'):
         
         if search_term:
             query += """ AND (
-                u.name ILIKE :search OR 
+                u.first_name ILIKE :search OR 
+                u.last_name ILIKE :search OR 
                 u.phone ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
@@ -71,7 +73,7 @@ def show_users_list(language='ru'):
             query += " AND u.role = :role"
             params['role'] = role_filter
         
-        query += " ORDER BY u.name"
+        query += " ORDER BY u.last_name, u.first_name"
         
         users = execute_query(query, params)
         
@@ -81,20 +83,21 @@ def show_users_list(language='ru'):
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                     
                     with col1:
-                        st.write(f"**{user[1]}**")
-                        if user[2]:
-                            st.write(f"📞 {user[2]}")
+                        st.write(f"**{user[1]} {user[2]}**")
+                        if user[3]:
+                            st.write(f"📞 {user[3]}")
                     
                     with col2:
                         role_icon = {
                             'admin': '👑',
                             'manager': '💼',
-                            'team_lead': '🎯'
-                        }.get(user[3], '👤')
-                        st.write(f"{role_icon} {get_text(user[3], language)}")
+                            'team_lead': '🎯',
+                            'worker': '👷'
+                        }.get(user[4], '👤')
+                        st.write(f"{role_icon} {get_text(user[4], language)}")
                     
                     with col3:
-                        team_name = user[4] or 'Не назначен/Nicht zugewiesen'
+                        team_name = user[5] or 'Не назначен/Nicht zugewiesen'
                         st.write(f"{get_text('team', language)}: {team_name}")
                     
                     with col4:
@@ -118,13 +121,14 @@ def show_add_user_form(language='ru'):
         col1, col2 = st.columns(2)
         
         with col1:
-            name = st.text_input(get_text('name', language), key="new_user_name")
+            first_name = st.text_input("Имя/Vorname", key="new_user_first_name")
+            last_name = st.text_input("Фамилия/Nachname", key="new_user_last_name")
             phone = st.text_input(get_text('phone', language), key="new_user_phone")
         
         with col2:
             role = st.selectbox(
                 get_text('role', language),
-                options=['admin', 'manager', 'team_lead'],
+                options=['admin', 'manager', 'team_lead', 'worker'],
                 format_func=lambda x: get_text(x, language),
                 key="new_user_role"
             )
@@ -145,17 +149,18 @@ def show_add_user_form(language='ru'):
         submitted = st.form_submit_button(get_text('save', language))
         
         if submitted:
-            if not name:
-                st.error("Имя обязательно / Name ist erforderlich")
+            if not first_name or not last_name:
+                st.error("Имя и фамилия обязательны / Vor- und Nachname sind erforderlich")
             else:
                 try:
                     user_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO users (id, name, phone, role, team_id)
-                        VALUES (:id, :name, :phone, :role, :team_id)
+                        INSERT INTO users (id, first_name, last_name, phone, role, team_id)
+                        VALUES (:id, :first_name, :last_name, :phone, :role, :team_id)
                     """, {
                         'id': user_id,
-                        'name': name,
+                        'first_name': first_name,
+                        'last_name': last_name,
                         'phone': phone if phone else None,
                         'role': role,
                         'team_id': team_id if team_id else None
@@ -167,34 +172,39 @@ def show_add_user_form(language='ru'):
 
 def show_edit_user_form(user, language='ru'):
     """Show form to edit user"""
-    with st.expander(f"✏️ {get_text('edit', language)}: {user[1]}", expanded=True):
+    with st.expander(f"✏️ {get_text('edit', language)}: {user[1]} {user[2]}", expanded=True):
         with st.form(f"edit_user_form_{user[0]}"):
             col1, col2 = st.columns(2)
             
             with col1:
-                name = st.text_input(
-                    get_text('name', language),
+                first_name = st.text_input(
+                    "Имя/Vorname",
                     value=user[1],
-                    key=f"edit_user_name_{user[0]}"
+                    key=f"edit_user_first_name_{user[0]}"
+                )
+                last_name = st.text_input(
+                    "Фамилия/Nachname",
+                    value=user[2],
+                    key=f"edit_user_last_name_{user[0]}"
                 )
                 phone = st.text_input(
                     get_text('phone', language),
-                    value=user[2] or '',
+                    value=user[3] or '',
                     key=f"edit_user_phone_{user[0]}"
                 )
             
             with col2:
                 role = st.selectbox(
                     get_text('role', language),
-                    options=['admin', 'manager', 'team_lead'],
-                    index=['admin', 'manager', 'team_lead'].index(user[3]),
+                    options=['admin', 'manager', 'team_lead', 'worker'],
+                    index=['admin', 'manager', 'team_lead', 'worker'].index(user[4]),
                     format_func=lambda x: get_text(x, language),
                     key=f"edit_user_role_{user[0]}"
                 )
                 
                 # Get teams for selection
                 teams = get_teams_for_select(language)
-                current_team = user[4] if user[4] else None
+                current_team = user[5] if user[5] else None
                 team_id = None
                 
                 if teams:
@@ -228,11 +238,12 @@ def show_edit_user_form(user, language='ru'):
                 try:
                     execute_query("""
                         UPDATE users 
-                        SET name = :name, phone = :phone, role = :role, team_id = :team_id
+                        SET first_name = :first_name, last_name = :last_name, phone = :phone, role = :role, team_id = :team_id
                         WHERE id = :id
                     """, {
                         'id': user[0],
-                        'name': name,
+                        'first_name': first_name,
+                        'last_name': last_name,
                         'phone': phone if phone else None,
                         'role': role,
                         'team_id': team_id if team_id else None

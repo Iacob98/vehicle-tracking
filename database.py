@@ -30,7 +30,7 @@ def init_db():
             conn.execute(text("""
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-                        CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead');
+                        CREATE TYPE user_role AS ENUM ('admin', 'manager', 'team_lead', 'worker');
                     END IF;
                 END $$;
             """))
@@ -96,7 +96,8 @@ def init_db():
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS users (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    name TEXT NOT NULL,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL,
                     phone TEXT,
                     role user_role NOT NULL,
                     team_id UUID REFERENCES teams(id)
