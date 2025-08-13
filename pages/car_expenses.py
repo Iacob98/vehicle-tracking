@@ -8,6 +8,13 @@ import uuid
 
 def show_page(language='ru'):
     """Show car expenses management page"""
+    # Check if file viewer is active
+    for key in st.session_state.keys():
+        if key.startswith("view_car_file_") and st.session_state.get(key):
+            file_data = st.session_state[key]
+            show_car_file_viewer(file_data['url'], file_data['title'], file_data['language'])
+            return
+    
     st.title(f"🚗 Расходы на автомобили/Fahrzeugausgaben")
     
     # Tabs for different views
@@ -599,3 +606,103 @@ def export_car_expenses_data(language='ru'):
     
     except Exception as e:
         st.error(f"Ошибка экспорта/Export-Fehler: {str(e)}")
+
+def show_car_file_viewer(file_url, title, language='ru'):
+    """Show car expense file viewer in full width"""
+    import os
+    
+    if file_url:
+        st.header(f"📎 {title}")
+        
+        # File info
+        file_name = file_url.split('/')[-1]
+        file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+        
+        # Create main layout
+        col_main, col_sidebar = st.columns([3, 1])
+        
+        with col_main:
+            st.info(f"📁 **Файл:** {file_name}")
+            
+            # Determine file type and display accordingly
+            if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+                try:
+                    if file_url.startswith('/'):
+                        file_path = file_url.lstrip('/')
+                        if os.path.exists(file_path):
+                            st.image(file_path, caption=title, use_container_width=True)
+                        else:
+                            st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+                    else:
+                        st.image(file_url, caption=title, use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
+                    
+            elif file_extension == 'pdf':
+                st.success("📄 **PDF документ готов к просмотру**")
+                st.success("📄 **PDF-Dokument bereit zur Ansicht**")
+                
+                col_pdf1, col_pdf2 = st.columns(2)
+                with col_pdf1:
+                    st.write("💡 **Русский:** Используйте кнопку 'Скачать' справа для просмотра PDF файла")
+                with col_pdf2:
+                    st.write("💡 **Deutsch:** Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
+                
+                if not file_url.startswith('/'):
+                    st.markdown(f"🔗 [Открыть PDF в браузере/PDF im Browser öffnen]({file_url})")
+                    
+            else:
+                st.warning(f"📎 **Файл типа .{file_extension}**")
+                st.info("💡 Используйте кнопку скачивания справа / Nutzen Sie den Download-Button rechts")
+        
+        with col_sidebar:
+            st.markdown("### Действия / Aktionen")
+            
+            # Close button
+            if st.button("❌ Закрыть/Schließen", use_container_width=True):
+                for key in list(st.session_state.keys()):
+                    if key.startswith("view_car_file_"):
+                        del st.session_state[key]
+                st.rerun()
+            
+            st.markdown("---")
+            
+            # Download button
+            try:
+                if file_url.startswith('/'):
+                    # Local file
+                    file_path = file_url.lstrip('/')
+                    if os.path.exists(file_path):
+                        with open(file_path, "rb") as f:
+                            file_data = f.read()
+                        
+                        st.download_button(
+                            label="⬇️ **Скачать**\n**Download**",
+                            data=file_data,
+                            file_name=file_name,
+                            use_container_width=True
+                        )
+                    else:
+                        st.error("❌ Файл не найден/Datei nicht gefunden")
+                else:
+                    # External URL
+                    st.markdown(f"""
+                    <a href="{file_url}" target="_blank">
+                        <button style="width: 100%; padding: 10px; background-color: #ff6b6b; color: white; border: none; border-radius: 5px;">
+                            ⬇️ Скачать/Download
+                        </button>
+                    </a>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                st.error("❌ Ошибка доступа к файлу/Dateizugriffsfehler")
+                st.error(f"Детали/Details: {str(e)}")
+        
+        # Return to expenses button
+        st.markdown("---")
+        col_back, col_space = st.columns([1, 3])
+        with col_back:
+            if st.button("← Назад к расходам/Zurück zu Ausgaben"):
+                for key in list(st.session_state.keys()):
+                    if key.startswith("view_car_file_"):
+                        del st.session_state[key]
+                st.rerun()
