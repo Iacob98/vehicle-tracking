@@ -373,7 +373,12 @@ def show_material_assignments(language='ru'):
                             if st.button("↩️", key=f"return_assignment_{assignment[0]}"):
                                 return_material(assignment[0], language)
                             if st.button("💥", key=f"break_assignment_{assignment[0]}"):
-                                mark_material_broken(assignment[0], language)
+                                st.session_state[f"break_dialog_{assignment[0]}"] = True
+                                st.rerun()
+                    
+                    # Show break dialog if requested
+                    if st.session_state.get(f"break_dialog_{assignment[0]}", False):
+                        show_break_material_dialog(assignment[0], assignment[1], language)
                     
                     st.divider()
         else:
@@ -512,7 +517,33 @@ def return_material(assignment_id, language='ru'):
     except Exception as e:
         st.error(f"Ошибка возврата материала / Fehler bei der Materialrückgabe: {str(e)}")
 
-def mark_material_broken(assignment_id, language='ru'):
+def show_break_material_dialog(assignment_id, material_name, language='ru'):
+    """Show dialog to select break reason"""
+    with st.expander(f"💥 Оборудование сломано: {material_name}", expanded=True):
+        st.write("Выберите причину поломки / Wählen Sie den Grund für den Defekt:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔧 Техническая неисправность\nTechnischer Defekt", key=f"tech_break_{assignment_id}"):
+                mark_material_broken(assignment_id, language, is_worker_fault=False)
+                if f"break_dialog_{assignment_id}" in st.session_state:
+                    del st.session_state[f"break_dialog_{assignment_id}"]
+                st.rerun()
+        
+        with col2:
+            if st.button("👤 По вине рабочих\nVerschulden der Arbeiter", key=f"worker_break_{assignment_id}"):
+                mark_material_broken(assignment_id, language, is_worker_fault=True)
+                if f"break_dialog_{assignment_id}" in st.session_state:
+                    del st.session_state[f"break_dialog_{assignment_id}"]
+                st.rerun()
+        
+        if st.button("❌ Отмена / Abbrechen", key=f"cancel_break_{assignment_id}"):
+            if f"break_dialog_{assignment_id}" in st.session_state:
+                del st.session_state[f"break_dialog_{assignment_id}"]
+            st.rerun()
+
+def mark_material_broken(assignment_id, language='ru', is_worker_fault=True):
     """Mark material as broken and create penalty"""
     try:
         # Get assignment details including material info
@@ -541,11 +572,14 @@ def mark_material_broken(assignment_id, language='ru'):
             'id': history_id,
             'material_id': material_id,
             'team_id': team_id,
-            'description': f"Сломано {quantity} единиц / {quantity} Einheiten kaputt"
+            'description': f"Сломано {quantity} единиц ({'по вине рабочих' if is_worker_fault else 'техническая неисправность'}) / {quantity} Einheiten kaputt ({'Verschulden der Arbeiter' if is_worker_fault else 'technischer Defekt'})"
         })
         
-        # Create penalty for broken material
-        create_penalty_for_broken_material(assignment_id, team_id, material_name, unit_price, quantity, language)
+        # Create penalty for broken material only if worker's fault
+        if is_worker_fault:
+            create_penalty_for_broken_material(assignment_id, team_id, material_name, unit_price, quantity, language)
+        else:
+            st.info("🔧 Техническая неисправность - штраф не назначен / Technischer Defekt - keine Strafe")
         
         st.success("Материал отмечен как сломанный / Material als kaputt markiert")
         st.rerun()
