@@ -243,7 +243,7 @@ def show_team_details(team_id, language='ru'):
     try:
         # Get team info
         team_info = execute_query("""
-            SELECT t.name, u.name as lead_name
+            SELECT t.name, CONCAT(u.first_name, ' ', u.last_name) as lead_name
             FROM teams t
             LEFT JOIN users u ON t.lead_id = u.id
             WHERE t.id = :id
@@ -260,10 +260,10 @@ def show_team_details(team_id, language='ru'):
             # Team members
             st.subheader(f"👤 {get_text('users', language)}")
             members = execute_query("""
-                SELECT name, phone, role
+                SELECT CONCAT(first_name, ' ', last_name) as name, phone, role
                 FROM users
                 WHERE team_id = :id
-                ORDER BY role, name
+                ORDER BY role, first_name, last_name
             """, {'id': team_id})
             
             if members:

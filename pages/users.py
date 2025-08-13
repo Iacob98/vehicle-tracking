@@ -280,13 +280,13 @@ def export_users_data(language='ru'):
     try:
         users = execute_query("""
             SELECT 
-                u.name,
+                CONCAT(u.first_name, ' ', u.last_name) as name,
                 u.phone,
                 u.role,
                 t.name as team_name
             FROM users u
             LEFT JOIN teams t ON u.team_id = t.id
-            ORDER BY u.name
+            ORDER BY u.last_name, u.first_name
         """)
         
         if users:

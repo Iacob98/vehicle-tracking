@@ -152,7 +152,7 @@ def show_page(language='ru'):
                     v.name as vehicle_name,
                     p.amount,
                     p.status,
-                    u.name as user_name
+                    CONCAT(u.first_name, ' ', u.last_name) as user_name
                 FROM penalties p
                 JOIN vehicles v ON p.vehicle_id = v.id
                 LEFT JOIN users u ON p.user_id = u.id
