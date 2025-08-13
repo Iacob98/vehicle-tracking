@@ -128,9 +128,13 @@ def show_maintenance_list(language='ru'):
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_maintenance_{maintenance[0]}"):
-                            show_edit_maintenance_form(maintenance, language)
+                            st.session_state[f"edit_maintenance_{maintenance[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_maintenance_{maintenance[0]}"):
                             delete_maintenance(maintenance[0], language)
+                    
+                    # Show edit form if requested
+                    if st.session_state.get(f"edit_maintenance_{maintenance[0]}", False):
+                        show_edit_maintenance_form(maintenance, language)
                     
                     st.divider()
         else:
@@ -296,7 +300,13 @@ def show_edit_maintenance_form(maintenance, language='ru'):
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
             
             if cancelled:
+                if f"edit_maintenance_{maintenance[0]}" in st.session_state:
+                    del st.session_state[f"edit_maintenance_{maintenance[0]}"]
                 st.rerun()
+            
+            if submitted:
+                if f"edit_maintenance_{maintenance[0]}" in st.session_state:
+                    del st.session_state[f"edit_maintenance_{maintenance[0]}"]
 
 def delete_maintenance(maintenance_id, language='ru'):
     """Delete maintenance record"""

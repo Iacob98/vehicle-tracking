@@ -132,11 +132,15 @@ def show_penalties_list(language='ru'):
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_penalty_{penalty[0]}"):
-                            show_edit_penalty_form(penalty, language)
+                            st.session_state[f"edit_penalty_{penalty[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_penalty_{penalty[0]}"):
                             delete_penalty(penalty[0], language)
                         if penalty[6] == 'open' and st.button(f"✅", key=f"pay_penalty_{penalty[0]}"):
                             mark_penalty_paid(penalty[0], language)
+                    
+                    # Show edit form if requested
+                    if st.session_state.get(f"edit_penalty_{penalty[0]}", False):
+                        show_edit_penalty_form(penalty, language)
                     
                     st.divider()
         else:
@@ -344,7 +348,13 @@ def show_edit_penalty_form(penalty, language='ru'):
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
             
             if cancelled:
+                if f"edit_penalty_{penalty[0]}" in st.session_state:
+                    del st.session_state[f"edit_penalty_{penalty[0]}"]
                 st.rerun()
+            
+            if submitted:
+                if f"edit_penalty_{penalty[0]}" in st.session_state:
+                    del st.session_state[f"edit_penalty_{penalty[0]}"]
 
 def mark_penalty_paid(penalty_id, language='ru'):
     """Mark penalty as paid"""

@@ -91,11 +91,15 @@ def show_teams_list(language='ru'):
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_team_{team[0]}"):
-                            show_edit_team_form(team, language)
+                            st.session_state[f"edit_team_{team[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_team_{team[0]}"):
                             delete_team(team[0], language)
                         if st.button(f"👥", key=f"manage_team_{team[0]}"):
                             show_team_details(team[0], language)
+                    
+                    # Show edit form if requested
+                    if st.session_state.get(f"edit_team_{team[0]}", False):
+                        show_edit_team_form(team, language)
                     
                     st.divider()
         else:
@@ -212,7 +216,13 @@ def show_edit_team_form(team, language='ru'):
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
             
             if cancelled:
+                if f"edit_team_{team[0]}" in st.session_state:
+                    del st.session_state[f"edit_team_{team[0]}"]
                 st.rerun()
+            
+            if submitted:
+                if f"edit_team_{team[0]}" in st.session_state:
+                    del st.session_state[f"edit_team_{team[0]}"]
 
 def delete_team(team_id, language='ru'):
     """Delete team"""

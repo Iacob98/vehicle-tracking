@@ -105,9 +105,13 @@ def show_materials_list(language='ru'):
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_material_{material[0]}"):
-                            show_edit_material_form(material, language)
+                            st.session_state[f"edit_material_{material[0]}"] = True
                         if st.button(f"🗑️", key=f"delete_material_{material[0]}"):
                             delete_material(material[0], language)
+                    
+                    # Show edit form if requested
+                    if st.session_state.get(f"edit_material_{material[0]}", False):
+                        show_edit_material_form(material, language)
                     
                     st.divider()
         else:
@@ -213,7 +217,13 @@ def show_edit_material_form(material, language='ru'):
                     st.error(f"{get_text('error_save', language)}: {str(e)}")
             
             if cancelled:
+                if f"edit_material_{material[0]}" in st.session_state:
+                    del st.session_state[f"edit_material_{material[0]}"]
                 st.rerun()
+            
+            if submitted:
+                if f"edit_material_{material[0]}" in st.session_state:
+                    del st.session_state[f"edit_material_{material[0]}"]
 
 def delete_material(material_id, language='ru'):
     """Delete material"""
