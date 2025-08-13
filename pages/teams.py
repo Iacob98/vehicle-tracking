@@ -263,10 +263,19 @@ def show_team_details(team_id, language='ru'):
         
         team_name = team_info[0][0]
         
-        with st.expander(f"👥 {team_name} - Детали/Details", expanded=True):
-            
-            # Team members
-            st.subheader(f"👤 {get_text('users', language)}")
+        # Use main content area instead of expander for better visibility
+        st.markdown("---")
+        st.subheader(f"👥 {team_name} - Детали/Details")
+        
+        # Create tabs for better organization
+        tab1, tab2, tab3 = st.tabs([
+            f"👤 {get_text('users', language)}",
+            f"🚗 {get_text('vehicles', language)}",
+            f"💰 {get_text('expenses', language)}"
+        ])
+        
+        with tab1:
+            # Team members in a more readable format
             members = execute_query("""
                 SELECT CONCAT(first_name, ' ', last_name) as name, phone, role
                 FROM users
@@ -275,20 +284,34 @@ def show_team_details(team_id, language='ru'):
             """, {'id': team_id})
             
             if members:
+                # Create a table-like display
+                st.markdown("**Участники бригады / Teammitglieder:**")
+                
+                # Header
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown("**Имя/Name**")
+                with col2:
+                    st.markdown("**Телефон/Telefon**")
+                with col3:
+                    st.markdown("**Роль/Rolle**")
+                
+                st.markdown("---")
+                
+                # Member rows
                 for member in members:
-                    col1, col2, col3 = st.columns([2, 2, 1])
+                    col1, col2, col3 = st.columns([3, 2, 2])
                     with col1:
-                        st.write(f"**{member[0]}**")
+                        st.write(member[0])
                     with col2:
-                        st.write(member[1] or '')
+                        st.write(member[1] or '-')
                     with col3:
                         st.write(get_text(member[2], language))
-                st.write("---")
             else:
                 st.info("Нет участников / Keine Mitglieder")
             
-            # Assigned vehicles
-            st.subheader(f"🚗 {get_text('vehicles', language)}")
+        with tab2:
+            # Assigned vehicles in a cleaner format
             vehicles = execute_query("""
                 SELECT v.name, v.license_plate, va.start_date
                 FROM vehicle_assignments va
@@ -298,38 +321,74 @@ def show_team_details(team_id, language='ru'):
             """, {'id': team_id})
             
             if vehicles:
+                st.markdown("**Назначенные автомобили / Zugewiesene Fahrzeuge:**")
+                
+                # Header
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown("**Название/Name**")
+                with col2:
+                    st.markdown("**Номер/Kennzeichen**")
+                with col3:
+                    st.markdown("**Дата назначения/Zuweisungsdatum**")
+                
+                st.markdown("---")
+                
+                # Vehicle rows
                 for vehicle in vehicles:
-                    col1, col2, col3 = st.columns([2, 2, 1])
+                    col1, col2, col3 = st.columns([3, 2, 2])
                     with col1:
-                        st.write(f"**{vehicle[0]}**")
+                        st.write(vehicle[0])
                     with col2:
                         st.write(vehicle[1])
                     with col3:
-                        start_date = vehicle[2].strftime('%d.%m.%Y') if vehicle[2] else ''
+                        start_date = vehicle[2].strftime('%d.%m.%Y') if vehicle[2] else '-'
                         st.write(start_date)
-                st.write("---")
             else:
                 st.info("Нет назначенных автомобилей / Keine zugewiesenen Fahrzeuge")
             
-            # Recent expenses
-            st.subheader(f"💰 {get_text('expenses', language)} (последние/letzte)")
+        with tab3:
+            # Recent expenses from new structure
+            st.markdown("**Последние расходы бригады / Letzte Brigadeausgaben:**")
             expenses = execute_query("""
-                SELECT date, amount, description
-                FROM expenses
-                WHERE team_id = :id
+                SELECT date, amount, description, category
+                FROM brigade_expenses
+                WHERE brigade_id = :id
                 ORDER BY date DESC
-                LIMIT 5
+                LIMIT 10
             """, {'id': team_id})
             
             if expenses:
+                # Header
+                col1, col2, col3, col4 = st.columns([2, 1, 2, 2])
+                with col1:
+                    st.markdown("**Дата/Datum**")
+                with col2:
+                    st.markdown("**Сумма (€)/Betrag (€)**")
+                with col3:
+                    st.markdown("**Категория/Kategorie**")
+                with col4:
+                    st.markdown("**Описание/Beschreibung**")
+                
+                st.markdown("---")
+                
+                # Expense rows
                 for expense in expenses:
-                    col1, col2, col3 = st.columns([1, 1, 2])
+                    col1, col2, col3, col4 = st.columns([2, 1, 2, 2])
                     with col1:
-                        st.write(expense[0].strftime('%d.%m.%Y'))
+                        date_str = expense[0].strftime('%d.%m.%Y') if expense[0] else '-'
+                        st.write(date_str)
                     with col2:
-                        st.write(f"{float(expense[1]):,.2f} €")
+                        st.write(f"€{expense[1]:.2f}")
                     with col3:
-                        st.write(expense[2] or '')
+                        category_display = expense[3] if expense[3] else '-'
+                        if expense[3] == 'broken_equipment':
+                            category_display = 'Поломка оборудования/Ausrüstungsschaden'
+                        elif expense[3] == 'fine':
+                            category_display = 'Штраф/Strafe'
+                        st.write(category_display)
+                    with col4:
+                        st.write(expense[2] or '-')
             else:
                 st.info("Нет расходов / Keine Ausgaben")
     
