@@ -192,23 +192,29 @@ def show_car_expenses_list(language='ru'):
                         st.caption(f"Создано/Erstellt: {exp[8].strftime('%d.%m.%Y %H:%M')}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_car_exp_{exp[0]}"):
-                            st.session_state[f"edit_car_exp_{exp[0]}"] = True
+                        edit_key = f"edit_car_exp_{exp[0]}"
+                        if st.button(f"✏️", key=f"edit_btn_{exp[0]}"):
+                            st.session_state[edit_key] = True
+                            st.rerun()
+                        
                         # Don't allow deletion of maintenance-linked expenses
                         if len(exp) > 10 and exp[9]:  # maintenance_id exists
                             st.caption("🔒 Удалить через ТО")
                         else:
                             if st.button(f"🗑️", key=f"delete_car_exp_{exp[0]}"):
                                 delete_car_expense(exp[0], language)
+                        
                         if exp[5] and st.button(f"📎", key=f"view_car_exp_{exp[0]}"):
                             st.session_state[f"view_car_file_{exp[0]}"] = {
                                 'url': exp[5],
                                 'title': f"{exp[6]} - {categories.get(exp[2], exp[2])}",
                                 'language': language
                             }
+                            st.rerun()
                     
                     # Show edit form if requested
-                    if st.session_state.get(f"edit_car_exp_{exp[0]}", False):
+                    edit_key = f"edit_car_exp_{exp[0]}"
+                    if st.session_state.get(edit_key, False):
                         show_edit_car_expense_form(exp, language)
                     
                     st.divider()
@@ -325,16 +331,20 @@ def show_edit_car_expense_form(exp, language='ru'):
         with col1:
             # Vehicle selection
             vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
-            if not vehicles:
+            if not vehicles or vehicles is True or not isinstance(vehicles, list) or len(vehicles) == 0:
                 st.warning("Автомобили не найдены")
                 return
             
             # Find current vehicle
             current_vehicle_index = 0
-            for i, vehicle in enumerate(vehicles):
-                if exp[6].strip() == vehicle[1].strip():
-                    current_vehicle_index = i
-                    break
+            try:
+                for i, vehicle in enumerate(vehicles):
+                    if len(exp) > 6 and exp[6] and len(vehicle) > 1 and vehicle[1]:
+                        if str(exp[6]).strip() == str(vehicle[1]).strip():
+                            current_vehicle_index = i
+                            break
+            except (IndexError, AttributeError, TypeError):
+                current_vehicle_index = 0
             
             car_id = st.selectbox(
                 "Автомобиль/Fahrzeug",
@@ -476,13 +486,13 @@ def show_car_expenses_analytics(language='ru'):
             'date_to': date_to
         })
         
-        if expenses:
+        if expenses and isinstance(expenses, list) and len(expenses) > 0:
             # Summary metrics
             total_expenses = execute_query("""
                 SELECT 
-                    SUM(amount) as total,
+                    COALESCE(SUM(amount), 0) as total,
                     COUNT(*) as count,
-                    AVG(amount) as avg_amount
+                    COALESCE(AVG(amount), 0) as avg_amount
                 FROM car_expenses 
                 WHERE date BETWEEN :date_from AND :date_to
             """, {
@@ -554,22 +564,24 @@ def export_car_expenses_data(language='ru'):
                     exp[0],  # vehicle_name
                     exp[1].strftime('%d.%m.%Y') if exp[1] else '',  # date
                     categories.get(exp[2], exp[2]),  # category
-                    exp[3],  # amount
+                    float(exp[3]),  # amount
                     exp[4] or '',  # description
                     exp[5] or '',  # created_by
                     exp[6].strftime('%d.%m.%Y %H:%M') if exp[6] else ''  # created_at
                 ])
             
+            headers = [
+                'Автомобиль/Vehicle',
+                'Дата/Date', 
+                'Категория/Category',
+                'Сумма/Amount',
+                'Описание/Description',
+                'Создал/Created By',
+                'Дата создания/Created At'
+            ]
+            
             # Create DataFrame
-            df = pd.DataFrame(export_data, columns=[
-                'Автомобиль/Fahrzeug',
-                'Дата/Datum',
-                'Категория/Kategorie',
-                'Сумма (€)/Betrag (€)',
-                'Описание/Beschreibung',
-                'Создал/Erstellt von',
-                'Дата создания/Erstelldatum'
-            ])
+            df = pd.DataFrame(export_data, columns=headers)
             
             # Export to CSV
             csv_data = df.to_csv(index=False)
