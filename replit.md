@@ -8,6 +8,23 @@ A comprehensive fleet management web application built with Streamlit that helps
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (August 13, 2025)
+
+### Database Structure Updates
+- Migrated users table from single "name" field to separate "first_name" and "last_name" fields
+- Added "Worker" role to user_role enum with Russian/German translations
+- Updated all SQL queries across application to use new user structure
+- Fixed database transaction issues and completed clean database recreation
+
+### Enhanced System Logic Requirements
+- Bidirectional entity relationships with automatic updates
+- Snapshot system for team compositions at specific events
+- Equipment categorization: returnable equipment vs consumable materials
+- Automatic penalty assignment to team compositions based on incident dates
+- Historical tracking of vehicle assignments with proper date ranges
+- CSV import/export with preview and validation workflows
+- Document management with expiry dates and file attachments
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -49,6 +66,11 @@ Preferred communication style: Simple, everyday language.
 - **Search and Filtering**: Advanced filtering across all entity types
 - **Date Range Operations**: Historical data analysis with date-based queries
 - **Pagination Support**: Efficient data loading for large datasets
+- **Snapshot System**: Historical composition tracking for team assignments
+- **Equipment vs Consumables**: Returnable equipment and consumable materials tracking
+- **Automatic Logging**: All user actions logged with timestamps and user attribution
+- **CSV Import/Export**: Bulk data operations with preview and validation
+- **Document Management**: File attachments with expiry dates for official documents
 
 ## External Dependencies
 

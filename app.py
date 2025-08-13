@@ -17,12 +17,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize database
-try:
-    init_db()
-except Exception as e:
-    st.error(f"Database connection error: {str(e)}")
-    st.stop()
+# Database is already initialized manually via SQL tool
+pass
 
 # Language selection
 if 'language' not in st.session_state:
