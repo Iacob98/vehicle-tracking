@@ -142,7 +142,17 @@ def show_documents_list(language='ru'):
                         st.write(status_icons.get(doc[11], '⚪'))
                         
                         if doc[5]:  # file_url
-                            st.write("📎 Файл есть/Datei vorhanden")
+                            file_name = doc[5].split('/')[-1]
+                            file_ext = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                            
+                            if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
+                                st.write("🖼️ Изображение/Bild")
+                            elif file_ext == 'pdf':
+                                st.write("📄 PDF документ/PDF-Dokument")
+                            else:
+                                st.write("📎 Файл есть/Datei vorhanden")
+                            
+                            st.caption(f"📁 {file_name}")
                         
                         if doc[10]:  # uploaded_by_name
                             st.write(f"👤 {doc[10]}")
@@ -541,58 +551,92 @@ def delete_document(doc_id, language='ru'):
 def show_file_viewer(file_url, title, language='ru'):
     """Show file viewer in modal"""
     if file_url:
-        with st.expander(f"📎 {title}", expanded=True):
-            col1, col2 = st.columns([3, 1])
+        st.subheader(f"📎 Просмотр файла: {title}")
+        
+        # File info
+        file_name = file_url.split('/')[-1]
+        file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+        
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            st.info(f"📁 Файл: {file_name}")
             
-            with col1:
-                # Determine file type
-                file_extension = file_url.split('.')[-1].lower()
-                
-                if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
-                    try:
-                        import os
-                        if file_url.startswith('/'):
-                            file_path = file_url.lstrip('/')
-                            if os.path.exists(file_path):
-                                st.image(file_path, caption=title, use_container_width=True)
-                            else:
-                                st.error("Файл изображения не найден/Bilddatei nicht gefunden")
-                        else:
-                            st.image(file_url, caption=title, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
-                elif file_extension == 'pdf':
-                    st.write("📄 PDF файл/PDF-Datei")
-                    # For PDF, show a link since Streamlit can't display PDFs directly
-                    st.markdown(f"[Открыть PDF в новом окне/PDF in neuem Fenster öffnen]({file_url})")
-                else:
-                    st.write(f"📎 Файл: {file_url.split('/')[-1]}")
-            
-            with col2:
-                # Download button
+            # Determine file type and display accordingly
+            if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
                 try:
                     import os
                     if file_url.startswith('/'):
-                        # Local file
                         file_path = file_url.lstrip('/')
                         if os.path.exists(file_path):
-                            with open(file_path, "rb") as f:
-                                st.download_button(
-                                    label="⬇️ Скачать/Download",
-                                    data=f.read(),
-                                    file_name=file_url.split('/')[-1],
-                                    mime=get_mime_type(file_extension)
-                                )
+                            st.image(file_path, caption=title, use_container_width=True)
                         else:
-                            st.write("Файл не найден/Datei nicht gefunden")
+                            st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
                     else:
-                        # External URL
-                        st.write(f"[Скачать файл/Datei herunterladen]({file_url})")
+                        st.image(file_url, caption=title, use_container_width=True)
                 except Exception as e:
-                    st.write(f"[Скачать файл/Datei herunterladen]({file_url})")
-                
-                if st.button("❌ Закрыть/Schließen", key=f"close_viewer_{title}"):
-                    st.rerun()
+                    st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
+                    
+            elif file_extension == 'pdf':
+                st.success("📄 PDF документ готов к просмотру/PDF-Dokument bereit zur Ansicht")
+                if file_url.startswith('/'):
+                    st.write("💡 Используйте кнопку 'Скачать' справа для просмотра PDF")
+                    st.write("💡 Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
+                else:
+                    st.markdown(f"🔗 [Открыть PDF в новом окне/PDF in neuem Fenster öffnen]({file_url})")
+                    
+            else:
+                st.warning(f"📎 Файл типа .{file_extension} - используйте кнопку скачивания")
+                st.warning(f"📎 Datei vom Typ .{file_extension} - nutzen Sie den Download-Button")
+        
+        with col2:
+            # Download section
+            st.write("**Действия/Aktionen:**")
+            
+            try:
+                import os
+                if file_url.startswith('/'):
+                    # Local file
+                    file_path = file_url.lstrip('/')
+                    if os.path.exists(file_path):
+                        with open(file_path, "rb") as f:
+                            file_data = f.read()
+                        
+                        st.download_button(
+                            label="⬇️ Скачать\nDownload",
+                            data=file_data,
+                            file_name=file_name,
+                            mime=get_mime_type(file_extension),
+                            use_container_width=True
+                        )
+                        
+                        # File info
+                        file_size = len(file_data)
+                        if file_size < 1024:
+                            size_str = f"{file_size} байт/Bytes"
+                        elif file_size < 1024*1024:
+                            size_str = f"{file_size//1024} КБ/KB"
+                        else:
+                            size_str = f"{file_size//(1024*1024)} МБ/MB"
+                        
+                        st.caption(f"📊 Размер: {size_str}")
+                        
+                    else:
+                        st.error("🚫 Файл не найден/Datei nicht gefunden")
+                else:
+                    # External URL
+                    st.link_button(
+                        "🔗 Открыть/Öffnen",
+                        file_url,
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"❌ Ошибка доступа к файлу/Dateizugriffsfehler")
+            
+            st.divider()
+            
+            if st.button("❌ Закрыть\nSchließen", key=f"close_viewer_{title}", use_container_width=True):
+                st.rerun()
 
 def get_mime_type(file_extension):
     """Get MIME type for file extension"""
