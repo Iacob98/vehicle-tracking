@@ -75,6 +75,14 @@ TRANSLATIONS = {
         'ru': 'Экспорт',
         'de': 'Export'
     },
+    'documents': {
+        'ru': 'Документы',
+        'de': 'Dokumente'
+    },
+    'expiring_soon': {
+        'ru': 'Истекающие',
+        'de': 'Ablaufend'
+    },
     
     # Form fields
     'name': {

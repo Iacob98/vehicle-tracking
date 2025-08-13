@@ -51,6 +51,7 @@ with st.sidebar:
         'penalties': {'icon': '🚧', 'key': 'penalties'},
         'maintenance': {'icon': '🔧', 'key': 'maintenance'},
         'materials': {'icon': '📦', 'key': 'materials'},
+        'documents': {'icon': '📄', 'key': 'documents'},
         'expenses': {'icon': '💰', 'key': 'expenses'}
     }
     
@@ -82,6 +83,9 @@ try:
         maintenance.show_page(st.session_state.language)
     elif st.session_state.current_page == 'materials':
         materials.show_page(st.session_state.language)
+    elif st.session_state.current_page == 'documents':
+        from pages.documents import show_documents_page
+        show_documents_page(st.session_state.language)
     elif st.session_state.current_page == 'expenses':
         expenses.show_page(st.session_state.language)
 except Exception as e:
