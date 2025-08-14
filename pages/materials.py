@@ -290,13 +290,14 @@ def create_penalty_for_broken_material(material_assignment_id, team_id, material
         # Create penalty
         penalty_id = str(uuid.uuid4())
         execute_query("""
-            INSERT INTO penalties (id, team_id, amount, description, status, created_at)
-            VALUES (:id, :team_id, :amount, :description, 'open', :created_at)
+            INSERT INTO penalties (id, team_id, amount, description, status, date, created_at)
+            VALUES (:id, :team_id, :amount, :description, 'open', :date, :created_at)
         """, {
             'id': penalty_id,
             'team_id': team_id,
             'amount': penalty_amount,
             'description': f"Поломка материала: {material_name} ({quantity} ед.) / Defektes Material: {material_name} ({quantity} St.)",
+            'date': datetime.now().date(),
             'created_at': datetime.now()
         })
         
