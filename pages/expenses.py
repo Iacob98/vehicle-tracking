@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, get_vehicles_for_select, get_teams_for_select, upload_file, format_currency
+from utils import export_to_csv, format_currency
 from datetime import datetime, date, timedelta
-import uuid
 import plotly.express as px
 
 def show_page(language='ru'):
@@ -65,42 +64,100 @@ def show_expenses_list(language='ru'):
             if st.button(f"📥 {get_text('export', language)}"):
                 export_expenses_data(language)
         
-        # Build query with filters
-        query = """
-            SELECT 
-                e.id,
-                e.date,
-                e.type,
-                v.name as vehicle_name,
-                v.license_plate,
-                t.name as team_name,
-                e.amount,
-                e.description,
-                e.receipt_url
-            FROM expenses e
-            LEFT JOIN vehicles v ON e.vehicle_id = v.id
-            LEFT JOIN teams t ON e.team_id = t.id
-            WHERE 1=1
-        """
+        # Combined query from car_expenses and penalties
         params = {}
+        where_conditions = []
         
         if search_term:
-            query += " AND e.description ILIKE :search"
+            where_conditions.append("description ILIKE :search")
             params['search'] = f"%{search_term}%"
         
-        if type_filter != 'all':
-            query += " AND e.type = :type"
-            params['type'] = type_filter
-        
         if date_from:
-            query += " AND e.date >= :date_from"
+            where_conditions.append("date >= :date_from")
             params['date_from'] = date_from
         
         if date_to:
-            query += " AND e.date <= :date_to"
+            where_conditions.append("date <= :date_to")
             params['date_to'] = date_to
         
-        query += " ORDER BY e.date DESC"
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        if type_filter == 'vehicle':
+            query = f"""
+                SELECT 
+                    ce.id,
+                    ce.date,
+                    'vehicle' as type,
+                    v.name as vehicle_name,
+                    v.license_plate,
+                    null as team_name,
+                    ce.amount,
+                    CASE 
+                        WHEN ce.maintenance_id IS NOT NULL THEN 'Ремонт/Reparatur'
+                        ELSE ce.category::text
+                    END as description,
+                    ce.receipt_url
+                FROM car_expenses ce
+                JOIN vehicles v ON ce.car_id = v.id
+                WHERE {where_clause}
+                ORDER BY ce.date DESC
+            """
+        elif type_filter == 'team':
+            query = f"""
+                SELECT 
+                    p.id,
+                    p.date,
+                    'team' as type,
+                    null as vehicle_name,
+                    null as license_plate,
+                    t.name as team_name,
+                    p.amount,
+                    COALESCE(p.description, 'Штраф/Strafe') as description,
+                    p.photo_url as receipt_url
+                FROM penalties p
+                LEFT JOIN teams t ON p.team_id = t.id
+                WHERE {where_clause}
+                ORDER BY p.date DESC
+            """
+        else:  # all
+            query = f"""
+                SELECT 
+                    id, date, type, vehicle_name, license_plate, team_name, amount, description, receipt_url
+                FROM (
+                    SELECT 
+                        ce.id,
+                        ce.date,
+                        'vehicle' as type,
+                        v.name as vehicle_name,
+                        v.license_plate,
+                        null as team_name,
+                        ce.amount,
+                        CASE 
+                            WHEN ce.maintenance_id IS NOT NULL THEN 'Ремонт/Reparatur'
+                            ELSE ce.category::text
+                        END as description,
+                        ce.receipt_url
+                    FROM car_expenses ce
+                    JOIN vehicles v ON ce.car_id = v.id
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        p.id,
+                        p.date,
+                        'team' as type,
+                        null as vehicle_name,
+                        null as license_plate,
+                        t.name as team_name,
+                        p.amount,
+                        COALESCE(p.description, 'Штраф/Strafe') as description,
+                        p.photo_url as receipt_url
+                    FROM penalties p
+                    LEFT JOIN teams t ON p.team_id = t.id
+                ) combined_expenses
+                WHERE {where_clause}
+                ORDER BY date DESC
+            """
         
         expenses = execute_query(query, params)
         
@@ -150,10 +207,7 @@ def show_expenses_list(language='ru'):
                             st.write("🧾 Чек есть/Beleg vorhanden")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_expense_{expense[0]}"):
-                            show_edit_expense_form(expense, language)
-                        if st.button(f"🗑️", key=f"delete_expense_{expense[0]}"):
-                            delete_expense(expense[0], language)
+                        st.write("") # Редактирование через специальные страницы
                     
                     st.divider()
         else:
@@ -163,226 +217,8 @@ def show_expenses_list(language='ru'):
         st.error(f"Error loading expenses: {str(e)}")
 
 def show_add_expense_form(language='ru'):
-    """Show form to add new expense"""
-    st.subheader(f"{get_text('add', language)} {get_text('expenses', language)}")
-    
-    with st.form("add_expense_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            expense_type = st.selectbox(
-                "Тип расхода/Ausgabentyp",
-                options=['vehicle', 'team'],
-                format_func=lambda x: get_text(x, language),
-                key="new_expense_type"
-            )
-            
-            expense_date = st.date_input(
-                get_text('date', language),
-                value=date.today(),
-                key="new_expense_date"
-            )
-            
-            amount = st.number_input(
-                get_text('amount', language),
-                min_value=0.01,
-                value=100.0,
-                step=50.0,
-                key="new_expense_amount"
-            )
-        
-        with col2:
-            # Vehicle or team selection based on type
-            vehicle_id = None
-            team_id = None
-            
-            if expense_type == 'vehicle':
-                vehicles = get_vehicles_for_select(language)
-                if vehicles:
-                    vehicle_id = st.selectbox(
-                        get_text('vehicles', language),
-                        options=[v[0] for v in vehicles],
-                        format_func=lambda x: next(v[1] for v in vehicles if v[0] == x),
-                        key="new_expense_vehicle"
-                    )
-            else:  # team
-                teams = get_teams_for_select(language)
-                if teams:
-                    team_id = st.selectbox(
-                        get_text('teams', language),
-                        options=[t[0] for t in teams],
-                        format_func=lambda x: next(t[1] for t in teams if t[0] == x),
-                        key="new_expense_team"
-                    )
-            
-            description = st.text_area(
-                get_text('description', language),
-                key="new_expense_description"
-            )
-            
-            # Receipt upload
-            receipt_file = st.file_uploader(
-                "Чек/Beleg",
-                type=['png', 'jpg', 'jpeg', 'pdf'],
-                key="new_expense_receipt"
-            )
-        
-        submitted = st.form_submit_button(get_text('save', language))
-        
-        if submitted:
-            if expense_type == 'vehicle' and not vehicle_id:
-                st.error("Выберите автомобиль / Fahrzeug auswählen")
-            elif expense_type == 'team' and not team_id:
-                st.error("Выберите бригаду / Team auswählen")
-            else:
-                try:
-                    receipt_url = upload_file(receipt_file, 'receipts') if receipt_file else None
-                    
-                    expense_id = str(uuid.uuid4())
-                    execute_query("""
-                        INSERT INTO expenses (id, type, vehicle_id, team_id, date, amount, description, receipt_url)
-                        VALUES (:id, :type, :vehicle_id, :team_id, :date, :amount, :description, :receipt_url)
-                    """, {
-                        'id': expense_id,
-                        'type': expense_type,
-                        'vehicle_id': vehicle_id if expense_type == 'vehicle' else None,
-                        'team_id': team_id if expense_type == 'team' else None,
-                        'date': expense_date,
-                        'amount': amount,
-                        'description': description if description else None,
-                        'receipt_url': receipt_url
-                    })
-                    st.success(get_text('success_save', language))
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"{get_text('error_save', language)}: {str(e)}")
-
-def show_edit_expense_form(expense, language='ru'):
-    """Show form to edit expense"""
-    with st.expander(f"✏️ {get_text('edit', language)}: {expense[1].strftime('%d.%m.%Y')}", expanded=True):
-        with st.form(f"edit_expense_form_{expense[0]}"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                expense_type = st.selectbox(
-                    "Тип расхода/Ausgabentyp",
-                    options=['vehicle', 'team'],
-                    index=['vehicle', 'team'].index(expense[2]),
-                    format_func=lambda x: get_text(x, language),
-                    key=f"edit_expense_type_{expense[0]}"
-                )
-                
-                expense_date = st.date_input(
-                    get_text('date', language),
-                    value=expense[1],
-                    key=f"edit_expense_date_{expense[0]}"
-                )
-                
-                amount = st.number_input(
-                    get_text('amount', language),
-                    min_value=0.01,
-                    value=float(expense[6]),
-                    step=50.0,
-                    key=f"edit_expense_amount_{expense[0]}"
-                )
-            
-            with col2:
-                # Vehicle or team selection based on type
-                vehicle_id = None
-                team_id = None
-                
-                if expense_type == 'vehicle':
-                    vehicles = get_vehicles_for_select(language)
-                    if vehicles:
-                        current_vehicle = None
-                        if expense[3]:  # current vehicle name
-                            current_vehicle = next((v[0] for v in vehicles if expense[3] in v[1]), None)
-                        
-                        vehicle_id = st.selectbox(
-                            get_text('vehicles', language),
-                            options=[v[0] for v in vehicles],
-                            format_func=lambda x: next(v[1] for v in vehicles if v[0] == x),
-                            index=[v[0] for v in vehicles].index(current_vehicle) if current_vehicle else 0,
-                            key=f"edit_expense_vehicle_{expense[0]}"
-                        )
-                else:  # team
-                    teams = get_teams_for_select(language)
-                    if teams:
-                        current_team = None
-                        if expense[5]:  # current team name
-                            current_team = next((t[0] for t in teams if t[1] == expense[5]), None)
-                        
-                        team_id = st.selectbox(
-                            get_text('teams', language),
-                            options=[t[0] for t in teams],
-                            format_func=lambda x: next(t[1] for t in teams if t[0] == x),
-                            index=[t[0] for t in teams].index(current_team) if current_team else 0,
-                            key=f"edit_expense_team_{expense[0]}"
-                        )
-                
-                description = st.text_area(
-                    get_text('description', language),
-                    value=expense[7] or '',
-                    key=f"edit_expense_description_{expense[0]}"
-                )
-                
-                # Show current receipt if exists
-                if expense[8]:  # receipt_url
-                    st.write(f"Текущий чек/Aktueller Beleg: {expense[8]}")
-                
-                # Receipt upload
-                receipt_file = st.file_uploader(
-                    "Новый чек/Neuer Beleg",
-                    type=['png', 'jpg', 'jpeg', 'pdf'],
-                    key=f"edit_expense_receipt_{expense[0]}"
-                )
-            
-            col_save, col_cancel = st.columns(2)
-            
-            with col_save:
-                submitted = st.form_submit_button(get_text('save', language))
-            
-            with col_cancel:
-                cancelled = st.form_submit_button(get_text('cancel', language))
-            
-            if submitted:
-                try:
-                    receipt_url = expense[8]  # Keep existing receipt URL
-                    if receipt_file:
-                        receipt_url = upload_file(receipt_file, 'receipts')
-                    
-                    execute_query("""
-                        UPDATE expenses 
-                        SET type = :type, vehicle_id = :vehicle_id, team_id = :team_id,
-                            date = :date, amount = :amount, description = :description, 
-                            receipt_url = :receipt_url
-                        WHERE id = :id
-                    """, {
-                        'id': expense[0],
-                        'type': expense_type,
-                        'vehicle_id': vehicle_id if expense_type == 'vehicle' else None,
-                        'team_id': team_id if expense_type == 'team' else None,
-                        'date': expense_date,
-                        'amount': amount,
-                        'description': description if description else None,
-                        'receipt_url': receipt_url
-                    })
-                    st.success(get_text('success_save', language))
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"{get_text('error_save', language)}: {str(e)}")
-            
-            if cancelled:
-                st.rerun()
-
-def delete_expense(expense_id, language='ru'):
-    """Delete expense"""
-    try:
-        execute_query("DELETE FROM expenses WHERE id = :id", {'id': expense_id})
-        st.success(get_text('success_delete', language))
-        st.rerun()
-    except Exception as e:
-        st.error(f"{get_text('error_delete', language)}: {str(e)}")
+    """Show form to add expense"""
+    st.info("ℹ️ Для добавления расходов используйте соответствующие разделы:\n- Автомобильные расходы: 🚗💰 Расходы на авто\n- Штрафы бригад: 🚧 Штрафы\n\nFür das Hinzufügen von Ausgaben verwenden Sie die entsprechenden Bereiche:\n- Fahrzeugausgaben: 🚗💰 Расходы на авто\n- Teamstrafen: 🚧 Штрафы")
 
 def show_expenses_analytics(language='ru'):
     """Show expenses analytics"""
@@ -414,19 +250,43 @@ def show_expenses_analytics(language='ru'):
         with col2:
             st.write(f"Период: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}")
         
-        # Get expenses for the period
+        # Get combined expenses from both car expenses and penalties
         expenses_data = execute_query("""
             SELECT 
-                e.date,
-                e.type,
-                e.amount,
-                v.name as vehicle_name,
-                t.name as team_name
-            FROM expenses e
-            LEFT JOIN vehicles v ON e.vehicle_id = v.id
-            LEFT JOIN teams t ON e.team_id = t.id
-            WHERE e.date >= :start_date AND e.date <= :end_date
-            ORDER BY e.date
+                date,
+                'vehicle' as type,
+                amount,
+                vehicle_name,
+                null as team_name
+            FROM (
+                SELECT 
+                    ce.date,
+                    ce.amount,
+                    v.name as vehicle_name
+                FROM car_expenses ce
+                JOIN vehicles v ON ce.car_id = v.id
+                WHERE ce.date >= :start_date AND ce.date <= :end_date
+            ) car_data
+            
+            UNION ALL
+            
+            SELECT 
+                date,
+                'team' as type,
+                amount,
+                null as vehicle_name,
+                team_name
+            FROM (
+                SELECT 
+                    p.date,
+                    p.amount,
+                    t.name as team_name
+                FROM penalties p
+                LEFT JOIN teams t ON p.team_id = t.id
+                WHERE p.date >= :start_date AND p.date <= :end_date
+            ) team_data
+            
+            ORDER BY date DESC
         """, {'start_date': start_date, 'end_date': end_date})
         
         if expenses_data:
@@ -513,26 +373,67 @@ def show_expenses_analytics(language='ru'):
         st.error(f"Error loading analytics: {str(e)}")
 
 def export_expenses_data(language='ru'):
-    """Export expenses data to CSV"""
+    """Export expenses to CSV"""
     try:
+        # Combined export from both car_expenses and penalties
         expenses = execute_query("""
             SELECT 
-                e.date,
-                e.type,
-                v.name as vehicle_name,
-                v.license_plate,
-                t.name as team_name,
-                e.amount,
-                e.description
-            FROM expenses e
-            LEFT JOIN vehicles v ON e.vehicle_id = v.id
-            LEFT JOIN teams t ON e.team_id = t.id
-            ORDER BY e.date DESC
+                date,
+                'vehicle' as type,
+                vehicle_name,
+                license_plate,
+                null as team_name,
+                amount,
+                description
+            FROM (
+                SELECT 
+                    ce.date,
+                    v.name as vehicle_name,
+                    v.license_plate,
+                    ce.amount,
+                    CASE 
+                        WHEN ce.maintenance_id IS NOT NULL THEN 'Ремонт/Reparatur'
+                        ELSE ce.category::text
+                    END as description
+                FROM car_expenses ce
+                JOIN vehicles v ON ce.car_id = v.id
+            ) car_data
+            
+            UNION ALL
+            
+            SELECT 
+                date,
+                'team' as type,
+                null as vehicle_name,
+                null as license_plate,
+                team_name,
+                amount,
+                description
+            FROM (
+                SELECT 
+                    p.date,
+                    t.name as team_name,
+                    p.amount,
+                    COALESCE(p.description, 'Штраф/Strafe') as description
+                FROM penalties p
+                LEFT JOIN teams t ON p.team_id = t.id
+            ) team_data
+            
+            ORDER BY date DESC
         """)
         
         if expenses:
-            export_to_csv(expenses, "expenses")
+            df = pd.DataFrame(expenses, columns=['Date', 'Type', 'Vehicle', 'License_Plate', 'Team', 'Amount', 'Description'])
+            df['Type'] = df['Type'].apply(lambda x: get_text(x, language))
+            
+            csv_data = export_to_csv(df, f"expenses_{date.today().strftime('%Y%m%d')}")
+            st.download_button(
+                label=f"📥 {get_text('download', language)} CSV",
+                data=csv_data,
+                file_name=f"expenses_{date.today().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
         else:
             st.warning(get_text('no_data', language))
     except Exception as e:
-        st.error(f"Export error: {str(e)}")
+        st.error(f"Ошибка экспорта / Export error: {str(e)}")
