@@ -105,12 +105,12 @@ def show_materials_list():
                     with col4:
                         col_edit, col_delete = st.columns(2)
                         with col_edit:
-                            edit_key = f"edit_mat_{material[0][:8]}"  # Use shorter unique key
+                            edit_key = f"edit_mat_{material[0][:8]}"
                             if st.button("✏️", key=edit_key, help="Редактировать"):
                                 st.session_state.edit_material_id = material[0]
                                 st.rerun()
                         with col_delete:
-                            delete_key = f"del_mat_{material[0][:8]}"  # Use shorter unique key
+                            delete_key = f"del_mat_{material[0][:8]}"
                             if st.button("🗑️", key=delete_key, help="Удалить"):
                                 delete_material(material[0])
                     
@@ -155,41 +155,50 @@ def show_add_material_form():
                 "Цена за единицу/Preis pro Einheit (€)",
                 min_value=0.0,
                 step=1.0,
-                value=0.0
+                format="%.2f"
             )
         
-        if st.form_submit_button(get_text('save', language)):
-            if name:
-                try:
-                    material_id = str(uuid.uuid4())
-                    execute_query("""
-                        INSERT INTO materials 
-                        (id, name, type, total_quantity, unit, unit_price)
-                        VALUES (:id, :name, :type, :total_quantity, :unit, :unit_price)
-                    """, {
-                        'id': material_id,
-                        'name': name,
-                        'type': material_type,
-                        'total_quantity': total_quantity,
-                        'unit': unit,
-                        'unit_price': unit_price if unit_price > 0 else None
-                    })
-                    st.success(get_text('success_save', language))
-                    get_materials_cached.clear()  # Clear cache
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-            else:
-                st.error("Название обязательно")
+        col_submit, col_cancel = st.columns([1, 1])
+        
+        with col_submit:
+            if st.form_submit_button("✅ Добавить / Hinzufügen"):
+                if name.strip():
+                    try:
+                        material_id = str(uuid.uuid4())
+                        execute_query("""
+                            INSERT INTO materials (id, name, type, total_quantity, unit, unit_price, assigned_quantity)
+                            VALUES (:id, :name, :type, :total_quantity, :unit, :unit_price, 0)
+                        """, {
+                            'id': material_id,
+                            'name': name.strip(),
+                            'type': material_type,
+                            'total_quantity': total_quantity,
+                            'unit': unit.strip() if unit.strip() else 'шт.',
+                            'unit_price': unit_price if unit_price > 0 else None
+                        })
+                        
+                        st.success(f"✅ Материал '{name}' добавлен!")
+                        get_materials_cached.clear()  # Clear cache
+                        del st.session_state.show_add_material_form
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Ошибка при добавлении: {str(e)}")
+                else:
+                    st.error("Название обязательно")
+        
+        with col_cancel:
+            if st.form_submit_button("❌ Отмена / Abbrechen"):
+                del st.session_state.show_add_material_form
+                st.rerun()
 
 def show_edit_material_form(material_id):
-    """Show form to edit existing material"""
+    """Show form to edit material"""
     try:
         # Get current material data
         material_data = execute_query("""
-            SELECT name, type, total_quantity, unit, unit_price 
-            FROM materials 
-            WHERE id = :id
+            SELECT id, name, type, total_quantity, unit, unit_price
+            FROM materials WHERE id = :id
         """, {'id': material_id})
         
         if not material_data:
@@ -199,78 +208,62 @@ def show_edit_material_form(material_id):
                 st.rerun()
             return
         
-        current_material = material_data[0]
+        material = material_data[0]
         
-        st.subheader("✏️ Редактировать материал / Material bearbeiten")
-        
-        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
-            del st.session_state.edit_material_id
-            st.rerun()
+        st.subheader(f"✏️ Редактирование: {material[1]}")
         
         with st.form("edit_material"):
             col1, col2 = st.columns(2)
             
             with col1:
-                name = st.text_input(
-                    "Название / Name",
-                    value=current_material[0],
-                    placeholder="Название материала"
-                )
-                
-                material_type_options = ['equipment', 'consumables']
-                current_type_index = 0
-                if current_material[1] in material_type_options:
-                    current_type_index = material_type_options.index(current_material[1])
-                
+                name = st.text_input("Название", value=material[1])
                 material_type = st.selectbox(
-                    "Тип/Typ",
-                    options=material_type_options,
-                    index=current_type_index,
-                    format_func=lambda x: get_text(x, language)
+                    "Тип",
+                    options=['material', 'equipment'],
+                    index=0 if material[2] == 'material' else 1,
+                    format_func=lambda x: 'Материал (расходка)' if x == 'material' else 'Оборудование (возвратное)'
                 )
-                
-                unit = st.text_input(
-                    "Единица измерения/Maßeinheit",
-                    value=current_material[3] or "шт.",
-                    placeholder="шт., кг, л..."
-                )
+                unit = st.text_input("Единица измерения", value=material[4] or 'шт.')
             
             with col2:
                 total_quantity = st.number_input(
-                    "Количество/Menge",
+                    "Количество",
                     min_value=1,
-                    value=int(current_material[2]) if current_material[2] else 1
+                    value=int(material[3])
                 )
-                
                 unit_price = st.number_input(
-                    "Цена за единицу/Preis pro Einheit (€)",
+                    "Цена за единицу (€)",
                     min_value=0.0,
                     step=1.0,
-                    value=float(current_material[4]) if current_material[4] else 0.0
+                    value=float(material[5]) if material[5] else 0.0,
+                    format="%.2f"
                 )
             
-            col_save, col_cancel = st.columns(2)
+            col_save, col_cancel = st.columns([1, 1])
+            
             with col_save:
-                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
-                    if name:
+                if st.form_submit_button("💾 Сохранить / Speichern"):
+                    if name.strip():
                         try:
                             execute_query("""
                                 UPDATE materials 
-                                SET name = :name, type = :type, total_quantity = :total_quantity, 
+                                SET name = :name, type = :type, total_quantity = :total_quantity,
                                     unit = :unit, unit_price = :unit_price
                                 WHERE id = :id
                             """, {
                                 'id': material_id,
-                                'name': name,
+                                'name': name.strip(),
                                 'type': material_type,
                                 'total_quantity': total_quantity,
-                                'unit': unit,
+                                'unit': unit.strip() if unit.strip() else 'шт.',
                                 'unit_price': unit_price if unit_price > 0 else None
                             })
-                            st.success("Материал обновлен / Material aktualisiert")
+                            
+                            st.success("✅ Материал обновлен!")
                             get_materials_cached.clear()  # Clear cache
                             del st.session_state.edit_material_id
                             st.rerun()
+                            
                         except Exception as e:
                             st.error(f"Ошибка обновления: {str(e)}")
                     else:
@@ -297,203 +290,6 @@ def delete_material(material_id):
         st.rerun()
     except Exception as e:
         st.error(f"Error: {str(e)}")
-
-# Show material history for completed assignments
-def show_material_history():
-    """Show history of returned/broken/finished materials"""
-    st.subheader("📜 История материалов")
-    
-    # Status filter
-    status_filter = st.selectbox(
-        "Фильтр по статусу",
-        options=['all', 'returned', 'broken', 'finished'],
-        format_func=lambda x: {
-            'all': '🔍 Все статусы',
-            'returned': '🔄 Возвращено',
-            'broken': '🔴 Сломано',
-            'finished': '✅ Закончилось'
-        }[x]
-    )
-    
-    try:
-        # Get historical assignments based on filter
-        where_clause = "WHERE ma.status != 'active'"
-        params = {}
-        
-        if status_filter != 'all':
-            where_clause += " AND ma.status = :status"
-            params['status'] = status_filter
-        
-        history = execute_query(f"""
-            SELECT 
-                ma.id,
-                m.name as material_name,
-                m.type,
-                t.name as team_name,
-                ma.quantity,
-                ma.date as assigned_date,
-                ma.status,
-                m.unit_price
-            FROM material_assignments ma
-            JOIN materials m ON ma.material_id = m.id
-            JOIN teams t ON ma.team_id = t.id
-            {where_clause}
-            ORDER BY ma.date DESC
-            LIMIT 100
-        """, params)
-        
-        if history:
-            total_records = len(history)
-            total_cost = sum(float(h[7] or 0) * h[4] for h in history)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Записей в истории", total_records)
-            with col2:
-                st.metric("Общая стоимость", format_currency(total_cost))
-            
-            st.divider()
-            
-            # Display history
-            for record in history:
-                record_id, material_name, material_type, team_name, quantity, assigned_date, status, unit_price = record
-                
-                # Create status display
-                status_display = {
-                    'returned': '🔄 Возвращено',
-                    'broken': '🔴 Сломано', 
-                    'finished': '✅ Закончилось'
-                }.get(status, status)
-                
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
-                    
-                    with col1:
-                        type_icon = '📦' if material_type == 'material' else '🔧'
-                        st.write(f"**{type_icon} {material_name}**")
-                        st.write(f"👥 {team_name}")
-                    
-                    with col2:
-                        st.write(f"📊 Количество: {quantity}")
-                        st.write(f"📅 {assigned_date.strftime('%d.%m.%Y') if assigned_date else 'Н/Д'}")
-                    
-                    with col3:
-                        st.write(status_display)
-                        if unit_price:
-                            cost = float(unit_price) * quantity
-                            st.write(f"💰 {format_currency(cost)}")
-                    
-                    with col4:
-                        # Show impact based on status
-                        if status == 'broken':
-                            st.error("💸 Списано + штраф")
-                        elif status == 'returned' and material_type == 'equipment':
-                            st.success("📦 В инвентаре")
-                        elif status == 'finished':
-                            st.info("📋 Использовано")
-                    
-                    st.divider()
-        else:
-            st.info("📭 История пуста")
-            
-    except Exception as e:
-        st.error(f"Ошибка загрузки истории: {str(e)}")
-
-def update_assignment_status(assignment_id, new_status, material_type, assignment_data):
-    """Update assignment status with proper inventory management"""
-    try:
-        assignment_id_val, material_name, material_type_val, team_name, quantity, assign_date, current_status, unit_price = assignment_data
-        
-        if new_status == current_status:
-            st.warning("Статус не изменился")
-            return
-        
-        # Update assignment status
-        execute_query("""
-            UPDATE material_assignments 
-            SET status = :status, event = :event
-            WHERE id = :id
-        """, {
-            'id': assignment_id,
-            'status': new_status,
-            'event': new_status
-        })
-        
-        # Handle inventory changes based on status change
-        if material_type == 'equipment':
-            if new_status == 'returned':
-                # Return equipment to available inventory
-                execute_query("""
-                    UPDATE materials 
-                    SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity
-                    WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
-                """, {'quantity': quantity, 'assignment_id': assignment_id})
-                st.success(f"✅ {material_name} возвращено в инвентарь ({quantity} ед.)")
-                
-            elif new_status == 'broken':
-                # Mark as broken - reduce both assigned and total quantities
-                execute_query("""
-                    UPDATE materials 
-                    SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity,
-                        total_quantity = total_quantity - :quantity
-                    WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
-                """, {'quantity': quantity, 'assignment_id': assignment_id})
-                
-                # Create penalty for broken equipment
-                if unit_price:
-                    penalty_amount = float(unit_price) * quantity
-                    penalty_id = str(uuid.uuid4())
-                    
-                    execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, reason, date, status)
-                        VALUES (:id, :team_id, :amount, :reason, :date, 'open')
-                    """, {
-                        'id': penalty_id,
-                        'team_id': execute_query(
-                            "SELECT team_id FROM material_assignments WHERE id = :id", 
-                            {'id': assignment_id}
-                        )[0][0],
-                        'amount': penalty_amount,
-                        'reason': f'Поломка оборудования: {material_name} ({quantity} ед.)',
-                        'date': datetime.now()
-                    })
-                    
-                    st.error(f"🔴 {material_name} отмечено как сломанное. Штраф: {format_currency(penalty_amount)}")
-                else:
-                    st.error(f"🔴 {material_name} отмечено как сломанное")
-        
-        else:  # material_type == 'material' (consumables)
-            if new_status == 'finished':
-                st.success(f"✅ Материал {material_name} отмечен как законченный")
-            elif new_status == 'broken':
-                # Create penalty for broken consumables
-                if unit_price:
-                    penalty_amount = float(unit_price) * quantity
-                    penalty_id = str(uuid.uuid4())
-                    
-                    execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, reason, date, status)
-                        VALUES (:id, :team_id, :amount, :reason, :date, 'open')
-                    """, {
-                        'id': penalty_id,
-                        'team_id': execute_query(
-                            "SELECT team_id FROM material_assignments WHERE id = :id", 
-                            {'id': assignment_id}
-                        )[0][0],
-                        'amount': penalty_amount,
-                        'reason': f'Поломка материала: {material_name} ({quantity} ед.)',
-                        'date': datetime.now()
-                    })
-                    
-                    st.error(f"🔴 Материал {material_name} сломан. Штраф: {format_currency(penalty_amount)}")
-                else:
-                    st.error(f"🔴 Материал {material_name} отмечен как сломанный")
-        
-        get_materials_cached.clear()  # Clear cache
-        st.rerun()
-        
-    except Exception as e:
-        st.error(f"Ошибка обновления статуса: {str(e)}")
 
 def show_material_assignments():
     """Show active material assignments with return/break options"""
@@ -554,8 +350,6 @@ def show_material_assignments():
                     
                     with col4:
                         # Status update options
-                        status_key = f"status_{assignment_id}"
-                        
                         if material_type == 'equipment':
                             # Equipment can be returned or broken
                             new_status = st.selectbox(
@@ -566,7 +360,7 @@ def show_material_assignments():
                                     'returned': '🔄 Возвращено',
                                     'broken': '🔴 Сломано'
                                 }[x],
-                                key=status_key,
+                                key=f"status_select_{assignment_id}",
                                 index=0
                             )
                             
@@ -574,7 +368,7 @@ def show_material_assignments():
                                 update_assignment_status(assignment_id, new_status, material_type, assignment)
                         
                         else:
-                            # Materials (consumables) can only be finished
+                            # Materials (consumables) can only be finished or broken
                             col_finished, col_broken = st.columns(2)
                             with col_finished:
                                 if st.button("✅ Закончилось", key=f"finished_{assignment_id}"):
@@ -591,33 +385,108 @@ def show_material_assignments():
     except Exception as e:
         st.error(f"Ошибка загрузки выдач: {str(e)}")
 
-# Main page layout
-st.title("📦 Материалы / Materialien")
+def update_assignment_status(assignment_id, new_status, material_type, assignment_data):
+    """Update assignment status with proper inventory management"""
+    try:
+        assignment_id_val, material_name, material_type_val, team_name, quantity, assign_date, current_status, unit_price = assignment_data
+        
+        if new_status == current_status:
+            st.warning("Статус не изменился")
+            return
+        
+        # Update assignment status
+        execute_query("""
+            UPDATE material_assignments 
+            SET status = :status, event = :event
+            WHERE id = :id
+        """, {
+            'id': assignment_id,
+            'status': new_status,
+            'event': new_status
+        })
+        
+        # Handle inventory changes based on status change
+        if material_type == 'equipment':
+            if new_status == 'returned':
+                # Return equipment to available inventory
+                execute_query("""
+                    UPDATE materials 
+                    SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity
+                    WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
+                """, {'quantity': quantity, 'assignment_id': assignment_id})
+                st.success(f"✅ {material_name} возвращено в инвентарь ({quantity} ед.)")
+                
+            elif new_status == 'broken':
+                # Mark as broken - reduce both assigned and total quantities
+                execute_query("""
+                    UPDATE materials 
+                    SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity,
+                        total_quantity = total_quantity - :quantity
+                    WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
+                """, {'quantity': quantity, 'assignment_id': assignment_id})
+                
+                # Create penalty for broken equipment
+                if unit_price:
+                    penalty_amount = float(unit_price) * quantity
+                    penalty_id = str(uuid.uuid4())
+                    
+                    team_id = execute_query(
+                        "SELECT team_id FROM material_assignments WHERE id = :id", 
+                        {'id': assignment_id}
+                    )[0][0]
+                    
+                    execute_query("""
+                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
+                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                    """, {
+                        'id': penalty_id,
+                        'team_id': team_id,
+                        'amount': penalty_amount,
+                        'description': f'Поломка оборудования: {material_name} ({quantity} ед.)',
+                        'date': datetime.now().date(),
+                        'created_at': datetime.now()
+                    })
+                    
+                    st.error(f"🔴 {material_name} отмечено как сломанное. Штраф: {format_currency(penalty_amount)}")
+                else:
+                    st.error(f"🔴 {material_name} отмечено как сломанное")
+        
+        else:  # material_type == 'material' (consumables)
+            if new_status == 'finished':
+                st.success(f"✅ Материал {material_name} отмечен как законченный")
+            elif new_status == 'broken':
+                # Create penalty for broken consumables
+                if unit_price:
+                    penalty_amount = float(unit_price) * quantity
+                    penalty_id = str(uuid.uuid4())
+                    
+                    team_id = execute_query(
+                        "SELECT team_id FROM material_assignments WHERE id = :id", 
+                        {'id': assignment_id}
+                    )[0][0]
+                    
+                    execute_query("""
+                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
+                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                    """, {
+                        'id': penalty_id,
+                        'team_id': team_id,
+                        'amount': penalty_amount,
+                        'description': f'Поломка материала: {material_name} ({quantity} ед.)',
+                        'date': datetime.now().date(),
+                        'created_at': datetime.now()
+                    })
+                    
+                    st.error(f"🔴 Материал {material_name} сломан. Штраф: {format_currency(penalty_amount)}")
+                else:
+                    st.error(f"🔴 Материал {material_name} отмечен как сломанный")
+        
+        get_materials_cached.clear()  # Clear cache
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"Ошибка обновления статуса: {str(e)}")
 
-tab1, tab2, tab3 = st.tabs([
-    "📦 Список материалов / Materialliste", 
-    "📋 Выданные материалы / Ausgegebene Materialien",
-    "📜 История / Geschichte"
-])
-
-with tab1:
-    show_materials_list()
-    
-    # Add material form within the first tab
-    st.divider()
-    if st.button("➕ Добавить материал / Material hinzufügen"):
-        st.session_state.show_add_material_form = True
-    
-    if st.session_state.get('show_add_material_form', False):
-        show_add_material_form()
-
-with tab2:
-    show_material_assignments()
-
-with tab3:
-    show_material_history()
-
-# Show material history for completed assignments
 def show_material_history():
     """Show history of returned/broken/finished materials"""
     st.subheader("📜 История материалов")
@@ -631,7 +500,8 @@ def show_material_history():
             'returned': '🔄 Возвращено',
             'broken': '🔴 Сломано',
             'finished': '✅ Закончилось'
-        }[x]
+        }[x],
+        key="history_status_filter"
     )
     
     try:
@@ -730,6 +600,14 @@ tab1, tab2, tab3 = st.tabs([
 with tab1:
     show_materials_list()
     
+    # Add material form within the first tab
+    st.divider()
+    if st.button("➕ Добавить материал / Material hinzufügen", key="add_material_button"):
+        st.session_state.show_add_material_form = True
+    
+    if st.session_state.get('show_add_material_form', False):
+        show_add_material_form()
+
 with tab2:
     show_material_assignments()
 
