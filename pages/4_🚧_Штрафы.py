@@ -111,6 +111,17 @@ def show_penalties_list():
             show_edit_penalty_form(edit_penalty_id)
             return
         
+        # Check if we need to show payment form
+        payment_penalty_id = None
+        for key in st.session_state:
+            if key.startswith("show_payment_") and st.session_state[key]:
+                payment_penalty_id = key.replace("show_payment_", "")
+                break
+        
+        if payment_penalty_id:
+            show_payment_form(payment_penalty_id)
+            return
+        
         # Check if any photo is being viewed
         view_penalty_id = None
         for key in st.session_state:
@@ -188,7 +199,8 @@ def show_penalties_list():
                         if penalty[6] == 'open':
                             with col_pay:
                                 if st.button(f"✅", key=f"pay_{penalty[0]}", help="Оплатить"):
-                                    mark_penalty_paid(penalty[0])
+                                    st.session_state[f"show_payment_{penalty[0]}"] = True
+                                    st.rerun()
                         with col_del:
                             if st.button(f"🗑️", key=f"delete_{penalty[0]}", help="Удалить"):
                                 delete_penalty(penalty[0])
@@ -277,15 +289,87 @@ def show_add_penalty_form():
             except Exception as e:
                 st.error(f"Error: {str(e)}")
 
-def mark_penalty_paid(penalty_id):
-    """Mark penalty as paid"""
-    try:
-        execute_query("UPDATE penalties SET status = 'paid' WHERE id = :id", {'id': penalty_id})
-        st.success("Штраф оплачен / Strafe bezahlt")
-        get_penalties_cached.clear()  # Clear cache
-        st.rerun()
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
+def show_payment_form(penalty_id):
+    """Show payment form with receipt upload requirement"""
+    penalty_data = execute_query("""
+        SELECT p.amount, p.description, v.name as vehicle_name, v.license_plate,
+               CONCAT(u.first_name, ' ', u.last_name) as user_name
+        FROM penalties p
+        LEFT JOIN vehicles v ON p.vehicle_id = v.id
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.id = :id
+    """, {'id': penalty_id})
+    
+    if not penalty_data:
+        st.error("Штраф не найден")
+        return
+        
+    penalty = penalty_data[0]
+    
+    st.subheader("💳 Отметить как оплаченный / Als bezahlt markieren")
+    st.info(f"**Сумма штрафа:** {format_currency(penalty[0])}")
+    if penalty[1]:
+        st.info(f"**Описание:** {penalty[1]}")
+    
+    with st.form("payment_form"):
+        st.warning("⚠️ **Обязательно прикрепите чек об оплате / Receipt photo required**")
+        
+        uploaded_receipt = st.file_uploader(
+            "📄 Загрузите фото чека / Upload receipt photo *",
+            type=['jpg', 'jpeg', 'png', 'pdf'],
+            help="Обязательное поле для подтверждения оплаты"
+        )
+        
+        payment_notes = st.text_area(
+            "📝 Примечания к оплате / Payment notes",
+            placeholder="Дополнительная информация об оплате..."
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.form_submit_button("💳 Подтвердить оплату / Confirm Payment", type="primary"):
+                if not uploaded_receipt:
+                    st.error("❌ Необходимо загрузить фото чека! / Receipt photo required!")
+                else:
+                    try:
+                        # Upload receipt file
+                        receipt_url = upload_file(uploaded_receipt, 'penalty_receipts')
+                        
+                        # Update penalty status and add receipt
+                        execute_query("""
+                            UPDATE penalties 
+                            SET status = 'paid', 
+                                description = CASE 
+                                    WHEN description IS NULL THEN :payment_notes
+                                    WHEN :payment_notes IS NULL OR :payment_notes = '' THEN description
+                                    ELSE description || ' | Оплачено: ' || :payment_notes
+                                END,
+                                photo_url = CASE 
+                                    WHEN photo_url IS NULL THEN :receipt_url
+                                    ELSE photo_url || ',' || :receipt_url
+                                END
+                            WHERE id = :id
+                        """, {
+                            'id': penalty_id,
+                            'receipt_url': receipt_url,
+                            'payment_notes': payment_notes if payment_notes else None
+                        })
+                        
+                        st.success("✅ Штраф отмечен как оплаченный! / Penalty marked as paid!")
+                        get_penalties_cached.clear()
+                        if f'show_payment_{penalty_id}' in st.session_state:
+                            del st.session_state[f'show_payment_{penalty_id}']
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Ошибка при обработке оплаты: {str(e)}")
+        
+        with col2:
+            if st.form_submit_button("❌ Отмена / Cancel"):
+                if f'show_payment_{penalty_id}' in st.session_state:
+                    del st.session_state[f'show_payment_{penalty_id}']
+                st.rerun()
 
 def show_edit_penalty_form(penalty_id):
     """Show form to edit existing penalty"""

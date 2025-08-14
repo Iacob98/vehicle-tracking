@@ -310,7 +310,7 @@ def show_team_analytics():
                 COALESCE(SUM(CASE WHEN ma.status = 'broken' THEN m.unit_price * ma.quantity ELSE 0 END), 0) as broken_cost
             FROM teams t
             LEFT JOIN material_assignments ma ON t.id = ma.team_id 
-                AND ma.assignment_date BETWEEN :date_from AND :date_to
+                AND ma.date BETWEEN :date_from AND :date_to
             LEFT JOIN materials m ON ma.material_id = m.id
             GROUP BY t.id, t.name
         )
@@ -332,7 +332,7 @@ def show_team_analytics():
         LIMIT 20
     """, {'date_from': date_from, 'date_to': date_to})
     
-    if team_stats:
+    if team_stats and len(team_stats) > 0:
         # Summary metrics
         total_teams = len(team_stats)
         total_spent = sum(t[8] for t in team_stats)
