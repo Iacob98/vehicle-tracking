@@ -96,7 +96,7 @@ def show_expenses_list(language='ru'):
                         WHEN ce.maintenance_id IS NOT NULL THEN 'Ремонт/Reparatur'
                         ELSE ce.category::text
                     END as description,
-                    ce.receipt_url
+                    ce.file_url as receipt_url
                 FROM car_expenses ce
                 JOIN vehicles v ON ce.car_id = v.id
                 WHERE {where_clause}
@@ -136,7 +136,7 @@ def show_expenses_list(language='ru'):
                             WHEN ce.maintenance_id IS NOT NULL THEN 'Ремонт/Reparatur'
                             ELSE ce.category::text
                         END as description,
-                        ce.receipt_url
+                        ce.file_url as receipt_url
                     FROM car_expenses ce
                     JOIN vehicles v ON ce.car_id = v.id
                     
