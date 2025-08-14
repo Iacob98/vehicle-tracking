@@ -105,11 +105,13 @@ def show_materials_list():
                     with col4:
                         col_edit, col_delete = st.columns(2)
                         with col_edit:
-                            if st.button("✏️", key=f"edit_material_{material[0]}", help="Редактировать"):
+                            edit_key = f"edit_mat_{material[0][:8]}"  # Use shorter unique key
+                            if st.button("✏️", key=edit_key, help="Редактировать"):
                                 st.session_state.edit_material_id = material[0]
                                 st.rerun()
                         with col_delete:
-                            if st.button("🗑️", key=f"delete_material_{material[0]}", help="Удалить"):
+                            delete_key = f"del_mat_{material[0][:8]}"  # Use shorter unique key
+                            if st.button("🗑️", key=delete_key, help="Удалить"):
                                 delete_material(material[0])
                     
                     st.divider()
@@ -772,13 +774,7 @@ def show_material_history():
                 ma.quantity,
                 ma.date as assigned_date,
                 ma.status,
-                m.unit_price,
-                CASE 
-                    WHEN ma.status = 'returned' THEN '🔄 Возвращено'
-                    WHEN ma.status = 'broken' THEN '🔴 Сломано'
-                    WHEN ma.status = 'finished' THEN '✅ Закончилось'
-                    ELSE ma.status
-                END as status_display
+                m.unit_price
             FROM material_assignments ma
             JOIN materials m ON ma.material_id = m.id
             JOIN teams t ON ma.team_id = t.id
@@ -801,7 +797,14 @@ def show_material_history():
             
             # Display history
             for record in history:
-                record_id, material_name, material_type, team_name, quantity, assigned_date, status, unit_price, status_display = record
+                record_id, material_name, material_type, team_name, quantity, assigned_date, status, unit_price = record
+                
+                # Create status display
+                status_display = {
+                    'returned': '🔄 Возвращено',
+                    'broken': '🔴 Сломано', 
+                    'finished': '✅ Закончилось'
+                }.get(status, status)
                 
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
