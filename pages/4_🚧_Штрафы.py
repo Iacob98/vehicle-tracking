@@ -35,9 +35,99 @@ def get_penalties_cached():
         ORDER BY p.date DESC
     """)
 
+def show_penalty_photo_viewer(penalty_id, photo_url, title):
+    """Show photo viewer for penalty"""
+    st.header(f"📷 Фото штрафа: {title}")
+    
+    if st.button("⬅️ Назад к списку / Zurück zur Liste", use_container_width=True):
+        if f"view_penalty_photo_{penalty_id}" in st.session_state:
+            del st.session_state[f"view_penalty_photo_{penalty_id}"]
+        st.rerun()
+    
+    if not photo_url:
+        st.warning("Фото не найдено / Foto nicht gefunden")
+        return
+    
+    # File info
+    file_name = photo_url.split('/')[-1]
+    file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+    
+    # Create main layout
+    col_main, col_sidebar = st.columns([3, 1])
+    
+    with col_main:
+        st.info(f"📁 **Файл:** {file_name}")
+        
+        # Display image
+        if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+            try:
+                import os
+                if photo_url.startswith('/'):
+                    file_path = photo_url.lstrip('/')
+                    if os.path.exists(file_path):
+                        st.image(file_path, caption=title, use_container_width=True)
+                    else:
+                        st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+                else:
+                    st.image(photo_url, caption=title, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
+        else:
+            st.warning(f"📎 **Неподдерживаемый формат файла: .{file_extension}**")
+            st.info("💡 Поддерживаются только изображения: JPG, PNG, GIF")
+    
+    with col_sidebar:
+        st.markdown("### Действия / Aktionen")
+        
+        try:
+            import os
+            if photo_url.startswith('/'):
+                # Local file
+                file_path = photo_url.lstrip('/')
+                if os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        file_data = f.read()
+                    
+                    st.download_button(
+                        label="⬇️ **Скачать**\n**Download**",
+                        data=file_data,
+                        file_name=file_name,
+                        use_container_width=True
+                    )
+                else:
+                    st.error("❌ Файл не найден")
+            else:
+                st.markdown(f"🔗 [Скачать файл/Datei herunterladen]({photo_url})")
+        except Exception as e:
+            st.error("❌ Ошибка доступа к файлу")
+
 def show_penalties_list():
     """Show list of penalties"""
     try:
+        # Check if any photo is being viewed
+        view_penalty_id = None
+        for key in st.session_state:
+            if key.startswith("view_penalty_photo_") and st.session_state[key]:
+                view_penalty_id = key.replace("view_penalty_photo_", "")
+                break
+        
+        if view_penalty_id:
+            # Get penalty info for photo viewing
+            penalty_info = execute_query("""
+                SELECT 
+                    v.name as vehicle_name,
+                    v.license_plate,
+                    p.photo_url
+                FROM penalties p
+                LEFT JOIN vehicles v ON p.vehicle_id = v.id
+                WHERE p.id = :id
+            """, {'id': view_penalty_id})
+            
+            if penalty_info and penalty_info[0][2]:  # photo_url exists
+                title = f"{penalty_info[0][0]} ({penalty_info[0][1]})"
+                show_penalty_photo_viewer(view_penalty_id, penalty_info[0][2], title)
+                return
+        
         penalties = get_penalties_cached()
         
         if penalties:
@@ -75,14 +165,17 @@ def show_penalties_list():
                     with col3:
                         if penalty[7]:  # photo_url
                             st.write("📷 Фото есть/Foto vorhanden")
+                            if st.button("👁️", key=f"view_photo_{penalty[0]}", help="Посмотреть фото"):
+                                st.session_state[f"view_penalty_photo_{penalty[0]}"] = True
+                                st.rerun()
                         else:
                             st.write("📷 Нет фото/Kein Foto")
                     
                     with col4:
                         if penalty[6] == 'open':
-                            if st.button(f"✅", key=f"pay_{penalty[0]}"):
+                            if st.button(f"✅", key=f"pay_{penalty[0]}", help="Оплатить"):
                                 mark_penalty_paid(penalty[0])
-                        if st.button(f"🗑️", key=f"delete_{penalty[0]}"):
+                        if st.button(f"🗑️", key=f"delete_{penalty[0]}", help="Удалить"):
                             delete_penalty(penalty[0])
                     
                     st.divider()
