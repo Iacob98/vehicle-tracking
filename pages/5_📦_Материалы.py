@@ -18,9 +18,9 @@ language = st.session_state.get('language', 'ru')
 @st.cache_data(ttl=300)
 def get_materials_cached():
     """Get materials with caching"""
-    return execute_query("""
+    results = execute_query("""
         SELECT 
-            m.id,
+            m.id::text,
             m.name,
             m.type,
             m.total_quantity,
@@ -30,6 +30,7 @@ def get_materials_cached():
         FROM materials m
         ORDER BY m.name
     """)
+    return results
 
 def show_materials_list():
     """Show list of materials with inline editing"""
@@ -197,7 +198,7 @@ def show_edit_material_form(material_id):
     try:
         # Get current material data
         material_data = execute_query("""
-            SELECT id, name, type, total_quantity, unit, unit_price
+            SELECT id::text, name, type, total_quantity, unit, unit_price
             FROM materials WHERE id = :id
         """, {'id': material_id})
         
@@ -299,7 +300,7 @@ def show_material_assignments():
         # Get active assignments
         assignments = execute_query("""
             SELECT 
-                ma.id,
+                ma.id::text,
                 m.name as material_name,
                 m.type,
                 t.name as team_name,
@@ -515,7 +516,7 @@ def show_material_history():
         
         history = execute_query(f"""
             SELECT 
-                ma.id,
+                ma.id::text,
                 m.name as material_name,
                 m.type,
                 t.name as team_name,
