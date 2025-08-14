@@ -58,14 +58,16 @@ def show_penalties_list(language='ru'):
             SELECT 
                 p.id,
                 p.date,
-                v.name as vehicle_name,
-                v.license_plate,
+                COALESCE(v.name, t.name) as entity_name,
+                COALESCE(v.license_plate, 'Бригада/Team') as entity_type,
                 CONCAT(u.first_name, ' ', u.last_name) as user_name,
                 p.amount,
                 p.status,
-                p.photo_url
+                p.photo_url,
+                p.description
             FROM penalties p
-            JOIN vehicles v ON p.vehicle_id = v.id
+            LEFT JOIN vehicles v ON p.vehicle_id = v.id
+            LEFT JOIN teams t ON p.team_id = t.id
             LEFT JOIN users u ON p.user_id = u.id
             WHERE 1=1
         """
@@ -75,8 +77,10 @@ def show_penalties_list(language='ru'):
             query += """ AND (
                 v.name ILIKE :search OR 
                 v.license_plate ILIKE :search OR
+                t.name ILIKE :search OR
                 u.first_name ILIKE :search OR
-                u.last_name ILIKE :search
+                u.last_name ILIKE :search OR
+                p.description ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
         
@@ -113,7 +117,8 @@ def show_penalties_list(language='ru'):
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                     
                     with col1:
-                        st.write(f"**{penalty[2]}** ({penalty[3]})")
+                        entity_icon = '🚗' if penalty[3] != 'Бригада/Team' else '👥'
+                        st.write(f"**{entity_icon} {penalty[2]}** ({penalty[3]})")
                         if penalty[4]:
                             st.write(f"👤 {penalty[4]}")
                         penalty_date = penalty[1].strftime('%d.%m.%Y') if penalty[1] else ''
@@ -125,6 +130,9 @@ def show_penalties_list(language='ru'):
                         st.write(f"{status_icon} {get_text(penalty[6], language)}")
                     
                     with col3:
+                        if penalty[8]:  # description
+                            desc = penalty[8][:40] + "..." if len(penalty[8]) > 40 else penalty[8]
+                            st.write(f"📝 {desc}")
                         if penalty[7]:  # photo_url
                             st.write("📷 Фото есть/Foto vorhanden")
                         else:

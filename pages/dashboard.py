@@ -39,10 +39,10 @@ def show_page(language='ru'):
                 value=users_count
             )
         
-        # Open penalties
+        # Open penalties (manual only, not material damage)
         with col4:
             open_penalties = execute_query(
-                "SELECT COUNT(*) FROM penalties WHERE status = 'open'"
+                "SELECT COUNT(*) FROM penalties WHERE status = 'open' AND (description IS NULL OR description NOT LIKE '%Поломка материала%')"
             )[0][0]
             st.metric(
                 label=get_text('open_penalties', language),
