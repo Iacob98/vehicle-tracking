@@ -287,59 +287,78 @@ def show_team_analytics():
             key="team_date_to"
         )
     
-    # Get team statistics
+    # Get team statistics with simplified query
     try:
-        team_stats = execute_query("""
-            WITH team_penalties AS (
-                SELECT 
-                    t.id,
-                    t.name,
-                    COUNT(p.id) as penalty_count,
-                    COALESCE(SUM(p.amount), 0) as penalty_total
-                FROM teams t
-                LEFT JOIN penalties p ON t.id = p.team_id 
-                    AND p.date BETWEEN :date_from AND :date_to
-                GROUP BY t.id, t.name
-            ),
-            team_materials AS (
-                SELECT 
-                    t.id,
-                    t.name, 
-                    COUNT(ma.id) as material_assignments,
-                    COALESCE(SUM(m.unit_price * ma.quantity), 0) as material_cost,
-                    COUNT(CASE WHEN ma.status = 'broken' THEN 1 END) as broken_items,
-                    COALESCE(SUM(CASE WHEN ma.status = 'broken' THEN m.unit_price * ma.quantity ELSE 0 END), 0) as broken_cost
-                FROM teams t
-                LEFT JOIN material_assignments ma ON t.id = ma.team_id 
-                    AND ma.date BETWEEN :date_from AND :date_to
-                LEFT JOIN materials m ON ma.material_id = m.id
-                GROUP BY t.id, t.name
-            )
+        # First get team penalties
+        penalties_data = execute_query("""
             SELECT 
-                tp.id,
-                tp.name,
-                COALESCE(tp.penalty_count, 0) as penalty_count,
-                COALESCE(tp.penalty_total, 0) as penalty_total,
-                COALESCE(tm.material_assignments, 0) as material_assignments,
-                COALESCE(tm.material_cost, 0) as material_cost,
-                COALESCE(tm.broken_items, 0) as broken_items,
-                COALESCE(tm.broken_cost, 0) as broken_cost,
-                (COALESCE(tp.penalty_total, 0) + COALESCE(tm.material_cost, 0)) as total_cost
-            FROM team_penalties tp
-            FULL OUTER JOIN team_materials tm ON tp.id = tm.id
-            WHERE (COALESCE(tp.penalty_total, 0) + COALESCE(tm.material_cost, 0)) > 0
-            ORDER BY total_cost DESC
-            LIMIT 20
+                t.id,
+                t.name,
+                COUNT(p.id) as penalty_count,
+                COALESCE(SUM(p.amount), 0) as penalty_total
+            FROM teams t
+            LEFT JOIN penalties p ON t.id = p.team_id 
+                AND p.date BETWEEN :date_from AND :date_to
+            GROUP BY t.id, t.name
         """, {'date_from': date_from, 'date_to': date_to})
         
-        if not team_stats:
+        # Then get team materials
+        materials_data = execute_query("""
+            SELECT 
+                t.id,
+                t.name, 
+                COUNT(ma.id) as material_assignments,
+                COALESCE(SUM(m.unit_price * ma.quantity), 0) as material_cost,
+                COUNT(CASE WHEN ma.status = 'broken' THEN 1 END) as broken_items,
+                COALESCE(SUM(CASE WHEN ma.status = 'broken' THEN m.unit_price * ma.quantity ELSE 0 END), 0) as broken_cost
+            FROM teams t
+            LEFT JOIN material_assignments ma ON t.id = ma.team_id 
+                AND ma.date BETWEEN :date_from AND :date_to
+            LEFT JOIN materials m ON ma.material_id = m.id
+            GROUP BY t.id, t.name
+        """, {'date_from': date_from, 'date_to': date_to})
+        
+        # Combine the data
+        team_stats = []
+        if penalties_data and materials_data:
+            # Create dictionaries for easier lookup
+            penalties_dict = {str(row[0]): row for row in penalties_data}
+            materials_dict = {str(row[0]): row for row in materials_data}
+            
+            # Get all team IDs
+            all_team_ids = set(penalties_dict.keys()) | set(materials_dict.keys())
+            
+            for team_id in all_team_ids:
+                penalty_row = penalties_dict.get(team_id, (team_id, "Unknown", 0, 0))
+                material_row = materials_dict.get(team_id, (team_id, penalty_row[1], 0, 0, 0, 0))
+                
+                total_cost = penalty_row[3] + material_row[3]
+                if total_cost > 0:
+                    combined_row = (
+                        penalty_row[0],  # id
+                        penalty_row[1],  # name
+                        penalty_row[2],  # penalty_count
+                        penalty_row[3],  # penalty_total
+                        material_row[2], # material_assignments
+                        material_row[3], # material_cost
+                        material_row[4], # broken_items
+                        material_row[5], # broken_cost
+                        total_cost       # total_cost
+                    )
+                    team_stats.append(combined_row)
+            
+            # Sort by total cost descending
+            team_stats.sort(key=lambda x: x[8], reverse=True)
+            team_stats = team_stats[:20]  # Limit to top 20
+        
+        if not isinstance(team_stats, list):
             team_stats = []
             
     except Exception as e:
         st.error(f"Ошибка получения статистики по бригадам: {str(e)}")
         team_stats = []
     
-    if team_stats and len(team_stats) > 0:
+    if isinstance(team_stats, list) and len(team_stats) > 0:
         # Summary metrics
         total_teams = len(team_stats)
         total_spent = sum(t[8] for t in team_stats)
