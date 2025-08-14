@@ -35,8 +35,15 @@ def get_car_expenses_cached():
     """)
 
 def show_expenses_list():
-    """Show list of car expenses"""
+    """Show list of car expenses with inline editing"""
     try:
+        # Check if we're editing an expense
+        edit_expense_id = st.session_state.get('edit_expense_id', None)
+        
+        if edit_expense_id:
+            show_edit_expense_form(edit_expense_id)
+            return
+        
         expenses = get_car_expenses_cached()
         
         if expenses:
@@ -69,9 +76,18 @@ def show_expenses_list():
                             st.write("🔧 От ТО/Von Wartung")
                     
                     with col4:
-                        if not expense[7]:  # Can only delete if not from maintenance
-                            if st.button(f"🗑️", key=f"delete_expense_{expense[0]}"):
-                                delete_expense(expense[0])
+                        col_edit, col_delete = st.columns(2)
+                        
+                        if not expense[7]:  # Can only edit/delete if not from maintenance
+                            with col_edit:
+                                if st.button("✏️", key=f"edit_expense_{expense[0]}", help="Редактировать"):
+                                    st.session_state.edit_expense_id = expense[0]
+                                    st.rerun()
+                            with col_delete:
+                                if st.button("🗑️", key=f"delete_expense_{expense[0]}", help="Удалить"):
+                                    delete_expense(expense[0])
+                        else:
+                            st.caption("🔒 Связан с ТО")
                     
                     st.divider()
         else:
@@ -155,6 +171,139 @@ def show_add_expense_form():
                     st.error(f"Error: {str(e)}")
             else:
                 st.error("Сумма должна быть больше 0")
+
+def show_edit_expense_form(expense_id):
+    """Show form to edit existing car expense"""
+    try:
+        # Get current expense data
+        expense_data = execute_query("""
+            SELECT ce.car_id, ce.date, ce.category, ce.amount, ce.description, ce.file_url,
+                   v.name as vehicle_name
+            FROM car_expenses ce
+            JOIN vehicles v ON ce.car_id = v.id
+            WHERE ce.id = :id
+        """, {'id': expense_id})
+        
+        if not expense_data:
+            st.error("Расход не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_expense_id
+                st.rerun()
+            return
+        
+        current_expense = expense_data[0]
+        
+        st.subheader("✏️ Редактировать расход / Ausgabe bearbeiten")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            del st.session_state.edit_expense_id
+            st.rerun()
+        
+        with st.form("edit_expense"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Vehicle selection
+                vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+                if not vehicles:
+                    st.warning("Необходимо создать автомобили")
+                    return
+                
+                current_vehicle_index = 0
+                try:
+                    current_vehicle_index = [v[0] for v in vehicles].index(current_expense[0])
+                except ValueError:
+                    current_vehicle_index = 0
+                
+                vehicle_id = st.selectbox(
+                    get_text('vehicles', language),
+                    options=[v[0] for v in vehicles],
+                    format_func=lambda x: next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
+                    index=current_vehicle_index
+                )
+                
+                category_options = ['repair', 'maintenance', 'fuel', 'insurance', 'toll', 'car_wash', 'other']
+                current_category_index = 0
+                if current_expense[2] in category_options:
+                    current_category_index = category_options.index(current_expense[2])
+                
+                category = st.selectbox(
+                    "Категория/Kategorie",
+                    options=category_options,
+                    index=current_category_index,
+                    format_func=lambda x: get_text(x, language)
+                )
+            
+            with col2:
+                expense_date = st.date_input(
+                    "Дата/Datum",
+                    value=current_expense[1] if current_expense[1] else date.today()
+                )
+                
+                amount = st.number_input(
+                    "Сумма/Betrag (€)",
+                    min_value=0.0,
+                    step=10.0,
+                    value=float(current_expense[3]) if current_expense[3] else 0.0
+                )
+                
+                # File upload
+                if current_expense[5]:
+                    st.info(f"Текущий файл: {current_expense[5].split('/')[-1]}")
+                
+                uploaded_file = st.file_uploader(
+                    "Новый чек/документ / Neuer Beleg",
+                    type=['pdf', 'jpg', 'jpeg', 'png']
+                )
+            
+            description = st.text_area(
+                "Описание/Beschreibung",
+                value=current_expense[4] or ""
+            )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    if amount > 0:
+                        try:
+                            file_url = current_expense[5]  # Keep existing file
+                            if uploaded_file:
+                                file_url = upload_file(uploaded_file, 'expenses')
+                            
+                            execute_query("""
+                                UPDATE car_expenses 
+                                SET car_id = :car_id, date = :date, category = :category, 
+                                    amount = :amount, description = :description, file_url = :file_url
+                                WHERE id = :id
+                            """, {
+                                'id': expense_id,
+                                'car_id': vehicle_id,
+                                'date': expense_date,
+                                'category': category,
+                                'amount': amount,
+                                'description': description if description else None,
+                                'file_url': file_url
+                            })
+                            st.success("Расход обновлен / Ausgabe aktualisiert")
+                            get_car_expenses_cached.clear()  # Clear cache
+                            del st.session_state.edit_expense_id
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка обновления: {str(e)}")
+                    else:
+                        st.error("Сумма должна быть больше 0")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_expense_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_expense_id' in st.session_state:
+                del st.session_state.edit_expense_id
+            st.rerun()
 
 def delete_expense(expense_id):
     """Delete expense"""

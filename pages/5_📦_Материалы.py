@@ -32,8 +32,15 @@ def get_materials_cached():
     """)
 
 def show_materials_list():
-    """Show list of materials"""
+    """Show list of materials with inline editing"""
     try:
+        # Check if we're editing a material
+        edit_material_id = st.session_state.get('edit_material_id', None)
+        
+        if edit_material_id:
+            show_edit_material_form(edit_material_id)
+            return
+        
         materials = get_materials_cached()
         
         if materials:
@@ -71,10 +78,14 @@ def show_materials_list():
                         st.write("✅ В наличии/Verfügbar")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_material_{material[0]}"):
-                            st.session_state[f"edit_material_{material[0]}"] = True
-                        if st.button(f"🗑️", key=f"delete_material_{material[0]}"):
-                            delete_material(material[0])
+                        col_edit, col_delete = st.columns(2)
+                        with col_edit:
+                            if st.button("✏️", key=f"edit_material_{material[0]}", help="Редактировать"):
+                                st.session_state.edit_material_id = material[0]
+                                st.rerun()
+                        with col_delete:
+                            if st.button("🗑️", key=f"delete_material_{material[0]}", help="Удалить"):
+                                delete_material(material[0])
                     
                     st.divider()
         else:
@@ -143,6 +154,112 @@ def show_add_material_form():
                     st.error(f"Error: {str(e)}")
             else:
                 st.error("Название обязательно")
+
+def show_edit_material_form(material_id):
+    """Show form to edit existing material"""
+    try:
+        # Get current material data
+        material_data = execute_query("""
+            SELECT name, type, total_quantity, unit, unit_price 
+            FROM materials 
+            WHERE id = :id
+        """, {'id': material_id})
+        
+        if not material_data:
+            st.error("Материал не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_material_id
+                st.rerun()
+            return
+        
+        current_material = material_data[0]
+        
+        st.subheader("✏️ Редактировать материал / Material bearbeiten")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            del st.session_state.edit_material_id
+            st.rerun()
+        
+        with st.form("edit_material"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                name = st.text_input(
+                    "Название / Name",
+                    value=current_material[0],
+                    placeholder="Название материала"
+                )
+                
+                material_type_options = ['equipment', 'consumables']
+                current_type_index = 0
+                if current_material[1] in material_type_options:
+                    current_type_index = material_type_options.index(current_material[1])
+                
+                material_type = st.selectbox(
+                    "Тип/Typ",
+                    options=material_type_options,
+                    index=current_type_index,
+                    format_func=lambda x: get_text(x, language)
+                )
+                
+                unit = st.text_input(
+                    "Единица измерения/Maßeinheit",
+                    value=current_material[3] or "шт.",
+                    placeholder="шт., кг, л..."
+                )
+            
+            with col2:
+                total_quantity = st.number_input(
+                    "Количество/Menge",
+                    min_value=1,
+                    value=int(current_material[2]) if current_material[2] else 1
+                )
+                
+                unit_price = st.number_input(
+                    "Цена за единицу/Preis pro Einheit (€)",
+                    min_value=0.0,
+                    step=1.0,
+                    value=float(current_material[4]) if current_material[4] else 0.0
+                )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    if name:
+                        try:
+                            execute_query("""
+                                UPDATE materials 
+                                SET name = :name, type = :type, total_quantity = :total_quantity, 
+                                    unit = :unit, unit_price = :unit_price
+                                WHERE id = :id
+                            """, {
+                                'id': material_id,
+                                'name': name,
+                                'type': material_type,
+                                'total_quantity': total_quantity,
+                                'unit': unit,
+                                'unit_price': unit_price if unit_price > 0 else None
+                            })
+                            st.success("Материал обновлен / Material aktualisiert")
+                            get_materials_cached.clear()  # Clear cache
+                            del st.session_state.edit_material_id
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка обновления: {str(e)}")
+                    else:
+                        st.error("Название обязательно")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_material_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_material_id' in st.session_state:
+                del st.session_state.edit_material_id
+            st.rerun()
 
 def delete_material(material_id):
     """Delete material"""

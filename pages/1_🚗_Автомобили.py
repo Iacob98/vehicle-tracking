@@ -18,8 +18,15 @@ st.set_page_config(
 language = st.session_state.get('language', 'ru')
 
 def show_vehicles_list():
-    """Show list of vehicles"""
+    """Show list of vehicles with inline editing"""
     try:
+        # Check if we're editing a vehicle
+        edit_vehicle_id = st.session_state.get('edit_vehicle_id', None)
+        
+        if edit_vehicle_id:
+            show_edit_vehicle_form(edit_vehicle_id)
+            return
+        
         # Filters
         col1, col2, col3 = st.columns([2, 1, 1])
         
@@ -66,18 +73,6 @@ def show_vehicles_list():
         vehicles = execute_query(query, params)
         
         if vehicles:
-            # Check for edit mode
-            edit_vehicle_id = None
-            for key in st.session_state:
-                if key.startswith("edit_vehicle_") and st.session_state[key]:
-                    edit_vehicle_id = key.replace("edit_vehicle_", "")
-                    break
-            
-            if edit_vehicle_id:
-                st.subheader("Редактирование автомобиля / Fahrzeug bearbeiten")
-                show_edit_vehicle_form(edit_vehicle_id)
-                st.divider()
-            
             # Pagination  
             paginated_vehicles = paginate_data(vehicles, 20, 'vehicles_list')
             
@@ -104,11 +99,14 @@ def show_vehicles_list():
                         st.write(f"{status_icon} {get_text(vehicle[4], language)}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_{vehicle[0]}"):
-                            st.session_state[f"edit_vehicle_{vehicle[0]}"] = True
-                            st.rerun()
-                        if st.button(f"🗑️", key=f"delete_{vehicle[0]}"):
-                            delete_vehicle(vehicle[0])
+                        col_edit, col_delete = st.columns(2)
+                        with col_edit:
+                            if st.button("✏️", key=f"edit_{vehicle[0]}", help="Редактировать"):
+                                st.session_state.edit_vehicle_id = vehicle[0]
+                                st.rerun()
+                        with col_delete:
+                            if st.button("🗑️", key=f"delete_{vehicle[0]}", help="Удалить"):
+                                delete_vehicle(vehicle[0])
                     
                     st.divider()
         else:
@@ -177,82 +175,113 @@ def show_add_vehicle_form():
                 st.error("Название и гос.номер обязательны")
 
 def show_edit_vehicle_form(vehicle_id):
-    """Show form to edit vehicle"""
-    # Get vehicle data
-    vehicle = execute_query("SELECT * FROM vehicles WHERE id = :id", {'id': vehicle_id})
-    if not vehicle:
-        st.error("Автомобиль не найден")
-        return
+    """Show form to edit existing vehicle"""
+    try:
+        # Get current vehicle data
+        vehicle_data = execute_query("""
+            SELECT name, license_plate, vin, status, model, year 
+            FROM vehicles 
+            WHERE id = :id
+        """, {'id': vehicle_id})
         
-    vehicle = vehicle[0]
-    
-    with st.form(f"edit_vehicle_{vehicle_id}"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            name = st.text_input(
-                get_text('name', language),
-                value=vehicle[1] or "",
-                placeholder="Название автомобиля"
-            )
-            license_plate = st.text_input(
-                "Гос. номер / Kennzeichen",
-                value=vehicle[2] or "",
-                placeholder="А123АА123"
-            )
-            vin = st.text_input(
-                "VIN",
-                value=vehicle[3] or "",
-                placeholder="1HGBH41JXMN109186"
-            )
-        
-        with col2:
-            model = st.text_input(
-                "Модель / Modell",
-                value=vehicle[5] or "",
-                placeholder="Mercedes Sprinter"
-            )
-            year = st.number_input(
-                "Год / Jahr",
-                min_value=1990,
-                max_value=2030,
-                value=vehicle[6] if vehicle[6] else 2020
-            )
-            status = st.selectbox(
-                get_text('status', language),
-                options=['active', 'repair', 'unavailable'],
-                index=['active', 'repair', 'unavailable'].index(vehicle[4]),
-                format_func=lambda x: get_text(x, language)
-            )
-        
-        col1_btn, col2_btn = st.columns(2)
-        with col1_btn:
-            if st.form_submit_button("✅ Сохранить / Speichern"):
-                try:
-                    execute_query("""
-                        UPDATE vehicles 
-                        SET name = :name, license_plate = :license_plate, vin = :vin, 
-                            status = :status, model = :model, year = :year
-                        WHERE id = :id
-                    """, {
-                        'id': vehicle_id,
-                        'name': name,
-                        'license_plate': license_plate,
-                        'vin': vin,
-                        'status': status,
-                        'model': model,
-                        'year': year
-                    })
-                    st.success("Автомобиль обновлен")
-                    del st.session_state[f"edit_vehicle_{vehicle_id}"]
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Ошибка: {str(e)}")
-        
-        with col2_btn:
-            if st.form_submit_button("❌ Отмена / Abbrechen"):
-                del st.session_state[f"edit_vehicle_{vehicle_id}"]
+        if not vehicle_data:
+            st.error("Автомобиль не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_vehicle_id
                 st.rerun()
+            return
+        
+        current_vehicle = vehicle_data[0]
+        
+        st.subheader("✏️ Редактировать автомобиль / Fahrzeug bearbeiten")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            del st.session_state.edit_vehicle_id
+            st.rerun()
+        
+        with st.form("edit_vehicle"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                name = st.text_input(
+                    "Название / Name",
+                    value=current_vehicle[0] or "",
+                    placeholder="Автомобиль-1"
+                )
+                license_plate = st.text_input(
+                    "Гос. номер / Kennzeichen",
+                    value=current_vehicle[1] or "",
+                    placeholder="А123АА123"
+                )
+                vin = st.text_input(
+                    "VIN",
+                    value=current_vehicle[2] or "",
+                    placeholder="1HGBH41JXMN109186"
+                )
+            
+            with col2:
+                model = st.text_input(
+                    "Модель / Modell",
+                    value=current_vehicle[4] or "",
+                    placeholder="Mercedes Sprinter"
+                )
+                year = st.number_input(
+                    "Год / Jahr",
+                    min_value=1990,
+                    max_value=2030,
+                    value=current_vehicle[5] if current_vehicle[5] else 2020
+                )
+                
+                status_options = ['active', 'repair', 'unavailable']
+                current_status_index = 0
+                if current_vehicle[3] in status_options:
+                    current_status_index = status_options.index(current_vehicle[3])
+                
+                status = st.selectbox(
+                    get_text('status', language),
+                    options=status_options,
+                    index=current_status_index,
+                    format_func=lambda x: get_text(x, language)
+                )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    if name and license_plate:
+                        try:
+                            execute_query("""
+                                UPDATE vehicles 
+                                SET name = :name, license_plate = :license_plate, vin = :vin, 
+                                    status = :status, model = :model, year = :year
+                                WHERE id = :id
+                            """, {
+                                'id': vehicle_id,
+                                'name': name,
+                                'license_plate': license_plate,
+                                'vin': vin,
+                                'status': status,
+                                'model': model,
+                                'year': year
+                            })
+                            st.success("Автомобиль обновлен / Fahrzeug aktualisiert")
+                            del st.session_state.edit_vehicle_id
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка обновления: {str(e)}")
+                    else:
+                        st.error("Название и гос.номер обязательны")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_vehicle_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_vehicle_id' in st.session_state:
+                del st.session_state.edit_vehicle_id
+            st.rerun()
 
 def delete_vehicle(vehicle_id):
     """Delete vehicle"""

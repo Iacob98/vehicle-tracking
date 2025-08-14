@@ -104,6 +104,13 @@ def show_penalty_photo_viewer(penalty_id, photo_url, title):
 def show_penalties_list():
     """Show list of penalties"""
     try:
+        # Check if we're editing a penalty
+        edit_penalty_id = st.session_state.get('edit_penalty_id', None)
+        
+        if edit_penalty_id:
+            show_edit_penalty_form(edit_penalty_id)
+            return
+        
         # Check if any photo is being viewed
         view_penalty_id = None
         for key in st.session_state:
@@ -172,11 +179,19 @@ def show_penalties_list():
                             st.write("📷 Нет фото/Kein Foto")
                     
                     with col4:
+                        # Action buttons
+                        if st.button("✏️", key=f"edit_penalty_{penalty[0]}", help="Редактировать"):
+                            st.session_state.edit_penalty_id = penalty[0]
+                            st.rerun()
+                        
+                        col_pay, col_del = st.columns(2)
                         if penalty[6] == 'open':
-                            if st.button(f"✅", key=f"pay_{penalty[0]}", help="Оплатить"):
-                                mark_penalty_paid(penalty[0])
-                        if st.button(f"🗑️", key=f"delete_{penalty[0]}", help="Удалить"):
-                            delete_penalty(penalty[0])
+                            with col_pay:
+                                if st.button(f"✅", key=f"pay_{penalty[0]}", help="Оплатить"):
+                                    mark_penalty_paid(penalty[0])
+                        with col_del:
+                            if st.button(f"🗑️", key=f"delete_{penalty[0]}", help="Удалить"):
+                                delete_penalty(penalty[0])
                     
                     st.divider()
         else:
@@ -271,6 +286,157 @@ def mark_penalty_paid(penalty_id):
         st.rerun()
     except Exception as e:
         st.error(f"Error: {str(e)}")
+
+def show_edit_penalty_form(penalty_id):
+    """Show form to edit existing penalty"""
+    try:
+        # Get current penalty data
+        penalty_data = execute_query("""
+            SELECT p.vehicle_id, p.user_id, p.date, p.amount, p.status, p.photo_url, p.description,
+                   v.name as vehicle_name, v.license_plate,
+                   CONCAT(u.first_name, ' ', u.last_name) as user_name
+            FROM penalties p
+            LEFT JOIN vehicles v ON p.vehicle_id = v.id
+            LEFT JOIN users u ON p.user_id = u.id
+            WHERE p.id = :id
+        """, {'id': penalty_id})
+        
+        if not penalty_data:
+            st.error("Штраф не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_penalty_id
+                st.rerun()
+            return
+        
+        current_penalty = penalty_data[0]
+        
+        st.subheader("✏️ Редактировать штраф / Strafe bearbeiten")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            del st.session_state.edit_penalty_id
+            st.rerun()
+        
+        with st.form("edit_penalty"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Vehicle selection
+                vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+                if not vehicles:
+                    st.warning("Необходимо создать автомобили")
+                    return
+                
+                current_vehicle_index = 0
+                if current_penalty[0]:
+                    try:
+                        current_vehicle_index = [v[0] for v in vehicles].index(current_penalty[0])
+                    except ValueError:
+                        current_vehicle_index = 0
+                
+                vehicle_id = st.selectbox(
+                    get_text('vehicles', language),
+                    options=[v[0] for v in vehicles],
+                    format_func=lambda x: next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
+                    index=current_vehicle_index
+                )
+                
+                # User selection
+                users = execute_query("SELECT id, first_name || ' ' || last_name as full_name FROM users ORDER BY first_name")
+                user_options = [None] + [u[0] for u in users] if users else [None]
+                current_user_index = 0
+                if current_penalty[1] and users:
+                    try:
+                        current_user_index = user_options.index(current_penalty[1])
+                    except ValueError:
+                        current_user_index = 0
+                
+                user_id = st.selectbox(
+                    "Пользователь/Benutzer",
+                    options=user_options,
+                    index=current_user_index,
+                    format_func=lambda x: "Не указан" if x is None else next((u[1] for u in users if users and u[0] == x), str(x))
+                )
+            
+            with col2:
+                penalty_date = st.date_input(
+                    "Дата/Datum",
+                    value=current_penalty[2] if current_penalty[2] else date.today()
+                )
+                
+                amount = st.number_input(
+                    "Сумма/Betrag (€)",
+                    min_value=0.0,
+                    step=10.0,
+                    value=float(current_penalty[3]) if current_penalty[3] else 100.0
+                )
+                
+                status_options = ['open', 'paid']
+                current_status_index = 0
+                if current_penalty[4] in status_options:
+                    current_status_index = status_options.index(current_penalty[4])
+                
+                status = st.selectbox(
+                    get_text('status', language),
+                    options=status_options,
+                    index=current_status_index,
+                    format_func=lambda x: get_text(x, language)
+                )
+                
+                # File upload
+                if current_penalty[5]:
+                    st.info(f"Текущее фото: {current_penalty[5].split('/')[-1]}")
+                
+                uploaded_file = st.file_uploader(
+                    "Новое фото/Neues Foto",
+                    type=['jpg', 'jpeg', 'png']
+                )
+            
+            description = st.text_area(
+                "Описание/Beschreibung",
+                value=current_penalty[6] or ""
+            )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    try:
+                        photo_url = current_penalty[5]  # Keep existing photo
+                        if uploaded_file:
+                            photo_url = upload_file(uploaded_file, 'penalties')
+                        
+                        execute_query("""
+                            UPDATE penalties 
+                            SET vehicle_id = :vehicle_id, user_id = :user_id, date = :date, 
+                                amount = :amount, status = :status, photo_url = :photo_url, description = :description
+                            WHERE id = :id
+                        """, {
+                            'id': penalty_id,
+                            'vehicle_id': vehicle_id,
+                            'user_id': user_id,
+                            'date': penalty_date,
+                            'amount': amount,
+                            'status': status,
+                            'photo_url': photo_url,
+                            'description': description if description else None
+                        })
+                        st.success("Штраф обновлен / Strafe aktualisiert")
+                        get_penalties_cached.clear()  # Clear cache
+                        del st.session_state.edit_penalty_id
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Ошибка обновления: {str(e)}")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_penalty_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_penalty_id' in st.session_state:
+                del st.session_state.edit_penalty_id
+            st.rerun()
 
 def delete_penalty(penalty_id):
     """Delete penalty"""
