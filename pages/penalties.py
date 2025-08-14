@@ -91,9 +91,9 @@ def show_penalties_list(language='ru'):
         
         query += " ORDER BY p.date DESC"
         
-        penalties = execute_query(query, params) or []
+        penalties = execute_query(query, params)
         
-        if penalties and len(penalties) > 0:
+        if penalties:
             # Summary statistics
             total_amount = sum(float(penalty[5]) for penalty in penalties)
             open_amount = sum(float(penalty[5]) for penalty in penalties if penalty[6] == 'open')

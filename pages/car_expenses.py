@@ -2,427 +2,707 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, format_currency
+from utils import export_to_csv, format_currency, upload_file
 from datetime import datetime, date, timedelta
-import plotly.express as px
+import uuid
 
 def show_page(language='ru'):
     """Show car expenses management page"""
-    st.title(f"🚗💰 {get_text('car_expenses', language)}")
+    # Check if file viewer is active
+    for key in st.session_state.keys():
+        if key.startswith("view_car_file_") and st.session_state.get(key):
+            file_data = st.session_state[key]
+            show_car_file_viewer(file_data['url'], file_data['title'], file_data['language'])
+            return
+    
+    st.title(f"🚗 Расходы на автомобили/Fahrzeugausgaben")
     
     # Tabs for different views
     tab1, tab2, tab3 = st.tabs([
-        get_text('car_expenses', language),
-        get_text('add', language),
-        "Аналитика/Analytik"
+        "Расходы/Ausgaben",
+        "Добавить/Hinzufügen",
+        "Аналитика/Analytics"
     ])
     
     with tab1:
-        show_expenses_list(language)
+        show_car_expenses_list(language)
     
     with tab2:
-        show_add_expense_form(language)
+        show_add_car_expense_form(language)
     
     with tab3:
-        show_expenses_analytics(language)
+        show_car_expenses_analytics(language)
 
-def show_expenses_list(language='ru'):
+def get_car_expense_categories(language='ru'):
+    """Get car expense categories with translations"""
+    if language == 'de':
+        return {
+            'repair': 'Reparatur',
+            'maintenance': 'Wartung',
+            'fuel': 'Kraftstoff',
+            'insurance': 'Versicherung',
+            'toll': 'Maut',
+            'car_wash': 'Autowäsche',
+            'other': 'Sonstiges'
+        }
+    else:  # Russian
+        return {
+            'repair': 'Ремонт',
+            'maintenance': 'Техобслуживание',
+            'fuel': 'Топливо',
+            'insurance': 'Страховка',
+            'toll': 'Платные дороги',
+            'car_wash': 'Мойка',
+            'other': 'Прочее'
+        }
+
+def show_car_expenses_list(language='ru'):
     """Show list of car expenses"""
     try:
         # Filters
-        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
         
         with col1:
             search_term = st.text_input(
-                get_text('search', language),
-                placeholder="Описание... / Beschreibung..."
+                "Поиск/Suche",
+                placeholder="Автомобиль, описание..."
             )
         
         with col2:
-            category_filter = st.selectbox(
-                "Категория/Kategorie",
-                options=['all', 'repair', 'maintenance', 'fuel', 'insurance', 'toll', 'car_wash', 'other'],
-                format_func=lambda x: get_text(x, language) if x != 'all' else 'Все/Alle'
-            )
+            # Vehicle filter
+            vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
+            if vehicles and isinstance(vehicles, list):
+                vehicle_options = ['all'] + [v[0] for v in vehicles]
+                vehicle_filter = st.selectbox(
+                    "Автомобиль/Fahrzeug",
+                    options=vehicle_options,
+                    format_func=lambda x: 'Все/Alle' if x == 'all' else next((v[1] for v in vehicles if v[0] == x), x)
+                )
+            else:
+                vehicle_filter = 'all'
+                st.selectbox("Автомобиль/Fahrzeug", options=['all'], format_func=lambda x: 'Нет автомобилей/Keine Fahrzeuge')
         
         with col3:
-            date_from = st.date_input(
-                "От/Von",
-                value=None,
-                key="expense_date_from"
+            # Category filter
+            categories = get_car_expense_categories(language)
+            category_options = ['all'] + list(categories.keys())
+            category_filter = st.selectbox(
+                "Категория/Kategorie",
+                options=category_options,
+                format_func=lambda x: 'Все/Alle' if x == 'all' else categories.get(x, x)
             )
         
         with col4:
+            st.write("")  # Spacing
+            if st.button("📥 Экспорт/Export"):
+                export_car_expenses_data(language)
+        
+        # Date filter
+        col_date1, col_date2 = st.columns(2)
+        with col_date1:
+            date_from = st.date_input(
+                "С даты/Von Datum",
+                value=date.today() - timedelta(days=30)
+            )
+        with col_date2:
             date_to = st.date_input(
-                "До/Bis",
-                value=None,
-                key="expense_date_to"
+                "До даты/Bis Datum",
+                value=date.today()
             )
         
-        with col5:
-            st.write("")  # Spacing
-            if st.button(f"📥 {get_text('export', language)}"):
-                export_expenses_data(language)
-        
-        # Build query
+        # Build query with filters
         query = """
             SELECT 
                 ce.id,
                 ce.date,
-                v.name as vehicle_name,
-                v.license_plate,
                 ce.category,
                 ce.amount,
                 ce.description,
                 ce.file_url,
-                ce.maintenance_id
+                v.name as vehicle_name,
+                u.first_name || ' ' || u.last_name as created_by_name,
+                ce.created_at,
+                ce.maintenance_id,
+                CASE WHEN ce.maintenance_id IS NOT NULL THEN 'Связан с ТО' ELSE 'Ручной ввод' END as source_type
             FROM car_expenses ce
-            JOIN vehicles v ON ce.vehicle_id = v.id
-            WHERE 1=1
+            JOIN vehicles v ON ce.car_id = v.id
+            LEFT JOIN users u ON ce.created_by = u.id
+            WHERE ce.date BETWEEN :date_from AND :date_to
         """
-        params = {}
+        params = {
+            'date_from': date_from,
+            'date_to': date_to
+        }
         
         if search_term:
             query += """ AND (
-                ce.description ILIKE :search OR
-                v.name ILIKE :search OR
-                v.license_plate ILIKE :search
+                v.name ILIKE :search OR 
+                ce.description ILIKE :search
             )"""
             params['search'] = f"%{search_term}%"
+        
+        if vehicle_filter != 'all':
+            query += " AND ce.car_id = :vehicle_id"
+            params['vehicle_id'] = vehicle_filter
         
         if category_filter != 'all':
             query += " AND ce.category = :category"
             params['category'] = category_filter
         
-        if date_from:
-            query += " AND ce.date >= :date_from"
-            params['date_from'] = date_from
+        query += " ORDER BY ce.date DESC, ce.created_at DESC"
         
-        if date_to:
-            query += " AND ce.date <= :date_to"
-            params['date_to'] = date_to
+        expenses = execute_query(query, params)
         
-        query += " ORDER BY ce.date DESC"
-        
-        expenses = execute_query(query, params) or []
-        
-        if expenses and len(expenses) > 0:
-            # Summary statistics
-            total_amount = sum(float(expense[5]) for expense in expenses)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Всего расходов/Ausgaben insgesamt", len(expenses))
-            with col2:
-                st.metric("Общая сумма/Gesamtbetrag", format_currency(total_amount))
-            with col3:
-                maintenance_linked = sum(1 for expense in expenses if expense[8])
-                st.metric("Связано с ТО/Wartung verknüpft", maintenance_linked)
-            
-            st.divider()
+        if expenses and isinstance(expenses, list) and len(expenses) > 0:
+            # Show summary
+            total_amount = sum(float(exp[3]) for exp in expenses)
+            st.info(f"**Найдено расходов: {len(expenses)} | Общая сумма: {format_currency(total_amount)}**")
             
             # Display expenses
-            for expense in expenses:
+            for exp in expenses:
                 with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
                     
                     with col1:
-                        st.write(f"**{expense[2]}** ({expense[3]})")
-                        expense_date = expense[1].strftime('%d.%m.%Y') if expense[1] else ''
-                        st.write(f"📅 {expense_date}")
-                        if expense[8]:  # maintenance_id
-                            st.write("🔗 Связано с ТО/Mit Wartung verknüpft")
+                        st.write(f"**🚗 {exp[6]}**")  # vehicle_name
+                        categories = get_car_expense_categories(language)
+                        st.write(f"📋 {categories.get(exp[2], exp[2])}")  # category
+                        st.write(f"📅 {exp[1].strftime('%d.%m.%Y')}")  # date
                     
                     with col2:
-                        st.write(f"💰 {format_currency(expense[5])}")
-                        category_text = get_text(expense[4], language)
-                        st.write(f"📋 {category_text}")
+                        st.write(f"**💰 {format_currency(exp[3])}**")  # amount
+                        if exp[4]:  # description
+                            st.write(f"📝 {exp[4]}")
+                        if exp[7]:  # created_by_name
+                            st.write(f"👤 {exp[7]}")
+                        
+                        # Show source type (manual entry or linked to maintenance)
+                        if len(exp) > 10 and exp[9]:  # maintenance_id exists
+                            st.write("🔧 Связан с техобслуживанием")
+                        else:
+                            st.write("✍️ Ручной ввод")
                     
                     with col3:
-                        if expense[6]:  # description
-                            st.write(f"📝 {expense[6]}")
-                        if expense[7]:  # file_url
-                            st.write("📎 Документ есть/Dokument vorhanden")
+                        if exp[5]:  # file_url
+                            file_name = exp[5].split('/')[-1]
+                            file_ext = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                            
+                            if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
+                                st.write("🖼️ Изображение/Bild")
+                            elif file_ext == 'pdf':
+                                st.write("📄 PDF документ")
+                            else:
+                                st.write("📎 Файл прикреплен")
+                            
+                            st.caption(f"📁 {file_name}")
+                        
+                        st.caption(f"Создано/Erstellt: {exp[8].strftime('%d.%m.%Y %H:%M')}")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_btn_expense_{expense[0]}"):
-                            st.session_state[f'edit_expense_{expense[0]}'] = True
+                        edit_key = f"edit_car_exp_{exp[0]}"
+                        if st.button(f"✏️", key=f"edit_btn_{exp[0]}"):
+                            st.session_state[edit_key] = True
+                            st.rerun()
+                        
+                        # Don't allow deletion of maintenance-linked expenses
+                        if len(exp) > 10 and exp[9]:  # maintenance_id exists
+                            st.caption("🔒 Удалить через ТО")
+                        else:
+                            if st.button(f"🗑️", key=f"delete_car_exp_{exp[0]}"):
+                                delete_car_expense(exp[0], language)
+                        
+                        if exp[5] and st.button(f"📎", key=f"view_car_exp_{exp[0]}"):
+                            st.session_state[f"view_car_file_{exp[0]}"] = {
+                                'url': exp[5],
+                                'title': f"{exp[6]} - {categories.get(exp[2], exp[2])}",
+                                'language': language
+                            }
                             st.rerun()
                     
-                    # Edit form
-                    if st.session_state.get(f'edit_expense_{expense[0]}', False):
-                        show_edit_expense_form(expense, language)
+                    # Show edit form if requested
+                    edit_key = f"edit_car_exp_{exp[0]}"
+                    if st.session_state.get(edit_key, False):
+                        show_edit_car_expense_form(exp, language)
                     
                     st.divider()
         else:
-            st.info(get_text('no_data', language))
-            
-    except Exception as e:
-        st.error(f"Error loading expenses: {str(e)}")
-
-def show_add_expense_form(language='ru'):
-    """Show form to add new car expense"""
-    st.subheader(get_text('add_expense', language))
+            st.info("Расходы не найдены/Keine Ausgaben gefunden")
     
-    try:
-        # Get vehicles
-        vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name") or []
-        
-        if not vehicles:
-            st.warning("Нет автомобилей в системе / Keine Fahrzeuge im System")
-            return
-        
-        vehicle_options = {str(v[0]): f"{v[1]} ({v[2]})" for v in vehicles}
-        
+    except Exception as e:
+        st.error(f"Ошибка загрузки расходов/Fehler beim Laden der Ausgaben: {str(e)}")
+
+def show_add_car_expense_form(language='ru'):
+    """Show form to add new car expense"""
+    st.subheader("Добавить расход на автомобиль/Fahrzeugausgabe hinzufügen")
+    
+    with st.form("add_car_expense_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            selected_vehicle = st.selectbox(
-                get_text('vehicle', language),
-                options=list(vehicle_options.keys()),
-                format_func=lambda x: vehicle_options[x]
+            # Vehicle selection
+            vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
+            if not vehicles or not isinstance(vehicles, list) or len(vehicles) == 0:
+                st.warning("Необходимо создать автомобили / Fahrzeuge müssen erstellt werden")
+                st.form_submit_button("💾 Сохранить/Speichern", disabled=True)
+                return
+            
+            car_id = st.selectbox(
+                "Автомобиль/Fahrzeug",
+                options=[v[0] for v in vehicles],
+                format_func=lambda x: next((v[1] for v in vehicles if v[0] == x), x),
+                key="new_car_exp_vehicle"
             )
             
-            expense_date = st.date_input(
-                get_text('date', language),
-                value=date.today()
-            )
-            
+            # Category
+            categories = get_car_expense_categories(language)
             category = st.selectbox(
                 "Категория/Kategorie",
-                options=['repair', 'maintenance', 'fuel', 'insurance', 'toll', 'car_wash', 'other'],
-                format_func=lambda x: get_text(x, language)
+                options=list(categories.keys()),
+                format_func=lambda x: categories[x],
+                key="new_car_exp_category"
+            )
+            
+            # Date
+            expense_date = st.date_input(
+                "Дата расхода/Datum der Ausgabe",
+                value=date.today(),
+                key="new_car_exp_date"
             )
         
         with col2:
+            # Amount
             amount = st.number_input(
-                get_text('amount', language),
+                "Сумма (€)/Betrag (€)",
                 min_value=0.01,
+                value=0.01,
                 step=0.01,
-                format="%.2f"
+                key="new_car_exp_amount"
             )
             
+            # Description
             description = st.text_area(
-                get_text('description', language),
-                placeholder="Описание расхода... / Ausgabenbeschreibung..."
+                "Описание/Beschreibung",
+                placeholder="Замена тормозных колодок/Bremsbeläge wechseln...",
+                key="new_car_exp_description"
             )
             
+            # File upload
             uploaded_file = st.file_uploader(
-                "Документ/Dokument",
+                "Чек/счет/Rechnung",
                 type=['pdf', 'jpg', 'jpeg', 'png'],
-                help="Квитанция, счет или фото / Beleg, Rechnung oder Foto"
+                key="new_car_exp_file"
             )
         
-        if st.button(get_text('add', language), type="primary"):
-            if selected_vehicle and amount > 0:
+        # Submit button
+        submitted = st.form_submit_button("💾 Сохранить/Speichern")
+        
+        if submitted:
+            if car_id and category and amount > 0:
                 try:
                     file_url = None
                     if uploaded_file:
-                        # Save file
-                        import os
-                        upload_dir = "uploads"
-                        os.makedirs(upload_dir, exist_ok=True)
-                        
-                        file_path = os.path.join(upload_dir, f"expense_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}")
-                        with open(file_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-                        file_url = file_path
+                        file_url = upload_file(uploaded_file, 'car_expenses')
                     
-                    # Insert expense
-                    result = execute_query("""
-                        INSERT INTO car_expenses (vehicle_id, date, category, amount, description, file_url)
-                        VALUES (:vehicle_id, :date, :category, :amount, :description, :file_url)
+                    # Get current user ID
+                    current_user = execute_query("SELECT id FROM users LIMIT 1")
+                    created_by = current_user[0][0] if current_user else None
+                    
+                    execute_query("""
+                        INSERT INTO car_expenses 
+                        (car_id, date, category, amount, description, file_url, created_by)
+                        VALUES (:car_id, :date, :category, :amount, :description, :file_url, :created_by)
                     """, {
-                        'vehicle_id': selected_vehicle,
+                        'car_id': car_id,
                         'date': expense_date,
                         'category': category,
                         'amount': amount,
-                        'description': description,
-                        'file_url': file_url
+                        'description': description if description else None,
+                        'file_url': file_url,
+                        'created_by': created_by
                     })
                     
-                    if result:
-                        st.success(get_text('success', language))
-                        st.rerun()
-                    else:
-                        st.error(get_text('error', language))
-                        
+                    st.success("Расход успешно добавлен/Ausgabe erfolgreich hinzugefügt")
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error adding expense: {str(e)}")
+                    st.error(f"Ошибка сохранения/Speicherfehler: {str(e)}")
             else:
-                st.warning("Заполните обязательные поля / Füllen Sie die Pflichtfelder aus")
-                
-    except Exception as e:
-        st.error(f"Error loading form: {str(e)}")
+                st.error("Заполните обязательные поля/Füllen Sie die Pflichtfelder aus")
 
-def show_edit_expense_form(expense, language='ru'):
-    """Show form to edit existing expense"""
-    st.write("### Редактировать/Bearbeiten")
+def show_edit_car_expense_form(exp, language='ru'):
+    """Show form to edit car expense"""
+    st.subheader(f"✏️ Редактировать расход")
     
-    col1, col2, col3 = st.columns([1, 1, 1])
-    
-    with col1:
-        new_amount = st.number_input(
-            get_text('amount', language),
-            value=float(expense[5]),
-            min_value=0.01,
-            step=0.01,
-            key=f"edit_amount_{expense[0]}"
-        )
-    
-    with col2:
-        new_description = st.text_input(
-            get_text('description', language),
-            value=expense[6] or "",
-            key=f"edit_desc_{expense[0]}"
-        )
-    
-    with col3:
+    with st.form(f"edit_car_expense_form_{exp[0]}"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Vehicle selection
+            vehicles = execute_query("SELECT id, name FROM vehicles ORDER BY name")
+            if not vehicles or vehicles is True or not isinstance(vehicles, list) or len(vehicles) == 0:
+                st.warning("Автомобили не найдены")
+                return
+            
+            # Find current vehicle
+            current_vehicle_index = 0
+            try:
+                for i, vehicle in enumerate(vehicles):
+                    if len(exp) > 6 and exp[6] and len(vehicle) > 1 and vehicle[1]:
+                        if str(exp[6]).strip() == str(vehicle[1]).strip():
+                            current_vehicle_index = i
+                            break
+            except (IndexError, AttributeError, TypeError):
+                current_vehicle_index = 0
+            
+            car_id = st.selectbox(
+                "Автомобиль/Fahrzeug",
+                options=[v[0] for v in vehicles],
+                format_func=lambda x: next((v[1] for v in vehicles if v[0] == x), x),
+                index=current_vehicle_index,
+                key=f"edit_car_exp_vehicle_{exp[0]}"
+            )
+            
+            # Category
+            categories = get_car_expense_categories(language)
+            category_index = list(categories.keys()).index(exp[2]) if exp[2] in categories else 0
+            category = st.selectbox(
+                "Категория/Kategorie",
+                options=list(categories.keys()),
+                format_func=lambda x: categories[x],
+                index=category_index,
+                key=f"edit_car_exp_category_{exp[0]}"
+            )
+            
+            # Date
+            expense_date = st.date_input(
+                "Дата расхода/Datum",
+                value=exp[1] if exp[1] else date.today(),
+                key=f"edit_car_exp_date_{exp[0]}"
+            )
+        
+        with col2:
+            # Amount
+            amount = st.number_input(
+                "Сумма (€)/Betrag (€)",
+                min_value=0.01,
+                value=float(exp[3]) if exp[3] else 0.01,
+                step=0.01,
+                key=f"edit_car_exp_amount_{exp[0]}"
+            )
+            
+            # Description
+            description = st.text_area(
+                "Описание/Beschreibung",
+                value=exp[4] or '',
+                key=f"edit_car_exp_description_{exp[0]}"
+            )
+            
+            # Show current file
+            if exp[5]:
+                st.write(f"Текущий файл: {exp[5].split('/')[-1]}")
+            
+            # File upload
+            uploaded_file = st.file_uploader(
+                "Новый файл/Neue Datei",
+                type=['pdf', 'jpg', 'jpeg', 'png'],
+                key=f"edit_car_exp_file_{exp[0]}"
+            )
+        
         col_save, col_cancel = st.columns(2)
         
         with col_save:
-            if st.button("💾", key=f"save_{expense[0]}"):
-                try:
-                    result = execute_query("""
-                        UPDATE car_expenses 
-                        SET amount = :amount, description = :description
-                        WHERE id = :id
-                    """, {
-                        'amount': new_amount,
-                        'description': new_description,
-                        'id': expense[0]
-                    })
-                    
-                    if result:
-                        st.success(get_text('success', language))
-                        if f'edit_expense_{expense[0]}' in st.session_state:
-                            del st.session_state[f'edit_expense_{expense[0]}']
-                        st.rerun()
-                    else:
-                        st.error(get_text('error', language))
-                        
-                except Exception as e:
-                    st.error(f"Error updating expense: {str(e)}")
+            submitted = st.form_submit_button("💾 Сохранить/Speichern")
         
         with col_cancel:
-            if st.button("❌", key=f"cancel_{expense[0]}"):
-                if f'edit_expense_{expense[0]}' in st.session_state:
-                    del st.session_state[f'edit_expense_{expense[0]}']
+            cancelled = st.form_submit_button("❌ Отмена/Abbrechen")
+        
+        if submitted:
+            try:
+                file_url = exp[5]  # Keep existing file URL
+                if uploaded_file:
+                    file_url = upload_file(uploaded_file, 'car_expenses')
+                
+                execute_query("""
+                    UPDATE car_expenses 
+                    SET car_id = :car_id, date = :date, category = :category, 
+                        amount = :amount, description = :description, file_url = :file_url
+                    WHERE id = :id
+                """, {
+                    'id': exp[0],
+                    'car_id': car_id,
+                    'date': expense_date,
+                    'category': category,
+                    'amount': amount,
+                    'description': description if description else None,
+                    'file_url': file_url
+                })
+                
+                if f"edit_car_exp_{exp[0]}" in st.session_state:
+                    del st.session_state[f"edit_car_exp_{exp[0]}"]
+                st.success("Расход обновлен/Ausgabe aktualisiert")
                 st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка сохранения/Speicherfehler: {str(e)}")
+        
+        if cancelled:
+            if f"edit_car_exp_{exp[0]}" in st.session_state:
+                del st.session_state[f"edit_car_exp_{exp[0]}"]
+            st.rerun()
 
-def show_expenses_analytics(language='ru'):
-    """Show expenses analytics"""
-    st.subheader("Аналитика расходов / Ausgabenanalyse")
+def delete_car_expense(expense_id, language='ru'):
+    """Delete car expense"""
+    try:
+        execute_query("DELETE FROM car_expenses WHERE id = :id", {'id': expense_id})
+        st.success("Расход удален/Ausgabe gelöscht")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка удаления/Löschfehler: {str(e)}")
+
+def show_car_expenses_analytics(language='ru'):
+    """Show car expenses analytics"""
+    st.subheader("📊 Аналитика расходов на автомобили/Fahrzeugausgaben-Analytics")
     
     try:
-        # Monthly expenses chart
-        monthly_data = execute_query("""
+        # Date range selector
+        col1, col2 = st.columns(2)
+        with col1:
+            date_from = st.date_input(
+                "Период с/Periode von",
+                value=date.today() - timedelta(days=90)
+            )
+        with col2:
+            date_to = st.date_input(
+                "Период до/Periode bis", 
+                value=date.today()
+            )
+        
+        # Get expenses for period
+        expenses = execute_query("""
             SELECT 
-                DATE_TRUNC('month', date) as month,
-                SUM(amount) as total_amount
-            FROM car_expenses
-            WHERE date >= :six_months_ago
-            GROUP BY DATE_TRUNC('month', date)
-            ORDER BY month
-        """, {'six_months_ago': (datetime.now() - timedelta(days=180)).date()}) or []
-        
-        if monthly_data and len(monthly_data) > 0:
-            df_monthly = pd.DataFrame(list(monthly_data), columns=['Month', 'Amount'])
-            df_monthly['Month'] = pd.to_datetime(df_monthly['Month'])
-            df_monthly['Month_Str'] = df_monthly['Month'].dt.strftime('%Y-%m')
-            
-            fig_monthly = px.bar(
-                df_monthly,
-                x='Month_Str',
-                y='Amount',
-                title='Ежемесячные расходы / Monatliche Ausgaben'
-            )
-            st.plotly_chart(fig_monthly, use_container_width=True)
-        
-        # Category breakdown
-        category_data = execute_query("""
-            SELECT category, SUM(amount) as total_amount
-            FROM car_expenses
-            GROUP BY category
-            ORDER BY total_amount DESC
-        """) or []
-        
-        if category_data and len(category_data) > 0:
-            df_category = pd.DataFrame(list(category_data), columns=['Category', 'Amount'])
-            df_category['Category_Translated'] = df_category['Category'].apply(
-                lambda x: get_text(x, language)
-            )
-            
-            fig_category = px.pie(
-                df_category,
-                values='Amount',
-                names='Category_Translated',
-                title='Расходы по категориям / Ausgaben nach Kategorien'
-            )
-            st.plotly_chart(fig_category, use_container_width=True)
-        
-        # Vehicle expenses comparison
-        vehicle_data = execute_query("""
-            SELECT 
-                v.name,
-                v.license_plate,
-                SUM(ce.amount) as total_amount,
-                COUNT(ce.id) as expense_count
-            FROM vehicles v
-            LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id
-            GROUP BY v.id, v.name, v.license_plate
-            ORDER BY total_amount DESC NULLS LAST
-        """) or []
-        
-        if vehicle_data and len(vehicle_data) > 0:
-            df_vehicles = pd.DataFrame(list(vehicle_data), columns=[
-                'Автомобиль/Fahrzeug',
-                'Номер/Nummer', 
-                'Общие расходы/Gesamtausgaben',
-                'Количество/Anzahl'
-            ])
-            
-            # Format currency column
-            df_vehicles['Общие расходы/Gesamtausgaben'] = df_vehicles['Общие расходы/Gesamtausgaben'].apply(
-                lambda x: format_currency(x if x else 0)
-            )
-            
-            st.subheader("Расходы по автомобилям / Ausgaben nach Fahrzeugen")
-            st.dataframe(df_vehicles, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"Error loading analytics: {str(e)}")
-
-def export_expenses_data(language='ru'):
-    """Export expenses data to CSV"""
-    try:
-        expenses_data = execute_query("""
-            SELECT 
-                ce.date,
+                ce.car_id,
                 v.name as vehicle_name,
-                v.license_plate,
+                ce.category,
+                SUM(ce.amount) as total_amount,
+                COUNT(*) as expense_count
+            FROM car_expenses ce
+            JOIN vehicles v ON ce.car_id = v.id
+            WHERE ce.date BETWEEN :date_from AND :date_to
+            GROUP BY ce.car_id, v.name, ce.category
+            ORDER BY v.name, ce.category
+        """, {
+            'date_from': date_from,
+            'date_to': date_to
+        })
+        
+        if expenses and isinstance(expenses, list) and len(expenses) > 0:
+            # Summary metrics
+            total_expenses = execute_query("""
+                SELECT 
+                    COALESCE(SUM(amount), 0) as total,
+                    COUNT(*) as count,
+                    COALESCE(AVG(amount), 0) as avg_amount
+                FROM car_expenses 
+                WHERE date BETWEEN :date_from AND :date_to
+            """, {
+                'date_from': date_from,
+                'date_to': date_to
+            })[0]
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Общие расходы/Gesamtausgaben", format_currency(total_expenses[0] or 0))
+            with col2:
+                st.metric("Количество записей/Anzahl", total_expenses[1] or 0)
+            with col3:
+                st.metric("Средний расход/Durchschnitt", format_currency(total_expenses[2] or 0))
+            
+            # Expenses by vehicle
+            st.subheader("🚗 Расходы по автомобилям/Ausgaben nach Fahrzeugen")
+            
+            # Group by vehicle
+            vehicle_totals = {}
+            categories = get_car_expense_categories(language)
+            
+            for exp in expenses:
+                vehicle = exp[1]
+                if vehicle not in vehicle_totals:
+                    vehicle_totals[vehicle] = {'total': 0, 'categories': {}}
+                
+                vehicle_totals[vehicle]['total'] += float(exp[3])
+                category_name = categories.get(exp[2], exp[2])
+                vehicle_totals[vehicle]['categories'][category_name] = vehicle_totals[vehicle]['categories'].get(category_name, 0) + float(exp[3])
+            
+            # Display vehicle breakdown
+            for vehicle, data in vehicle_totals.items():
+                with st.expander(f"🚗 {vehicle} - {format_currency(data['total'])}"):
+                    for category, amount in data['categories'].items():
+                        st.write(f"📋 {category}: {format_currency(amount)}")
+        else:
+            st.info("Нет данных для выбранного периода/Keine Daten für den gewählten Zeitraum")
+    
+    except Exception as e:
+        st.error(f"Ошибка загрузки аналитики/Fehler beim Laden der Analytics: {str(e)}")
+
+def export_car_expenses_data(language='ru'):
+    """Export car expenses data to CSV"""
+    try:
+        query = """
+            SELECT 
+                v.name as vehicle_name,
+                ce.date,
                 ce.category,
                 ce.amount,
-                ce.description
+                ce.description,
+                u.first_name || ' ' || u.last_name as created_by,
+                ce.created_at
             FROM car_expenses ce
-            JOIN vehicles v ON ce.vehicle_id = v.id
-            ORDER BY ce.date DESC
-        """) or []
+            JOIN vehicles v ON ce.car_id = v.id
+            LEFT JOIN users u ON ce.created_by = u.id
+            ORDER BY ce.date DESC, ce.created_at DESC
+        """
         
-        if expenses_data:
-            df = pd.DataFrame(list(expenses_data), columns=[
-                'Дата/Datum',
-                'Автомобиль/Fahrzeug',
-                'Номер/Nummer',
-                'Категория/Kategorie',
-                'Сумма/Betrag',
-                'Описание/Beschreibung'
-            ])
+        expenses = execute_query(query)
+        
+        if expenses and isinstance(expenses, list) and len(expenses) > 0:
+            categories = get_car_expense_categories(language)
             
-            export_to_csv(df, f"car_expenses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-            st.success("Данные экспортированы / Daten exportiert")
+            export_data = []
+            for exp in expenses:
+                export_data.append([
+                    exp[0],  # vehicle_name
+                    exp[1].strftime('%d.%m.%Y') if exp[1] else '',  # date
+                    categories.get(exp[2], exp[2]),  # category
+                    float(exp[3]),  # amount
+                    exp[4] or '',  # description
+                    exp[5] or '',  # created_by
+                    exp[6].strftime('%d.%m.%Y %H:%M') if exp[6] else ''  # created_at
+                ])
+            
+            headers = [
+                'Автомобиль/Vehicle',
+                'Дата/Date', 
+                'Категория/Category',
+                'Сумма/Amount',
+                'Описание/Description',
+                'Создал/Created By',
+                'Дата создания/Created At'
+            ]
+            
+            # Create DataFrame
+            df = pd.DataFrame(export_data, columns=headers)
+            
+            # Export to CSV
+            csv_data = df.to_csv(index=False)
+            
+            st.download_button(
+                label="📥 Скачать CSV/CSV herunterladen",
+                data=csv_data,
+                file_name=f"car_expenses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+            
+            st.success(f"Экспортировано {len(expenses)} записей/Exportiert {len(expenses)} Einträge")
         else:
-            st.warning("Нет данных для экспорта / Keine Daten zum Exportieren")
-            
+            st.warning("Нет данных для экспорта/Keine Daten zum Exportieren")
+    
     except Exception as e:
-        st.error(f"Error exporting data: {str(e)}")
+        st.error(f"Ошибка экспорта/Export-Fehler: {str(e)}")
+
+def show_car_file_viewer(file_url, title, language='ru'):
+    """Show car expense file viewer in full width"""
+    import os
+    
+    if file_url:
+        st.header(f"📎 {title}")
+        
+        # File info
+        file_name = file_url.split('/')[-1]
+        file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+        
+        # Create main layout
+        col_main, col_sidebar = st.columns([3, 1])
+        
+        with col_main:
+            st.info(f"📁 **Файл:** {file_name}")
+            
+            # Determine file type and display accordingly
+            if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+                try:
+                    if file_url.startswith('/'):
+                        file_path = file_url.lstrip('/')
+                        if os.path.exists(file_path):
+                            st.image(file_path, caption=title, use_container_width=True)
+                        else:
+                            st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+                    else:
+                        st.image(file_url, caption=title, use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
+                    
+            elif file_extension == 'pdf':
+                st.success("📄 **PDF документ готов к просмотру**")
+                st.success("📄 **PDF-Dokument bereit zur Ansicht**")
+                
+                col_pdf1, col_pdf2 = st.columns(2)
+                with col_pdf1:
+                    st.write("💡 **Русский:** Используйте кнопку 'Скачать' справа для просмотра PDF файла")
+                with col_pdf2:
+                    st.write("💡 **Deutsch:** Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
+                
+                if not file_url.startswith('/'):
+                    st.markdown(f"🔗 [Открыть PDF в браузере/PDF im Browser öffnen]({file_url})")
+                    
+            else:
+                st.warning(f"📎 **Файл типа .{file_extension}**")
+                st.info("💡 Используйте кнопку скачивания справа / Nutzen Sie den Download-Button rechts")
+        
+        with col_sidebar:
+            st.markdown("### Действия / Aktionen")
+            
+            # Close button
+            if st.button("❌ Закрыть/Schließen", use_container_width=True):
+                for key in list(st.session_state.keys()):
+                    if key.startswith("view_car_file_"):
+                        del st.session_state[key]
+                st.rerun()
+            
+            st.markdown("---")
+            
+            # Download button
+            try:
+                if file_url.startswith('/'):
+                    # Local file
+                    file_path = file_url.lstrip('/')
+                    if os.path.exists(file_path):
+                        with open(file_path, "rb") as f:
+                            file_data = f.read()
+                        
+                        st.download_button(
+                            label="⬇️ **Скачать**\n**Download**",
+                            data=file_data,
+                            file_name=file_name,
+                            use_container_width=True
+                        )
+                    else:
+                        st.error("❌ Файл не найден/Datei nicht gefunden")
+                else:
+                    # External URL
+                    st.markdown(f"""
+                    <a href="{file_url}" target="_blank">
+                        <button style="width: 100%; padding: 10px; background-color: #ff6b6b; color: white; border: none; border-radius: 5px;">
+                            ⬇️ Скачать/Download
+                        </button>
+                    </a>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                st.error("❌ Ошибка доступа к файлу/Dateizugriffsfehler")
+                st.error(f"Детали/Details: {str(e)}")
+        
+        # Return to expenses button
+        st.markdown("---")
+        col_back, col_space = st.columns([1, 3])
+        with col_back:
+            if st.button("← Назад к расходам/Zurück zu Ausgaben"):
+                for key in list(st.session_state.keys()):
+                    if key.startswith("view_car_file_"):
+                        del st.session_state[key]
+                st.rerun()

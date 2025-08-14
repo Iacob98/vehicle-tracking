@@ -8,28 +8,7 @@ A comprehensive fleet management web application built with Streamlit that helps
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (August 14, 2025)
-
-### Performance Optimization (Major)
-- Removed deprecated expenses.py module completely - replaced by car_expenses and penalties systems
-- Fixed all LSP diagnostics errors across dashboard.py, penalties.py, and documents.py
-- Optimized database.py with improved connection pooling (pool_size=5, max_overflow=10)
-- Enhanced SQL query error handling with proper empty result handling
-- Updated database schema to remove obsolete expenses table, replaced with optimized car_expenses
-- Streamlined pandas DataFrame operations with proper type checking
-- Fixed Streamlit automatic navigation conflicts - now uses only custom navigation
-- Added proper null-checking for all SQL query results to prevent runtime errors
-- Updated materials table schema with unit_price and quantity fields for better inventory tracking
-
-### Application Interactions Preserved
-- Dashboard real-time analytics with vehicle status distribution and monthly expense charts
-- Integrated expense tracking combining car_expenses and penalties data
-- Material damage penalties automatically linked to materials unit pricing
-- Team performance statistics with proper aggregation of expenses and assignments
-- Document management for both vehicles and users maintained with file upload functionality
-- Multi-language support (Russian/German) preserved across all optimized components
-
-## Previous Changes (August 13, 2025)
+## Recent Changes (August 13, 2025)
 
 ### Database Structure Updates
 - Migrated users table from single "name" field to separate "first_name" and "last_name" fields

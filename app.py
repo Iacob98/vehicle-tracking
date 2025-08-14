@@ -7,8 +7,7 @@ from translations import get_text, LANGUAGES
 # Ensure local pages directory is in Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pages import dashboard, vehicles, teams, users, penalties, materials, car_expenses, expenses
-from pages.documents import show_documents_page
+from pages import dashboard, vehicles, teams, users, penalties, materials, expenses, car_expenses
 
 # Page configuration
 st.set_page_config(
@@ -17,18 +16,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Hide only Streamlit's automatic page navigation, keep our custom sidebar
-st.markdown("""
-<style>
-    [data-testid="stSidebarNav"] {
-        display: none;
-    }
-    .stAppViewBlockContainer [data-testid="stSidebarNav"] {
-        display: none;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Database is already initialized manually via SQL tool
 pass
@@ -95,6 +82,7 @@ try:
     elif st.session_state.current_page == 'materials':
         materials.show_page(st.session_state.language)
     elif st.session_state.current_page == 'documents':
+        from pages.documents import show_documents_page
         show_documents_page(st.session_state.language)
     elif st.session_state.current_page == 'car_expenses':
         car_expenses.show_page(st.session_state.language)
