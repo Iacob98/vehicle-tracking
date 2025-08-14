@@ -355,59 +355,62 @@ with tab3:
                         
                         if not material_info:
                             st.error("Материал не найден")
-                            return
+                        else:
+                            material_type = material_info[0][0]
+                            current_total = material_info[0][1] or 0
+                            current_assigned = material_info[0][2] or 0
                             
-                        material_type = material_info[0][0]
-                        current_total = material_info[0][1] or 0
-                        current_assigned = material_info[0][2] or 0
-                        
-                        # Check availability based on type
-                        if material_type == 'material':
-                            # For consumables, check if we have enough in stock
-                            if current_total < quantity:
-                                st.error(f"Недостаточно материала в наличии. Доступно: {current_total}")
-                                return
-                        else:
-                            # For equipment, check if we have enough unassigned
-                            available = current_total - current_assigned
-                            if available < quantity:
-                                st.error(f"Недостаточно свободного оборудования. Доступно: {available}")
-                                return
-                        
-                        # Create assignment record
-                        assignment_id = str(uuid.uuid4())
-                        execute_query("""
-                            INSERT INTO material_assignments 
-                            (id, material_id, team_id, quantity, date, status, event)
-                            VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
-                        """, {
-                            'id': assignment_id,
-                            'material_id': material_id,
-                            'team_id': team_id,
-                            'quantity': quantity,
-                            'date': datetime.now()
-                        })
-                        
-                        # Update material quantities based on type
-                        if material_type == 'material':
-                            # For consumables: reduce total quantity (consumed)
-                            execute_query("""
-                                UPDATE materials 
-                                SET total_quantity = total_quantity - :quantity 
-                                WHERE id = :id
-                            """, {'id': material_id, 'quantity': quantity})
-                            st.success(f"✅ Материал выдан (списано {quantity} единиц)")
-                        else:
-                            # For equipment: increase assigned quantity (temporary assignment)
-                            execute_query("""
-                                UPDATE materials 
-                                SET assigned_quantity = COALESCE(assigned_quantity, 0) + :quantity 
-                                WHERE id = :id
-                            """, {'id': material_id, 'quantity': quantity})
-                            st.success(f"✅ Оборудование выдано (в использовании {quantity} единиц)")
-                        
-                        get_materials_cached.clear()  # Clear cache
-                        st.rerun()
+                            # Check availability based on type
+                            process_assignment = False
+                            if material_type == 'material':
+                                # For consumables, check if we have enough in stock
+                                if current_total < quantity:
+                                    st.error(f"Недостаточно материала в наличии. Доступно: {current_total}")
+                                else:
+                                    process_assignment = True
+                            else:
+                                # For equipment, check if we have enough unassigned
+                                available = current_total - current_assigned
+                                if available < quantity:
+                                    st.error(f"Недостаточно свободного оборудования. Доступно: {available}")
+                                else:
+                                    process_assignment = True
+                            
+                            # Create assignment record if validation passed
+                            if process_assignment:
+                                assignment_id = str(uuid.uuid4())
+                                execute_query("""
+                                    INSERT INTO material_assignments 
+                                    (id, material_id, team_id, quantity, date, status, event)
+                                    VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
+                                """, {
+                                    'id': assignment_id,
+                                    'material_id': material_id,
+                                    'team_id': team_id,
+                                    'quantity': quantity,
+                                    'date': datetime.now()
+                                })
+                                
+                                # Update material quantities based on type
+                                if material_type == 'material':
+                                    # For consumables: reduce total quantity (consumed)
+                                    execute_query("""
+                                        UPDATE materials 
+                                        SET total_quantity = total_quantity - :quantity 
+                                        WHERE id = :id
+                                    """, {'id': material_id, 'quantity': quantity})
+                                    st.success(f"✅ Материал выдан (списано {quantity} единиц)")
+                                else:
+                                    # For equipment: increase assigned quantity (temporary assignment)
+                                    execute_query("""
+                                        UPDATE materials 
+                                        SET assigned_quantity = COALESCE(assigned_quantity, 0) + :quantity 
+                                        WHERE id = :id
+                                    """, {'id': material_id, 'quantity': quantity})
+                                    st.success(f"✅ Оборудование выдано (в использовании {quantity} единиц)")
+                                
+                                get_materials_cached.clear()  # Clear cache
+                                st.rerun()
                         
                     except Exception as e:
                         st.error(f"Ошибка при выдаче: {str(e)}")
