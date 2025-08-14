@@ -61,12 +61,18 @@ def show_users_list():
                         st.write(f"📄 {count} документов")
                     
                     with col4:
-                        if st.button(f"🗑️", key=f"delete_user_{user[0]}", help="Удалить пользователя"):
-                            if st.session_state.get(f"confirm_delete_{user[0]}", False):
-                                delete_user(user[0])
-                            else:
-                                st.session_state[f"confirm_delete_{user[0]}"] = True
-                                st.warning("Нажмите еще раз для подтверждения")
+                        col_edit, col_delete = st.columns(2)
+                        with col_edit:
+                            if st.button("✏️", key=f"edit_user_{user[0]}", help="Редактировать"):
+                                st.session_state.edit_user_id = user[0]
+                                st.rerun()
+                        with col_delete:
+                            if st.button("🗑️", key=f"delete_user_{user[0]}", help="Удалить"):
+                                if st.session_state.get(f"confirm_delete_{user[0]}", False):
+                                    delete_user(user[0])
+                                else:
+                                    st.session_state[f"confirm_delete_{user[0]}"] = True
+                                    st.warning("Нажмите еще раз для подтверждения")
                     
                     st.divider()
         else:
@@ -77,6 +83,15 @@ def show_users_list():
 
 def show_add_user_form():
     """Show form to add new user"""
+    # Check if editing existing user
+    edit_user_id = st.session_state.get('edit_user_id', None)
+    
+    if edit_user_id:
+        show_edit_user_form(edit_user_id)
+        return
+    
+    st.subheader("➕ Добавить пользователя / Benutzer hinzufügen")
+    
     with st.form("add_user"):
         col1, col2 = st.columns(2)
         
@@ -127,6 +142,112 @@ def show_add_user_form():
                     st.error(f"Error: {str(e)}")
             else:
                 st.error("Имя и фамилия обязательны")
+
+def show_edit_user_form(user_id):
+    """Show form to edit existing user"""
+    try:
+        # Get current user data
+        user_data = execute_query("""
+            SELECT first_name, last_name, role, team_id 
+            FROM users 
+            WHERE id = :id
+        """, {'id': user_id})
+        
+        if not user_data:
+            st.error("Пользователь не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_user_id
+                st.rerun()
+            return
+        
+        current_user = user_data[0]
+        
+        st.subheader("✏️ Редактировать пользователя / Benutzer bearbeiten")
+        
+        col_back, col_space = st.columns([1, 3])
+        with col_back:
+            if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+                del st.session_state.edit_user_id
+                st.rerun()
+        
+        with st.form("edit_user"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                first_name = st.text_input(
+                    "Имя / Vorname",
+                    value=current_user[0],
+                    placeholder="Иван"
+                )
+                last_name = st.text_input(
+                    "Фамилия / Nachname", 
+                    value=current_user[1],
+                    placeholder="Иванов"
+                )
+            
+            with col2:
+                roles = ['admin', 'manager', 'team_lead', 'worker']
+                current_role_index = roles.index(current_user[2]) if current_user[2] in roles else 0
+                
+                role = st.selectbox(
+                    "Роль / Rolle",
+                    options=roles,
+                    index=current_role_index,
+                    format_func=lambda x: get_text(x, language)
+                )
+                
+                # Get teams for assignment
+                teams = execute_query("SELECT id, name FROM teams ORDER BY name")
+                team_options = [None] + ([t[0] for t in teams] if teams else [])
+                current_team_index = 0
+                if current_user[3] and teams:
+                    try:
+                        current_team_index = team_options.index(current_user[3])
+                    except ValueError:
+                        current_team_index = 0
+                
+                team_id = st.selectbox(
+                    "Бригада / Team",
+                    options=team_options,
+                    index=current_team_index,
+                    format_func=lambda x: "Не назначена" if x is None else next((t[1] for t in teams if teams and t[0] == x), str(x))
+                )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    if first_name and last_name:
+                        try:
+                            execute_query("""
+                                UPDATE users 
+                                SET first_name = :first_name, last_name = :last_name, role = :role, team_id = :team_id
+                                WHERE id = :id
+                            """, {
+                                'id': user_id,
+                                'first_name': first_name,
+                                'last_name': last_name,
+                                'role': role,
+                                'team_id': team_id
+                            })
+                            st.success("Пользователь обновлен / Benutzer aktualisiert")
+                            del st.session_state.edit_user_id
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка обновления: {str(e)}")
+                    else:
+                        st.error("Имя и фамилия обязательны")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_user_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_user_id' in st.session_state:
+                del st.session_state.edit_user_id
+            st.rerun()
 
 def delete_user(user_id):
     """Delete user"""
