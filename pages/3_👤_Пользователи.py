@@ -30,6 +30,8 @@ def show_users_list():
         """)
         
         if users:
+            st.subheader("👥 Список пользователей / Benutzerliste")
+            
             for user in users:
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
@@ -50,20 +52,28 @@ def show_users_list():
                         st.write(f"{icon} {get_text(user[3], language)}")
                     
                     with col3:
-                        st.write("")
+                        # Count user documents
+                        doc_count = execute_query("""
+                            SELECT COUNT(*) FROM user_documents 
+                            WHERE user_id = :user_id AND is_active = true
+                        """, {'user_id': user[0]})
+                        count = doc_count[0][0] if doc_count else 0
+                        st.write(f"📄 {count} документов")
                     
                     with col4:
-                        if st.button(f"✏️", key=f"edit_user_{user[0]}"):
-                            st.session_state[f"edit_user_{user[0]}"] = True
-                        if st.button(f"🗑️", key=f"delete_user_{user[0]}"):
-                            delete_user(user[0])
+                        if st.button(f"🗑️", key=f"delete_user_{user[0]}", help="Удалить пользователя"):
+                            if st.session_state.get(f"confirm_delete_{user[0]}", False):
+                                delete_user(user[0])
+                            else:
+                                st.session_state[f"confirm_delete_{user[0]}"] = True
+                                st.warning("Нажмите еще раз для подтверждения")
                     
                     st.divider()
         else:
             st.info(get_text('no_data', language))
     
     except Exception as e:
-        st.error(f"Error loading users: {str(e)}")
+        st.error(f"Ошибка загрузки пользователей: {str(e)}")
 
 def show_add_user_form():
     """Show form to add new user"""
