@@ -321,8 +321,8 @@ with tab3:
                         assignment_id = str(uuid.uuid4())
                         execute_query("""
                             INSERT INTO material_assignments 
-                            (id, material_id, team_id, quantity, date, status)
-                            VALUES (:id, :material_id, :team_id, :quantity, :date, 'active')
+                            (id, material_id, team_id, quantity, date, status, event)
+                            VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
                         """, {
                             'id': assignment_id,
                             'material_id': material_id,
