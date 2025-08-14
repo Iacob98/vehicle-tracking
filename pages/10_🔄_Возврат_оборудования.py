@@ -28,12 +28,10 @@ def get_active_assignments():
             t.name as team_name,
             ma.quantity,
             ma.date as assigned_date,
-            ma.status,
-            CONCAT(u.first_name, ' ', u.last_name) as assigned_by
+            ma.status
         FROM material_assignments ma
         JOIN materials m ON ma.material_id = m.id
         JOIN teams t ON ma.team_id = t.id
-        LEFT JOIN users u ON ma.created_by = u.id
         WHERE ma.status = 'active' AND m.type = 'equipment'
         ORDER BY ma.date DESC
     """)
@@ -51,14 +49,12 @@ def get_return_history():
             ma.quantity,
             ma.date as assigned_date,
             ma.status,
-            CONCAT(u.first_name, ' ', u.last_name) as returned_by,
-            ma.created_at as return_date
+            ma.end_date as return_date
         FROM material_assignments ma
         JOIN materials m ON ma.material_id = m.id
         JOIN teams t ON ma.team_id = t.id
-        LEFT JOIN users u ON ma.created_by = u.id
         WHERE ma.status IN ('returned', 'broken') AND m.type = 'equipment'
-        ORDER BY ma.created_at DESC
+        ORDER BY ma.end_date DESC
         LIMIT 100
     """)
 
@@ -89,7 +85,7 @@ def return_equipment(assignment_id, return_status, notes=None):
         # Update assignment status
         execute_query("""
             UPDATE material_assignments 
-            SET status = :status, event = :event, created_at = :return_date
+            SET status = :status, event = :event, end_date = :return_date
             WHERE id = :assignment_id
         """, {
             'assignment_id': assignment_id,
@@ -123,15 +119,14 @@ def return_equipment(assignment_id, return_status, notes=None):
             
             execute_query("""
                 INSERT INTO penalties 
-                (id, team_id, date, amount, status, description, created_at)
-                VALUES (:id, :team_id, :date, :amount, 'open', :description, :created_at)
+                (id, team_id, date, amount, status, description)
+                VALUES (:id, :team_id, :date, :amount, 'open', :description)
             """, {
                 'id': penalty_id,
                 'team_id': team_id,
                 'date': date.today(),
                 'amount': penalty_amount,
-                'description': penalty_description,
-                'created_at': datetime.now()
+                'description': penalty_description
             })
             
             st.warning(f"⚠️ Оборудование '{material_name}' ({quantity} ед.) возвращено сломанным")
@@ -159,7 +154,7 @@ def show_active_assignments():
     
     # Display assignments
     for assignment in assignments:
-        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status, assigned_by = assignment
+        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status = assignment
         
         with st.container():
             col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
@@ -167,8 +162,6 @@ def show_active_assignments():
             with col1:
                 st.write(f"**🔧 {material_name}**")
                 st.write(f"👥 {team_name}")
-                if assigned_by:
-                    st.caption(f"Выдал: {assigned_by}")
             
             with col2:
                 st.write(f"**{quantity} {unit}**")
@@ -200,7 +193,7 @@ def show_return_history():
     # Create DataFrame for better display
     df_data = []
     for record in history:
-        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status, returned_by, return_date = record
+        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status, return_date = record
         
         status_emoji = "✅" if status == "returned" else "❌"
         status_text = "Возвращено" if status == "returned" else "Сломано"
@@ -211,8 +204,7 @@ def show_return_history():
             "Бригада": team_name,
             "Количество": f"{quantity} {unit}",
             "Дата выдачи": assigned_date.strftime('%d.%m.%Y') if assigned_date else '',
-            "Дата возврата": return_date.strftime('%d.%m.%Y %H:%M') if return_date else '',
-            "Обработал": returned_by or 'Система'
+            "Дата возврата": return_date.strftime('%d.%m.%Y %H:%M') if return_date else ''
         })
     
     if df_data:
