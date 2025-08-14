@@ -619,6 +619,133 @@ with tab1:
 
 with tab2:
     show_material_assignments()
+    
+    # Add material assignment section
+    st.divider()
+    st.subheader("📤 Выдать материал / Material ausgeben")
+    
+    with st.form("assign_material"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Material selection
+            materials = get_materials_cached()
+            if not materials:
+                st.warning("Необходимо создать материалы")
+            else:
+                material_options = []
+                material_labels = []
+                
+                for m in materials:
+                    material_id, name, mat_type, total_qty, unit, unit_price, assigned_qty = m
+                    if mat_type == 'material':
+                        available = total_qty
+                        type_label = 'Расходка'
+                    else:
+                        available = total_qty - assigned_qty
+                        type_label = 'Оборудование'
+                    
+                    if available > 0:
+                        material_options.append(material_id)
+                        material_labels.append(f"{name} - {type_label} (доступно: {available} {unit})")
+                
+                if material_options:
+                    selected_material_idx = st.selectbox(
+                        "Материал/Material",
+                        options=range(len(material_options)),
+                        format_func=lambda x: material_labels[x]
+                    )
+                    selected_material_id = material_options[selected_material_idx]
+                else:
+                    st.warning("Нет доступных материалов для выдачи")
+                    selected_material_id = None
+        
+        with col2:
+            # Team selection
+            teams = execute_query("SELECT id::text, name FROM teams ORDER BY name")
+            if teams and selected_material_id:
+                team_options = [t[0] for t in teams]
+                team_labels = [t[1] for t in teams]
+                
+                selected_team_idx = st.selectbox(
+                    "Бригада/Team",
+                    options=range(len(team_options)),
+                    format_func=lambda x: team_labels[x]
+                )
+                selected_team_id = team_options[selected_team_idx]
+                
+                quantity = st.number_input(
+                    "Количество/Menge",
+                    min_value=1,
+                    value=1
+                )
+            else:
+                st.info("Выберите материал")
+        
+        if st.form_submit_button("📤 Выдать/Ausgeben"):
+            if selected_material_id and teams:
+                try:
+                    # Get material info
+                    material_info = execute_query("""
+                        SELECT type, total_quantity, assigned_quantity, name
+                        FROM materials 
+                        WHERE id = :id
+                    """, {'id': selected_material_id})
+                    
+                    if not material_info:
+                        st.error("Материал не найден")
+                    else:
+                        material_type, current_total, current_assigned, material_name = material_info[0]
+                        current_assigned = current_assigned or 0
+                        
+                        # Check availability
+                        if material_type == 'material':
+                            available = current_total
+                        else:
+                            available = current_total - current_assigned
+                        
+                        if available < quantity:
+                            st.error(f"Недостаточно материала. Доступно: {available}")
+                        else:
+                            # Create assignment
+                            assignment_id = str(uuid.uuid4())
+                            execute_query("""
+                                INSERT INTO material_assignments 
+                                (id, material_id, team_id, quantity, date, status, event)
+                                VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
+                            """, {
+                                'id': assignment_id,
+                                'material_id': selected_material_id,
+                                'team_id': selected_team_id,
+                                'quantity': quantity,
+                                'date': datetime.now()
+                            })
+                            
+                            # Update material quantities
+                            if material_type == 'material':
+                                # Consumables: reduce total quantity
+                                execute_query("""
+                                    UPDATE materials 
+                                    SET total_quantity = total_quantity - :quantity 
+                                    WHERE id = :id
+                                """, {'id': selected_material_id, 'quantity': quantity})
+                                st.success(f"✅ Материал '{material_name}' выдан (списано {quantity} ед.)")
+                            else:
+                                # Equipment: increase assigned quantity
+                                execute_query("""
+                                    UPDATE materials 
+                                    SET assigned_quantity = COALESCE(assigned_quantity, 0) + :quantity 
+                                    WHERE id = :id
+                                """, {'id': selected_material_id, 'quantity': quantity})
+                                st.success(f"✅ Оборудование '{material_name}' выдано (в использовании {quantity} ед.)")
+                            
+                            get_materials_cached.clear()  # Clear cache
+                            st.rerun()
+                            
+                except Exception as e:
+                    st.error(f"Ошибка при выдаче: {str(e)}")
+            else:
+                st.error("Выберите материал и бригаду")
 
 with tab3:
     show_material_history()
