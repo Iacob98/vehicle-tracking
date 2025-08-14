@@ -8,7 +8,13 @@ from sqlalchemy.orm import sessionmaker, Session
 # Database configuration
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/fleet_db')
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_timeout=20,
+    max_overflow=0
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_session() -> Session:
@@ -16,23 +22,37 @@ def get_session() -> Session:
     return SessionLocal()
 
 def execute_query(query, params=None):
-    """Execute a query and return results"""
-    try:
-        with engine.connect() as connection:
-            if params:
-                result = connection.execute(text(query), params)
-            else:
-                result = connection.execute(text(query))
+    """Execute a query and return results with better error handling"""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            with engine.connect() as connection:
+                if params:
+                    result = connection.execute(text(query), params)
+                else:
+                    result = connection.execute(text(query))
+                
+                # If it's a SELECT query, fetch results
+                if query.strip().upper().startswith('SELECT'):
+                    return result.fetchall()
+                else:
+                    connection.commit()
+                    return True
+        except Exception as e:
+            retry_count += 1
+            print(f"Database error (attempt {retry_count}/{max_retries}): {e}")
             
-            # If it's a SELECT query, fetch results
-            if query.strip().upper().startswith('SELECT'):
-                return result.fetchall()
-            else:
-                connection.commit()
-                return True
-    except Exception as e:
-        print(f"Database error: {e}")
-        raise e
+            if retry_count >= max_retries:
+                # If this is an SSL connection error, try to dispose and recreate the engine
+                if "SSL connection has been closed unexpectedly" in str(e):
+                    engine.dispose()
+                raise e
+            
+            # Wait a bit before retrying
+            import time
+            time.sleep(1)
 
 def init_db():
     """Initialize database with simple approach"""
