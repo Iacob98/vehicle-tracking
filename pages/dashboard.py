@@ -89,11 +89,26 @@ def show_page(language='ru'):
             six_months_ago = datetime.now() - timedelta(days=180)
             monthly_expenses = execute_query("""
                 SELECT 
-                    DATE_TRUNC('month', date) as month,
-                    SUM(amount) as total_amount
-                FROM expenses 
-                WHERE date >= :six_months_ago
-                GROUP BY DATE_TRUNC('month', date)
+                    month,
+                    SUM(total_amount) as total_amount
+                FROM (
+                    SELECT 
+                        DATE_TRUNC('month', date) as month,
+                        SUM(amount) as total_amount
+                    FROM car_expenses 
+                    WHERE date >= :six_months_ago
+                    GROUP BY DATE_TRUNC('month', date)
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        DATE_TRUNC('month', date) as month,
+                        SUM(amount) as total_amount
+                    FROM penalties 
+                    WHERE date >= :six_months_ago
+                    GROUP BY DATE_TRUNC('month', date)
+                ) combined_expenses
+                GROUP BY month
                 ORDER BY month
             """, {'six_months_ago': six_months_ago.date()})
             
@@ -181,11 +196,11 @@ def show_page(language='ru'):
                 t.name,
                 COUNT(DISTINCT va.vehicle_id) as vehicles_count,
                 COUNT(DISTINCT u.id) as users_count,
-                COALESCE(SUM(e.amount), 0) as total_expenses
+                COALESCE(SUM(p.amount), 0) as total_expenses
             FROM teams t
             LEFT JOIN vehicle_assignments va ON t.id = va.team_id AND va.end_date IS NULL
             LEFT JOIN users u ON t.id = u.team_id
-            LEFT JOIN expenses e ON t.id = e.team_id
+            LEFT JOIN penalties p ON t.id = p.team_id
             GROUP BY t.id, t.name
             ORDER BY t.name
         """)
