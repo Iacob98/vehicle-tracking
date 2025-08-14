@@ -50,8 +50,26 @@ def get_document_types():
     }
 
 def show_documents_list():
-    """Show list of documents"""
+    """Show list of documents with inline editing"""
     try:
+        # Check if we're editing a document
+        edit_document_id = st.session_state.get('edit_document_id', None)
+        
+        if edit_document_id:
+            show_edit_document_form(edit_document_id)
+            return
+        
+        # Check if any document is being viewed
+        view_document_id = None
+        for key in st.session_state:
+            if key.startswith("view_document_") and st.session_state[key]:
+                view_document_id = key.replace("view_document_", "")
+                break
+        
+        if view_document_id:
+            show_document_viewer(view_document_id)
+            return
+        
         documents = get_documents_cached()
         
         if documents:
@@ -94,12 +112,21 @@ def show_documents_list():
                     with col3:
                         if doc[5]:
                             st.write("📎 Файл есть/Datei vorhanden")
+                            if st.button("👁️", key=f"view_doc_btn_{doc[0]}", help="Просмотреть файл"):
+                                st.session_state[f"view_document_{doc[0]}"] = True
+                                st.rerun()
                         else:
                             st.write("📎 Нет файла/Keine Datei")
                     
                     with col4:
-                        if st.button(f"🗑️", key=f"delete_doc_{doc[0]}"):
-                            delete_document(doc[0])
+                        col_edit, col_delete = st.columns(2)
+                        with col_edit:
+                            if st.button("✏️", key=f"edit_doc_{doc[0]}", help="Редактировать"):
+                                st.session_state.edit_document_id = doc[0]
+                                st.rerun()
+                        with col_delete:
+                            if st.button("🗑️", key=f"delete_doc_{doc[0]}", help="Удалить"):
+                                delete_document(doc[0])
                     
                     st.divider()
         else:
@@ -196,6 +223,218 @@ def show_add_document_form():
                     st.error(f"Error: {str(e)}")
             else:
                 st.error("Название обязательно / Titel ist erforderlich")
+
+def show_edit_document_form(document_id):
+    """Show form to edit existing document"""
+    try:
+        # Get current document data
+        document_data = execute_query("""
+            SELECT vd.vehicle_id, vd.document_type, vd.title, vd.date_issued, vd.date_expiry, 
+                   vd.file_url, vd.note, v.name as vehicle_name, v.license_plate
+            FROM vehicle_documents vd
+            JOIN vehicles v ON vd.vehicle_id = v.id
+            WHERE vd.id = :id AND vd.is_active = true
+        """, {'id': document_id})
+        
+        if not document_data:
+            st.error("Документ не найден")
+            if st.button("⬅️ Назад к списку"):
+                del st.session_state.edit_document_id
+                st.rerun()
+            return
+        
+        current_doc = document_data[0]
+        
+        st.subheader("✏️ Редактировать документ / Dokument bearbeiten")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            del st.session_state.edit_document_id
+            st.rerun()
+        
+        with st.form("edit_document"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Vehicle selection
+                vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+                if not vehicles:
+                    st.warning("Необходимо создать автомобили")
+                    return
+                
+                current_vehicle_index = 0
+                if current_doc[0]:
+                    try:
+                        current_vehicle_index = [v[0] for v in vehicles].index(current_doc[0])
+                    except ValueError:
+                        current_vehicle_index = 0
+                
+                vehicle_id = st.selectbox(
+                    get_text('vehicles', language),
+                    options=[v[0] for v in vehicles],
+                    format_func=lambda x: next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
+                    index=current_vehicle_index
+                )
+                
+                doc_types = get_document_types()
+                current_type_index = 0
+                if current_doc[1] in doc_types:
+                    current_type_index = list(doc_types.keys()).index(current_doc[1])
+                
+                document_type = st.selectbox(
+                    "Тип документа/Dokumenttyp",
+                    options=list(doc_types.keys()),
+                    format_func=lambda x: doc_types[x],
+                    index=current_type_index
+                )
+                
+                title = st.text_input(
+                    "Название/Titel",
+                    value=current_doc[2] or ""
+                )
+            
+            with col2:
+                date_issued = st.date_input(
+                    "Дата выдачи/Ausstellungsdatum",
+                    value=current_doc[3] if current_doc[3] else date.today()
+                )
+                
+                has_expiry = st.checkbox(
+                    "Есть срок действия/Hat Ablaufdatum", 
+                    value=current_doc[4] is not None
+                )
+                date_expiry = None
+                if has_expiry:
+                    date_expiry = st.date_input(
+                        "Действует до/Gültig bis",
+                        value=current_doc[4] if current_doc[4] else date.today() + timedelta(days=365)
+                    )
+                
+                # File upload
+                if current_doc[5]:
+                    st.info(f"Текущий файл: {current_doc[5].split('/')[-1]}")
+                
+                uploaded_file = st.file_uploader(
+                    "Новый файл/Neue Datei",
+                    type=['pdf', 'jpg', 'jpeg', 'png']
+                )
+            
+            note = st.text_area(
+                "Комментарий/Kommentar",
+                value=current_doc[6] or ""
+            )
+            
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
+                    if title:
+                        try:
+                            file_url = current_doc[5]  # Keep existing file
+                            if uploaded_file:
+                                file_url = upload_file(uploaded_file, 'documents')
+                            
+                            execute_query("""
+                                UPDATE vehicle_documents 
+                                SET vehicle_id = :vehicle_id, document_type = :document_type, 
+                                    title = :title, date_issued = :date_issued, date_expiry = :date_expiry,
+                                    file_url = :file_url, note = :note
+                                WHERE id = :id
+                            """, {
+                                'id': document_id,
+                                'vehicle_id': vehicle_id,
+                                'document_type': document_type,
+                                'title': title,
+                                'date_issued': date_issued,
+                                'date_expiry': date_expiry,
+                                'file_url': file_url,
+                                'note': note if note else None
+                            })
+                            st.success("Документ обновлен / Dokument aktualisiert")
+                            get_documents_cached.clear()  # Clear cache
+                            del st.session_state.edit_document_id
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка обновления: {str(e)}")
+                    else:
+                        st.error("Название обязательно / Titel ist erforderlich")
+            
+            with col_cancel:
+                if st.form_submit_button("❌ Отмена / Abbrechen"):
+                    del st.session_state.edit_document_id
+                    st.rerun()
+                    
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            if 'edit_document_id' in st.session_state:
+                del st.session_state.edit_document_id
+            st.rerun()
+
+def show_document_viewer(document_id):
+    """Show document file viewer"""
+    try:
+        # Get document data
+        document_data = execute_query("""
+            SELECT vd.title, vd.file_url, v.name as vehicle_name, v.license_plate,
+                   vd.document_type
+            FROM vehicle_documents vd
+            JOIN vehicles v ON vd.vehicle_id = v.id
+            WHERE vd.id = :id AND vd.is_active = true
+        """, {'id': document_id})
+        
+        if not document_data or not document_data[0][1]:  # No file
+            st.error("Файл документа не найден")
+            if st.button("⬅️ Назад к списку"):
+                # Clear all view states
+                for key in list(st.session_state.keys()):
+                    if key.startswith("view_document_"):
+                        del st.session_state[key]
+                st.rerun()
+            return
+        
+        doc = document_data[0]
+        file_url = doc[1]
+        doc_types = get_document_types()
+        
+        st.subheader(f"📄 {doc[0]}")
+        st.write(f"🚗 {doc[2]} ({doc[3]})")
+        st.write(f"📁 {doc_types.get(doc[4], doc[4])}")
+        
+        if st.button("⬅️ Назад к списку / Zurück zur Liste"):
+            # Clear all view states
+            for key in list(st.session_state.keys()):
+                if key.startswith("view_document_"):
+                    del st.session_state[key]
+            st.rerun()
+        
+        st.divider()
+        
+        # Display file
+        file_ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
+        
+        if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
+            # Display image
+            try:
+                st.image(file_url, use_container_width=True, caption=doc[0])
+            except Exception as e:
+                st.error("❌ Ошибка загрузки изображения")
+                st.write(f"🔗 [Скачать файл]({file_url})")
+        elif file_ext == 'pdf':
+            # Display PDF link and info
+            st.info("📄 PDF документ")
+            st.markdown(f"🔗 [Открыть PDF в новом окне]({file_url})")
+            st.markdown(f"🔗 [Скачать PDF]({file_url})")
+        else:
+            # Other file types
+            st.info(f"📎 Файл: {file_url.split('/')[-1]}")
+            st.markdown(f"🔗 [Скачать файл]({file_url})")
+            
+    except Exception as e:
+        st.error(f"Ошибка просмотра документа: {str(e)}")
+        if st.button("⬅️ Назад к списку"):
+            for key in list(st.session_state.keys()):
+                if key.startswith("view_document_"):
+                    del st.session_state[key]
+            st.rerun()
 
 def delete_document(document_id):
     """Delete document"""
