@@ -843,6 +843,143 @@ def delete_vehicle_document(document_id):
     except Exception as e:
         st.error(f"Ошибка удаления: {str(e)}")
 
+def show_expiring_documents():
+    """Show all expiring documents across all vehicles"""
+    try:
+        st.subheader("⚠️ Истекающие документы")
+        st.write("Документы, которые истекают в течение 30 дней или уже просрочены")
+        
+        # Get expiring/expired documents
+        documents = execute_query("""
+            SELECT 
+                vd.id,
+                vd.document_type,
+                vd.title,
+                vd.date_issued,
+                vd.date_expiry,
+                vd.file_url,
+                v.name as vehicle_name,
+                v.license_plate,
+                v.photo_url,
+                CASE 
+                    WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry < CURRENT_DATE THEN 'expired'
+                    WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry <= CURRENT_DATE + INTERVAL '30 days' THEN 'expiring'
+                    ELSE 'valid'
+                END as status
+            FROM vehicle_documents vd
+            JOIN vehicles v ON vd.vehicle_id = v.id
+            WHERE vd.is_active = true 
+            AND vd.date_expiry IS NOT NULL 
+            AND vd.date_expiry <= CURRENT_DATE + INTERVAL '30 days'
+            ORDER BY vd.date_expiry ASC NULLS LAST, v.name
+        """)
+        
+        if documents:
+            # Statistics
+            total_docs = len(documents)
+            expired = sum(1 for doc in documents if doc[9] == 'expired')
+            expiring = sum(1 for doc in documents if doc[9] == 'expiring')
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("⚠️ Всего требующих внимания", total_docs)
+            with col2:
+                st.metric("🔴 Просрочено", expired)
+            with col3:
+                st.metric("⚠️ Истекает скоро", expiring)
+            
+            st.divider()
+            
+            # Document types mapping
+            doc_types = {
+                'insurance': 'Страховка/Versicherung',
+                'inspection': 'Техосмотр/TÜV',
+                'registration': 'Регистрация/Zulassung',
+                'license': 'Лицензия/Lizenz',
+                'permit': 'Разрешение/Genehmigung'
+            }
+            
+            # Display documents
+            for doc in documents:
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
+                    
+                    with col1:
+                        # Vehicle photo thumbnail
+                        if doc[8]:  # photo_url
+                            photo_path = doc[8].lstrip('/') if doc[8].startswith('/') else doc[8]
+                            try:
+                                import os
+                                if os.path.exists(photo_path):
+                                    st.image(photo_path, width=60)
+                                else:
+                                    st.write("🚗")
+                            except Exception:
+                                st.write("🚗")
+                        else:
+                            st.write("🚗")
+                    
+                    with col2:
+                        # Document and vehicle info
+                        status_icon = '🔴' if doc[9] == 'expired' else '⚠️'
+                        doc_type_name = doc_types.get(doc[1], doc[1])
+                        
+                        st.write(f"**{doc[2]}**")
+                        st.write(f"📁 {doc_type_name}")
+                        st.write(f"🚗 {doc[6]} ({doc[7]})")
+                        
+                        # File info
+                        if doc[5]:
+                            file_ext = doc[5].split('.')[-1].upper() if '.' in doc[5] else ''
+                            st.caption(f"📄 {file_ext} файл")
+                    
+                    with col3:
+                        # Status and dates
+                        if doc[9] == 'expired':
+                            st.markdown(":red[🔴 Просрочен]")
+                            days_overdue = (datetime.now().date() - doc[4]).days
+                            st.write(f"Просрочен на {days_overdue} дн.")
+                        else:
+                            st.markdown(":orange[⚠️ Истекает]")
+                            days_left = (doc[4] - datetime.now().date()).days
+                            st.write(f"Осталось {days_left} дн.")
+                        
+                        # Dates
+                        issued_date = doc[3].strftime('%d.%m.%Y') if doc[3] else ''
+                        expiry_date = doc[4].strftime('%d.%m.%Y') if doc[4] else ''
+                        
+                        if issued_date:
+                            st.caption(f"Выдан: {issued_date}")
+                        st.caption(f"До: {expiry_date}")
+                    
+                    with col4:
+                        # Action buttons
+                        if doc[5]:  # Has file
+                            if st.button("👁️", key=f"view_exp_doc_{doc[0]}", help="Просмотр"):
+                                st.session_state[f"view_document_{doc[0]}"] = True
+                                st.rerun()
+                        
+                        if st.button("✏️", key=f"edit_exp_doc_{doc[0]}", help="Редактировать"):
+                            st.session_state.edit_document_id = doc[0]
+                            st.rerun()
+                        
+                        if st.button("🚗", key=f"goto_vehicle_{doc[0]}", help="К автомобилю"):
+                            # Get vehicle ID from document
+                            vehicle_data = execute_query("""
+                                SELECT vehicle_id FROM vehicle_documents WHERE id = :doc_id
+                            """, {'doc_id': doc[0]})
+                            if vehicle_data:
+                                st.session_state.view_vehicle_docs = vehicle_data[0][0]
+                                st.rerun()
+                
+                st.divider()
+        else:
+            st.success("✅ Нет истекающих или просроченных документов!")
+            st.info("Все документы автомобилей имеют актуальные сроки действия.")
+    
+    except Exception as e:
+        st.error(f"Ошибка загрузки истекающих документов: {str(e)}")
+
 def export_vehicles():
     """Export vehicles to CSV"""
     vehicles = execute_query("SELECT * FROM vehicles")
@@ -859,8 +996,9 @@ def export_vehicles():
 # Main page
 st.title(f"🚗 {get_text('vehicles', language)}")
 
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     get_text('vehicles', language),
+    "⚠️ Истекающие документы",
     get_text('add', language)
 ])
 
@@ -868,4 +1006,7 @@ with tab1:
     show_vehicles_list()
 
 with tab2:
+    show_expiring_documents()
+
+with tab3:
     show_add_vehicle_form()

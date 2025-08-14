@@ -15,9 +15,11 @@ Preferred communication style: Simple, everyday language.
 - Added "📄 Документы" button to each vehicle in listings for direct access to vehicle documents
 - Implemented vehicle-specific document management with statistics (total, expired, expiring)
 - Created tabs interface: "📄 Документы" for viewing, "➕ Добавить документ" for new documents
+- Added "⚠️ Истекающие документы" tab showing all expiring/expired documents across all vehicles
 - Added complete CRUD operations for vehicle documents within vehicle context
 - Enhanced document viewer and editor accessible directly from vehicle interface
 - Integrated document status tracking with color-coded indicators (green/orange/red)
+- Added quick navigation from expiring documents to specific vehicle or document editing
 
 ### Vehicle Photo Management System  
 - Added photo_url field to vehicles table for storing vehicle photographs
