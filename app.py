@@ -7,7 +7,7 @@ from translations import get_text, LANGUAGES
 # Ensure local pages directory is in Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pages import dashboard, vehicles, teams, users, penalties, materials
+from pages import dashboard, vehicles, teams, users, penalties, materials, car_expenses
 from pages.documents import show_documents_page
 
 # Page configuration
@@ -63,7 +63,8 @@ with st.sidebar:
         'users': {'icon': '👤', 'key': 'users'},
         'penalties': {'icon': '🚧', 'key': 'penalties'},
         'materials': {'icon': '📦', 'key': 'materials'},
-        'documents': {'icon': '📄', 'key': 'documents'}
+        'documents': {'icon': '📄', 'key': 'documents'},
+        'car_expenses': {'icon': '🚗💰', 'key': 'car_expenses'}
     }
     
     if 'current_page' not in st.session_state:
@@ -94,5 +95,7 @@ try:
         materials.show_page(st.session_state.language)
     elif st.session_state.current_page == 'documents':
         show_documents_page(st.session_state.language)
+    elif st.session_state.current_page == 'car_expenses':
+        car_expenses.show_page(st.session_state.language)
 except Exception as e:
     st.error(f"Error loading page: {str(e)}")
