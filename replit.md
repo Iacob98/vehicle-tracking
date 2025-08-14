@@ -10,6 +10,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 14, 2025)
 
+### Advanced Expense Analytics Dashboard
+- Created comprehensive expense analytics page (📊 Аналитика расходов) with three main sections
+- Implemented vehicle expense analytics with detailed breakdown by categories (fuel, repair, maintenance, insurance)
+- Added team/brigade expense analytics including penalties and material costs
+- Created comparative analytics showing vehicle vs team expense distribution
+- Built interactive charts and visualizations using Plotly for expense trends and breakdowns
+- Added TOP-10 ranking system for most expensive vehicles and teams
+- Implemented date range filtering for all analytics with last 30 days as default
+- Added efficiency indicators and recommendations based on expense patterns
+- Integrated real-time expense tracking with visual alerts for high-cost teams/vehicles
+
 ### Integrated Vehicle-Document Management System
 - Unified vehicles and documents into single cohesive interface for streamlined workflow
 - Added "📄 Документы" button to each vehicle in listings for direct access to vehicle documents
