@@ -148,6 +148,20 @@ def get_user_documents_cached():
 def show_user_documents_list():
     """Show list of user documents"""
     try:
+        # Check if any document is being viewed
+        view_doc_id = None
+        for key in st.session_state:
+            if key.startswith("view_doc_") and st.session_state[key]:
+                view_doc_id = key.replace("view_doc_", "")
+                break
+        
+        if view_doc_id:
+            # Get document info
+            doc_info = execute_query("SELECT title, file_url FROM user_documents WHERE id = :id", {'id': view_doc_id})
+            if doc_info:
+                show_user_file_viewer(doc_info[0][1], doc_info[0][0], view_doc_id)
+                return
+        
         documents = get_user_documents_cached()
         
         if documents:
@@ -185,7 +199,8 @@ def show_user_documents_list():
                     with col4:
                         if doc[6]:
                             if st.button("👁️", key=f"view_doc_{doc[0]}"):
-                                st.write(f"Файл: {doc[6]}")
+                                st.session_state[f"view_doc_{doc[0]}"] = True
+                                st.rerun()
                         if st.button("🗑️", key=f"delete_doc_{doc[0]}"):
                             delete_user_document(doc[0])
                     
@@ -196,8 +211,93 @@ def show_user_documents_list():
     except Exception as e:
         st.error(f"Ошибка загрузки документов: {str(e)}")
 
+def show_user_file_viewer(file_url, title, doc_id):
+    """Show file viewer in full width"""
+    st.header(f"📎 {title}")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("⬅️ Назад к списку / Zurück zur Liste", use_container_width=True):
+            if f"view_doc_{doc_id}" in st.session_state:
+                del st.session_state[f"view_doc_{doc_id}"]
+            st.rerun()
+    
+    if not file_url:
+        st.warning("Файл не найден / Datei nicht gefunden")
+        return
+    
+    # File info
+    file_name = file_url.split('/')[-1]
+    file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+    
+    # Create main layout
+    col_main, col_sidebar = st.columns([3, 1])
+    
+    with col_main:
+        st.info(f"📁 **Файл:** {file_name}")
+        
+        # Determine file type and display accordingly
+        if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+            try:
+                import os
+                if file_url.startswith('/'):
+                    file_path = file_url.lstrip('/')
+                    if os.path.exists(file_path):
+                        st.image(file_path, caption=title, use_container_width=True)
+                    else:
+                        st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+                else:
+                    st.image(file_url, caption=title, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
+                
+        elif file_extension == 'pdf':
+            st.success("📄 **PDF документ готов к просмотру**")
+            st.success("📄 **PDF-Dokument bereit zur Ansicht**")
+            
+            col_pdf1, col_pdf2 = st.columns(2)
+            with col_pdf1:
+                st.write("💡 **Русский:** Используйте кнопку 'Скачать' справа для просмотра PDF файла")
+            with col_pdf2:
+                st.write("💡 **Deutsch:** Nutzen Sie den 'Download'-Button rechts, um die PDF anzuzeigen")
+            
+            if not file_url.startswith('/'):
+                st.markdown(f"🔗 [Открыть PDF в браузере/PDF im Browser öffnen]({file_url})")
+                
+        else:
+            st.warning(f"📎 **Файл типа .{file_extension}**")
+            st.info("💡 Используйте кнопку скачивания справа / Nutzen Sie den Download-Button rechts")
+    
+    with col_sidebar:
+        st.markdown("### Действия / Aktionen")
+        
+        try:
+            import os
+            if file_url.startswith('/'):
+                # Local file
+                file_path = file_url.lstrip('/')
+                if os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        file_data = f.read()
+                    
+                    st.download_button(
+                        label="⬇️ **Скачать**\n**Download**",
+                        data=file_data,
+                        file_name=file_name,
+                        use_container_width=True
+                    )
+                else:
+                    st.error("❌ Файл не найден")
+            else:
+                st.markdown(f"🔗 [Скачать файл/Datei herunterladen]({file_url})")
+        except Exception as e:
+            st.error("❌ Ошибка доступа")
+            st.error("❌ Dateizugriffsfehler")
+
 def show_add_user_document_form():
     """Show form to add user document"""
+    from utils import upload_file
+    
     with st.form("add_user_document"):
         col1, col2 = st.columns(2)
         
@@ -253,8 +353,7 @@ def show_add_user_document_form():
                 try:
                     file_url = None
                     if uploaded_file:
-                        # Simple file handling - in real app would upload to storage
-                        file_url = f"user_docs/{uploaded_file.name}"
+                        file_url = upload_file(uploaded_file, 'user_documents')
                     
                     doc_id = str(uuid.uuid4())
                     execute_query("""
