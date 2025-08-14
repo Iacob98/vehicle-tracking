@@ -163,11 +163,15 @@ try:
                 t.name as entity_name,
                 'broken_material' as category,
                 p.amount,
-                p.description,
+                CASE 
+                    WHEN p.description LIKE '%Поломка материала%' THEN p.description
+                    WHEN p.description LIKE '%Поломка оборудования%' THEN p.description
+                    ELSE 'Поломка материала / Defektes Material'
+                END as description,
                 'team' as expense_type
             FROM penalties p
             JOIN teams t ON p.team_id = t.id
-            WHERE p.description LIKE '%Поломка материала%'
+            WHERE p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%'
             ORDER BY p.date DESC
             LIMIT 10
         ) team
@@ -187,7 +191,12 @@ try:
                     st.write(f"📅 {expense_date}")
                 
                 with col2:
-                    st.write(f"📁 {get_text(expense[2], language)}")
+                    # Format category properly
+                    if expense[2] == 'broken_material':
+                        category_text = "Поломка материала / Defektes Material"
+                    else:
+                        category_text = get_text(expense[2], language)
+                    st.write(f"📁 {category_text}")
                     st.write(f"💰 {format_currency(expense[3])}")
                 
                 with col3:
