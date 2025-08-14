@@ -1010,3 +1010,21 @@ with tab2:
 
 with tab3:
     show_add_vehicle_form()
+
+# Handle session state actions
+if 'edit_vehicle_id' in st.session_state:
+    show_edit_vehicle_form(st.session_state.edit_vehicle_id)
+
+elif 'view_vehicle_docs' in st.session_state:
+    show_vehicle_documents(st.session_state.view_vehicle_docs)
+
+elif 'edit_document_id' in st.session_state:
+    show_edit_document_form(st.session_state.edit_document_id)
+
+else:
+    # Check for document viewer session states
+    for key in st.session_state.keys():
+        if key.startswith('view_document_'):
+            document_id = key.replace('view_document_', '')
+            show_document_viewer(document_id)
+            break
