@@ -377,7 +377,7 @@ def show_edit_vehicle_form(vehicle_id):
                     
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {str(e)}")
-        if st.button("⬅️ Назад к списку"):
+        if st.button("⬅️ Назад к списку", key="back_from_edit_vehicle_error"):
             if 'edit_vehicle_id' in st.session_state:
                 del st.session_state.edit_vehicle_id
             st.rerun()
@@ -411,7 +411,7 @@ def show_vehicle_documents(vehicle_id):
         col_back, col_title, col_photo = st.columns([1, 3, 1])
         
         with col_back:
-            if st.button("⬅️ Назад к списку"):
+            if st.button("⬅️ Назад к списку", key="back_to_vehicles_list"):
                 del st.session_state.view_vehicle_docs
                 st.rerun()
         
@@ -443,7 +443,7 @@ def show_vehicle_documents(vehicle_id):
     
     except Exception as e:
         st.error(f"Ошибка загрузки документов: {str(e)}")
-        if st.button("⬅️ Назад к списку"):
+        if st.button("⬅️ Назад к списку", key="back_to_vehicles_error"):
             if 'view_vehicle_docs' in st.session_state:
                 del st.session_state.view_vehicle_docs
             st.rerun()
@@ -658,7 +658,7 @@ def show_document_viewer(document_id):
         col_back, col_title = st.columns([1, 4])
         
         with col_back:
-            if st.button("⬅️ Назад"):
+            if st.button("⬅️ Назад", key="back_from_document_viewer"):
                 # Clear view state
                 for key in list(st.session_state.keys()):
                     if key.startswith("view_document_"):
@@ -684,7 +684,7 @@ def show_document_viewer(document_id):
     
     except Exception as e:
         st.error(f"Ошибка просмотра документа: {str(e)}")
-        if st.button("⬅️ Назад"):
+        if st.button("⬅️ Назад", key="back_from_document_viewer_error"):
             for key in list(st.session_state.keys()):
                 if key.startswith("view_document_"):
                     del st.session_state[key]
@@ -711,7 +711,7 @@ def show_edit_document_form(document_id):
         col_back, col_title = st.columns([1, 4])
         
         with col_back:
-            if st.button("⬅️ Назад"):
+            if st.button("⬅️ Назад", key="back_from_edit_document"):
                 del st.session_state.edit_document_id
                 st.rerun()
         
@@ -825,7 +825,7 @@ def show_edit_document_form(document_id):
     
     except Exception as e:
         st.error(f"Ошибка загрузки документа: {str(e)}")
-        if st.button("⬅️ Назад"):
+        if st.button("⬅️ Назад", key="back_from_edit_document_error"):
             if 'edit_document_id' in st.session_state:
                 del st.session_state.edit_document_id
             st.rerun()
