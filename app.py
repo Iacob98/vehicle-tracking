@@ -17,6 +17,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Hide Streamlit's automatic page navigation
+st.markdown("""
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none;
+    }
+    [data-testid="stSidebarNavItems"] {
+        display: none;
+    }
+    section[data-testid="stSidebar"] > div:first-child {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Database is already initialized manually via SQL tool
 pass
 
