@@ -78,7 +78,8 @@ def show_vehicles_list():
                         st.write(f"📋 {vehicle[2]} | VIN: {vehicle[3]}")
                     
                     with col2:
-                        st.write(f"📅 {vehicle[6]}")
+                        if vehicle[6]:
+                            st.write(f"📅 {vehicle[6]}")
                         if vehicle[5]:
                             st.write(f"🚗 {vehicle[5]}")
                     

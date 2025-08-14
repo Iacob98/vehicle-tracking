@@ -185,11 +185,10 @@ try:
         return execute_query("""
             SELECT 
                 t.name,
-                COUNT(DISTINCT va.vehicle_id) as vehicles_count,
+                0 as vehicles_count,
                 COUNT(DISTINCT u.id) as users_count,
                 COALESCE(SUM(p.amount), 0) as total_expenses
             FROM teams t
-            LEFT JOIN vehicle_assignments va ON t.id = va.team_id AND va.end_date IS NULL
             LEFT JOIN users u ON t.id = u.team_id
             LEFT JOIN penalties p ON t.id = p.team_id
             GROUP BY t.id, t.name

@@ -26,7 +26,7 @@ def show_teams_list():
                 COUNT(DISTINCT usr.id) as users_count,
                 COUNT(DISTINCT va.vehicle_id) as vehicles_count
             FROM teams t
-            LEFT JOIN users u ON t.leader_id = u.id
+            LEFT JOIN users u ON t.lead_id = u.id
             LEFT JOIN users usr ON t.id = usr.team_id
             LEFT JOIN vehicle_assignments va ON t.id = va.team_id AND va.end_date IS NULL
             GROUP BY t.id, t.name, u.first_name, u.last_name
@@ -91,12 +91,12 @@ def show_add_team_form():
                 try:
                     team_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO teams (id, name, leader_id)
-                        VALUES (:id, :name, :leader_id)
+                        INSERT INTO teams (id, name, lead_id)
+                        VALUES (:id, :name, :lead_id)
                     """, {
                         'id': team_id,
                         'name': name,
-                        'leader_id': leader_id
+                        'lead_id': leader_id
                     })
                     st.success(get_text('success_save', language))
                     st.rerun()

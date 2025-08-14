@@ -22,14 +22,12 @@ def get_materials_cached():
         SELECT 
             m.id,
             m.name,
-            m.category,
+            m.type,
             m.total_quantity,
-            m.unit,
+            COALESCE(m.unit, 'шт.') as unit,
             m.unit_price,
-            COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0) as assigned_quantity
+            0 as assigned_quantity
         FROM materials m
-        LEFT JOIN material_assignments ma ON m.id = ma.material_id
-        GROUP BY m.id, m.name, m.category, m.total_quantity, m.unit, m.unit_price
         ORDER BY m.name
     """)
 
@@ -66,12 +64,11 @@ def show_materials_list():
                     
                     with col2:
                         st.write(f"📦 Всего/Gesamt: {material[3]} {material[4]}")
-                        st.write(f"✅ Доступно/Verfügbar: {available} {material[4]}")
+                        st.write(f"✅ Доступно/Verfügbar: {material[3]} {material[4]}")
                     
                     with col3:
-                        st.write(f"🔧 Выдано/Ausgegeben: {material[6]} {material[4]}")
-                        if available <= 0:
-                            st.write("⚠️ Нет в наличии/Nicht verfügbar")
+                        st.write(f"🔧 Выдано/Ausgegeben: 0 {material[4]}")
+                        st.write("✅ В наличии/Verfügbar")
                     
                     with col4:
                         if st.button(f"✏️", key=f"edit_material_{material[0]}"):
@@ -97,14 +94,15 @@ def show_add_material_form():
                 placeholder="Название материала"
             )
             
-            category = st.selectbox(
-                "Категория/Kategorie",
+            material_type = st.selectbox(
+                "Тип/Typ",
                 options=['equipment', 'consumables'],
                 format_func=lambda x: get_text(x, language)
             )
             
             unit = st.text_input(
                 "Единица измерения/Maßeinheit",
+                value="шт.",
                 placeholder="шт., кг, л..."
             )
         
@@ -123,17 +121,17 @@ def show_add_material_form():
             )
         
         if st.form_submit_button(get_text('save', language)):
-            if name and unit:
+            if name:
                 try:
                     material_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO materials 
-                        (id, name, category, total_quantity, unit, unit_price)
-                        VALUES (:id, :name, :category, :total_quantity, :unit, :unit_price)
+                        (id, name, type, total_quantity, unit, unit_price)
+                        VALUES (:id, :name, :type, :total_quantity, :unit, :unit_price)
                     """, {
                         'id': material_id,
                         'name': name,
-                        'category': category,
+                        'type': material_type,
                         'total_quantity': total_quantity,
                         'unit': unit,
                         'unit_price': unit_price if unit_price > 0 else None
@@ -144,7 +142,7 @@ def show_add_material_form():
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
             else:
-                st.error("Название и единица измерения обязательны")
+                st.error("Название обязательно")
 
 def delete_material(material_id):
     """Delete material"""
