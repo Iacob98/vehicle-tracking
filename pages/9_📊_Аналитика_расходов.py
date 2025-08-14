@@ -502,8 +502,8 @@ def show_comparative_analytics():
            OR (ma.date BETWEEN :date_from AND :date_to)
     """, {'date_from': date_from, 'date_to': date_to})
     
-    vehicle_total = vehicle_summary[0][0] if vehicle_summary else 0
-    team_total = team_summary[0][0] if team_summary else 0
+    vehicle_total = float(vehicle_summary[0][0]) if vehicle_summary else 0.0
+    team_total = float(team_summary[0][0]) if team_summary else 0.0
     grand_total = vehicle_total + team_total
     
     # Summary comparison
@@ -517,8 +517,8 @@ def show_comparative_analytics():
     
     if grand_total > 0:
         # Percentage breakdown
-        vehicle_pct = (vehicle_total / grand_total) * 100
-        team_pct = (team_total / grand_total) * 100
+        vehicle_pct = float((vehicle_total / grand_total) * 100)
+        team_pct = float((team_total / grand_total) * 100)
         
         st.divider()
         
