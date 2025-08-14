@@ -411,7 +411,7 @@ def show_vehicle_documents(vehicle_id):
         col_back, col_title, col_photo = st.columns([1, 3, 1])
         
         with col_back:
-            if st.button("⬅️ Назад к списку", key="back_to_vehicles_list"):
+            if st.button("⬅️ Назад к списку", key=f"back_to_vehicles_from_docs_{vehicle_id}"):
                 del st.session_state.view_vehicle_docs
                 st.rerun()
         
@@ -443,7 +443,7 @@ def show_vehicle_documents(vehicle_id):
     
     except Exception as e:
         st.error(f"Ошибка загрузки документов: {str(e)}")
-        if st.button("⬅️ Назад к списку", key="back_to_vehicles_error"):
+        if st.button("⬅️ Назад к списку", key="back_to_vehicles_from_docs_error"):
             if 'view_vehicle_docs' in st.session_state:
                 del st.session_state.view_vehicle_docs
             st.rerun()
@@ -658,7 +658,7 @@ def show_document_viewer(document_id):
         col_back, col_title = st.columns([1, 4])
         
         with col_back:
-            if st.button("⬅️ Назад", key="back_from_document_viewer"):
+            if st.button("⬅️ Назад", key=f"back_from_document_viewer_{document_id}"):
                 # Clear view state
                 for key in list(st.session_state.keys()):
                     if key.startswith("view_document_"):
@@ -684,7 +684,7 @@ def show_document_viewer(document_id):
     
     except Exception as e:
         st.error(f"Ошибка просмотра документа: {str(e)}")
-        if st.button("⬅️ Назад", key="back_from_document_viewer_error"):
+        if st.button("⬅️ Назад", key=f"back_from_document_viewer_error_{document_id}"):
             for key in list(st.session_state.keys()):
                 if key.startswith("view_document_"):
                     del st.session_state[key]
@@ -711,7 +711,7 @@ def show_edit_document_form(document_id):
         col_back, col_title = st.columns([1, 4])
         
         with col_back:
-            if st.button("⬅️ Назад", key="back_from_edit_document"):
+            if st.button("⬅️ Назад", key=f"back_from_edit_document_{document_id}"):
                 del st.session_state.edit_document_id
                 st.rerun()
         
@@ -825,7 +825,7 @@ def show_edit_document_form(document_id):
     
     except Exception as e:
         st.error(f"Ошибка загрузки документа: {str(e)}")
-        if st.button("⬅️ Назад", key="back_from_edit_document_error"):
+        if st.button("⬅️ Назад", key=f"back_from_edit_document_error_{document_id}"):
             if 'edit_document_id' in st.session_state:
                 del st.session_state.edit_document_id
             st.rerun()
@@ -996,22 +996,7 @@ def export_vehicles():
 # Main page
 st.title(f"🚗 {get_text('vehicles', language)}")
 
-tab1, tab2, tab3 = st.tabs([
-    get_text('vehicles', language),
-    "⚠️ Истекающие документы",
-    get_text('add', language)
-])
-
-with tab1:
-    show_vehicles_list()
-
-with tab2:
-    show_expiring_documents()
-
-with tab3:
-    show_add_vehicle_form()
-
-# Handle session state actions
+# Handle session state actions first (these override main interface)
 if 'edit_vehicle_id' in st.session_state:
     show_edit_vehicle_form(st.session_state.edit_vehicle_id)
 
@@ -1023,8 +1008,27 @@ elif 'edit_document_id' in st.session_state:
 
 else:
     # Check for document viewer session states
+    document_viewer_active = False
     for key in st.session_state.keys():
         if key.startswith('view_document_'):
             document_id = key.replace('view_document_', '')
             show_document_viewer(document_id)
+            document_viewer_active = True
             break
+    
+    # Only show main tabs if no special views are active
+    if not document_viewer_active:
+        tab1, tab2, tab3 = st.tabs([
+            get_text('vehicles', language),
+            "⚠️ Истекающие документы",
+            get_text('add', language)
+        ])
+
+        with tab1:
+            show_vehicles_list()
+
+        with tab2:
+            show_expiring_documents()
+
+        with tab3:
+            show_add_vehicle_form()
