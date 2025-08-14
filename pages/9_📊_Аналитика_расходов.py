@@ -68,7 +68,7 @@ def get_team_expense_statistics(date_from=None, date_to=None):
         params = {}
         
         if date_from and date_to:
-            where_clause = "AND (p.date BETWEEN :date_from AND :date_to OR ma.assignment_date BETWEEN :date_from AND :date_to)"
+            where_clause = "AND (p.date BETWEEN :date_from AND :date_to OR ma.date BETWEEN :date_from AND :date_to)"
             params = {'date_from': date_from, 'date_to': date_to}
         
         query = f"""
@@ -499,7 +499,7 @@ def show_comparative_analytics():
         FULL OUTER JOIN material_assignments ma ON 1=1
         FULL OUTER JOIN materials m ON ma.material_id = m.id
         WHERE (p.date BETWEEN :date_from AND :date_to) 
-           OR (ma.assignment_date BETWEEN :date_from AND :date_to)
+           OR (ma.date BETWEEN :date_from AND :date_to)
     """, {'date_from': date_from, 'date_to': date_to})
     
     vehicle_total = vehicle_summary[0][0] if vehicle_summary else 0
