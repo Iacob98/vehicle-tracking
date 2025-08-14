@@ -395,6 +395,14 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
             st.warning("Статус не изменился")
             return
         
+        # Map status to appropriate event enum value
+        event_mapping = {
+            'returned': 'returned',
+            'broken': 'broken',
+            'finished': 'broken',  # finished materials use 'broken' event
+            'active': 'assigned'
+        }
+        
         # Update assignment status
         execute_query("""
             UPDATE material_assignments 
@@ -403,7 +411,7 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
         """, {
             'id': assignment_id,
             'status': new_status,
-            'event': new_status
+            'event': event_mapping.get(new_status, 'assigned')
         })
         
         # Handle inventory changes based on status change
