@@ -40,7 +40,7 @@ def get_documents_cached():
         LIMIT 100
     """)
 
-def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_filter='all'):
+def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_filter='all', vehicle_filter='all'):
     """Get vehicle documents with custom sorting and filtering"""
     # Build WHERE clause
     where_clause = "WHERE vd.is_active = true"
@@ -49,6 +49,10 @@ def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_f
     if type_filter != 'all':
         where_clause += " AND vd.document_type = :type_filter"
         params['type_filter'] = type_filter
+    
+    if vehicle_filter != 'all':
+        where_clause += " AND vd.vehicle_id = :vehicle_filter"
+        params['vehicle_filter'] = vehicle_filter
     
     # Build ORDER BY clause
     sort_mapping = {
@@ -126,7 +130,7 @@ def show_documents_list():
             return
         
         # Sorting and filtering controls
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
         
         with col1:
             sort_options = {
@@ -161,15 +165,32 @@ def show_documents_list():
                 key="doc_type_filter"
             )
         
+        with col4:
+            # Vehicle filter
+            vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+            vehicle_options = ['all'] + [v[0] for v in vehicles] if vehicles else ['all']
+            
+            vehicle_filter = st.selectbox(
+                "🚗 Фильтр по автомобилю / Nach Fahrzeug filtern",
+                options=vehicle_options,
+                format_func=lambda x: 'Все автомобили / Alle Fahrzeuge' if x == 'all' else next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
+                key="doc_vehicle_filter"
+            )
+        
         st.divider()
         
-        documents = get_documents_with_sort(sort_by, sort_direction, type_filter)
+        documents = get_documents_with_sort(sort_by, sort_direction, type_filter, vehicle_filter)
         
         if documents:
             # Statistics
             total_docs = len(documents)
             expired = len([d for d in documents if d[8] == 'expired'])
             expiring = len([d for d in documents if d[8] == 'expiring'])
+            
+            # Show selected vehicle info if filtered
+            if vehicle_filter != 'all':
+                selected_vehicle = next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == vehicle_filter), "")
+                st.info(f"🚗 Документы для автомобиля: **{selected_vehicle}**")
             
             col1, col2, col3 = st.columns(3)
             with col1:
