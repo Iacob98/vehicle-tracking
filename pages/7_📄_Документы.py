@@ -40,6 +40,57 @@ def get_documents_cached():
         LIMIT 100
     """)
 
+def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_filter='all'):
+    """Get vehicle documents with custom sorting and filtering"""
+    # Build WHERE clause
+    where_clause = "WHERE vd.is_active = true"
+    params = {}
+    
+    if type_filter != 'all':
+        where_clause += " AND vd.document_type = :type_filter"
+        params['type_filter'] = type_filter
+    
+    # Build ORDER BY clause
+    sort_mapping = {
+        'date_expiry': 'vd.date_expiry',
+        'title': 'vd.title',
+        'vehicle_name': 'v.name',
+        'document_type': 'vd.document_type'
+    }
+    
+    order_col = sort_mapping.get(sort_by, 'vd.date_expiry')
+    order_direction = 'DESC' if sort_direction == 'desc' else 'ASC'
+    
+    # Handle NULL values for date_expiry
+    if sort_by == 'date_expiry':
+        order_clause = f"ORDER BY {order_col} {order_direction} NULLS LAST"
+    else:
+        order_clause = f"ORDER BY {order_col} {order_direction}"
+    
+    query = f"""
+        SELECT 
+            vd.id,
+            vd.document_type,
+            vd.title,
+            vd.date_issued,
+            vd.date_expiry,
+            vd.file_url,
+            v.name as vehicle_name,
+            v.license_plate,
+            CASE 
+                WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry < CURRENT_DATE THEN 'expired'
+                WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry <= CURRENT_DATE + INTERVAL '30 days' THEN 'expiring'
+                ELSE 'valid'
+            END as status
+        FROM vehicle_documents vd
+        JOIN vehicles v ON vd.vehicle_id = v.id
+        {where_clause}
+        {order_clause}
+        LIMIT 100
+    """
+    
+    return execute_query(query, params)
+
 def get_document_types():
     """Get document type translations"""
     return {
@@ -50,7 +101,7 @@ def get_document_types():
     }
 
 def show_documents_list():
-    """Show list of documents with inline editing"""
+    """Show list of documents with inline editing and sorting"""
     try:
         # Check if we're editing a document
         edit_document_id = st.session_state.get('edit_document_id', None)
@@ -70,7 +121,44 @@ def show_documents_list():
             show_document_viewer(view_document_id)
             return
         
-        documents = get_documents_cached()
+        # Sorting and filtering controls
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            sort_options = {
+                'date_expiry': 'По сроку действия / Nach Ablaufdatum',
+                'title': 'По названию / Nach Titel',
+                'vehicle_name': 'По автомобилю / Nach Fahrzeug',
+                'document_type': 'По типу документа / Nach Dokumenttyp'
+            }
+            sort_by = st.selectbox(
+                "Сортировать по / Sortieren nach",
+                options=list(sort_options.keys()),
+                format_func=lambda x: sort_options[x],
+                key="doc_sort_by"
+            )
+        
+        with col2:
+            sort_direction = st.selectbox(
+                "Направление / Richtung",
+                options=['asc', 'desc'],
+                format_func=lambda x: 'По возрастанию / Aufsteigend' if x == 'asc' else 'По убыванию / Absteigend',
+                index=1,  # Default to desc
+                key="doc_sort_dir"
+            )
+        
+        with col3:
+            doc_types = get_document_types()
+            type_filter = st.selectbox(
+                "Фильтр по типу / Nach Typ filtern",
+                options=['all'] + list(doc_types.keys()),
+                format_func=lambda x: 'Все типы / Alle Typen' if x == 'all' else doc_types.get(x, x),
+                key="doc_type_filter"
+            )
+        
+        st.divider()
+        
+        documents = get_documents_with_sort(sort_by, sort_direction, type_filter)
         
         if documents:
             # Statistics

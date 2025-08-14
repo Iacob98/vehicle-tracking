@@ -147,7 +147,7 @@ try:
             SELECT 
                 ce.date,
                 v.name as entity_name,
-                ce.category as category,
+                ce.category::text as category,
                 ce.amount,
                 ce.description,
                 'car' as expense_type
