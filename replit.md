@@ -10,6 +10,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 14, 2025)
 
+### Equipment Return Tracking System (August 14, 2025)
+- Created dedicated equipment return page (🔄 Возврат оборудования) for tracking equipment lifecycle
+- Implemented active equipment assignments view showing all equipment currently in use by teams
+- Added one-click return functionality with status selection (returned/broken)
+- Automatic penalty creation for broken equipment with calculated costs
+- Comprehensive return history with filtering and statistics
+- Visual status indicators and summary metrics for return rates
+- Integration with existing material assignment and penalty systems
+
 ### Advanced Expense Analytics Dashboard
 - Created comprehensive expense analytics page (📊 Аналитика расходов) with three main sections
 - Implemented vehicle expense analytics with detailed breakdown by categories (fuel, repair, maintenance, insurance)

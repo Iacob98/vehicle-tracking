@@ -147,11 +147,11 @@ def show_vehicle_analytics():
             COUNT(ce.id) as expense_count,
             COALESCE(SUM(ce.amount), 0) as total_amount,
             COALESCE(AVG(ce.amount), 0) as avg_amount,
-            SUM(CASE WHEN ce.expense_category = 'fuel' THEN ce.amount ELSE 0 END) as fuel_cost,
-            SUM(CASE WHEN ce.expense_category = 'repair' THEN ce.amount ELSE 0 END) as repair_cost,
-            SUM(CASE WHEN ce.expense_category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_cost,
-            SUM(CASE WHEN ce.expense_category = 'insurance' THEN ce.amount ELSE 0 END) as insurance_cost,
-            SUM(CASE WHEN ce.expense_category = 'other' THEN ce.amount ELSE 0 END) as other_cost
+            SUM(CASE WHEN ce.category = 'fuel' THEN ce.amount ELSE 0 END) as fuel_cost,
+            SUM(CASE WHEN ce.category = 'repair' THEN ce.amount ELSE 0 END) as repair_cost,
+            SUM(CASE WHEN ce.category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_cost,
+            SUM(CASE WHEN ce.category = 'insurance' THEN ce.amount ELSE 0 END) as insurance_cost,
+            SUM(CASE WHEN ce.category = 'other' THEN ce.amount ELSE 0 END) as other_cost
         FROM vehicles v
         LEFT JOIN car_expenses ce ON v.id = ce.car_id 
             AND ce.date BETWEEN :date_from AND :date_to
