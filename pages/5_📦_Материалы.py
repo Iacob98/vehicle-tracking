@@ -1,0 +1,222 @@
+import streamlit as st
+import uuid
+from datetime import date, datetime
+from database import execute_query
+from translations import get_text
+from utils import format_currency
+
+# Page config
+st.set_page_config(
+    page_title="Материалы",
+    page_icon="📦",
+    layout="wide"
+)
+
+# Language from session state
+language = st.session_state.get('language', 'ru')
+
+@st.cache_data(ttl=300)
+def get_materials_cached():
+    """Get materials with caching"""
+    return execute_query("""
+        SELECT 
+            m.id,
+            m.name,
+            m.category,
+            m.total_quantity,
+            m.unit,
+            m.unit_price,
+            COALESCE(SUM(CASE WHEN ma.status = 'active' THEN ma.quantity ELSE 0 END), 0) as assigned_quantity
+        FROM materials m
+        LEFT JOIN material_assignments ma ON m.id = ma.material_id
+        GROUP BY m.id, m.name, m.category, m.total_quantity, m.unit, m.unit_price
+        ORDER BY m.name
+    """)
+
+def show_materials_list():
+    """Show list of materials"""
+    try:
+        materials = get_materials_cached()
+        
+        if materials:
+            # Statistics
+            total_materials = len(materials)
+            total_value = sum(m[3] * (m[5] if m[5] else 0) for m in materials)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Всего материалов/Materialien gesamt", total_materials)
+            with col2:
+                st.metric("Общая стоимость/Gesamtwert", format_currency(total_value))
+            
+            st.divider()
+            
+            # Display materials
+            for material in materials:
+                available = material[3] - material[6]
+                
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                    
+                    with col1:
+                        st.write(f"**{material[1]}**")
+                        st.write(f"📁 {get_text(material[2], language)}")
+                        if material[5]:
+                            st.write(f"💰 {format_currency(material[5])}/{material[4]}")
+                    
+                    with col2:
+                        st.write(f"📦 Всего/Gesamt: {material[3]} {material[4]}")
+                        st.write(f"✅ Доступно/Verfügbar: {available} {material[4]}")
+                    
+                    with col3:
+                        st.write(f"🔧 Выдано/Ausgegeben: {material[6]} {material[4]}")
+                        if available <= 0:
+                            st.write("⚠️ Нет в наличии/Nicht verfügbar")
+                    
+                    with col4:
+                        if st.button(f"✏️", key=f"edit_material_{material[0]}"):
+                            st.session_state[f"edit_material_{material[0]}"] = True
+                        if st.button(f"🗑️", key=f"delete_material_{material[0]}"):
+                            delete_material(material[0])
+                    
+                    st.divider()
+        else:
+            st.info(get_text('no_data', language))
+    
+    except Exception as e:
+        st.error(f"Error loading materials: {str(e)}")
+
+def show_add_material_form():
+    """Show form to add new material"""
+    with st.form("add_material"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input(
+                get_text('name', language),
+                placeholder="Название материала"
+            )
+            
+            category = st.selectbox(
+                "Категория/Kategorie",
+                options=['equipment', 'consumables'],
+                format_func=lambda x: get_text(x, language)
+            )
+            
+            unit = st.text_input(
+                "Единица измерения/Maßeinheit",
+                placeholder="шт., кг, л..."
+            )
+        
+        with col2:
+            total_quantity = st.number_input(
+                "Количество/Menge",
+                min_value=1,
+                value=1
+            )
+            
+            unit_price = st.number_input(
+                "Цена за единицу/Preis pro Einheit (€)",
+                min_value=0.0,
+                step=1.0,
+                value=0.0
+            )
+        
+        if st.form_submit_button(get_text('save', language)):
+            if name and unit:
+                try:
+                    material_id = str(uuid.uuid4())
+                    execute_query("""
+                        INSERT INTO materials 
+                        (id, name, category, total_quantity, unit, unit_price)
+                        VALUES (:id, :name, :category, :total_quantity, :unit, :unit_price)
+                    """, {
+                        'id': material_id,
+                        'name': name,
+                        'category': category,
+                        'total_quantity': total_quantity,
+                        'unit': unit,
+                        'unit_price': unit_price if unit_price > 0 else None
+                    })
+                    st.success(get_text('success_save', language))
+                    get_materials_cached.clear()  # Clear cache
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+            else:
+                st.error("Название и единица измерения обязательны")
+
+def delete_material(material_id):
+    """Delete material"""
+    try:
+        execute_query("DELETE FROM materials WHERE id = :id", {'id': material_id})
+        st.success(get_text('success_delete', language))
+        get_materials_cached.clear()  # Clear cache
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+
+# Main page
+st.title(f"📦 {get_text('materials', language)}")
+
+tab1, tab2, tab3 = st.tabs([
+    get_text('materials', language),
+    get_text('add', language),
+    "Выдача материалов/Material ausgeben"
+])
+
+with tab1:
+    show_materials_list()
+
+with tab2:
+    show_add_material_form()
+
+with tab3:
+    st.subheader("Выдать материал бригаде/Material an Team ausgeben")
+    
+    with st.form("assign_material"):
+        # Material selection
+        materials = get_materials_cached()
+        if not materials:
+            st.warning("Необходимо создать материалы")
+        else:
+            material_id = st.selectbox(
+                "Материал/Material",
+                options=[m[0] for m in materials],
+                format_func=lambda x: next((f"{m[1]} (доступно: {m[3]-m[6]} {m[4]})" for m in materials if m[0] == x), x)
+            )
+            
+            # Team selection
+            teams = execute_query("SELECT id, name FROM teams ORDER BY name")
+            if teams:
+                team_id = st.selectbox(
+                    "Бригада/Team",
+                    options=[t[0] for t in teams],
+                    format_func=lambda x: next((t[1] for t in teams if t[0] == x), x)
+                )
+                
+                quantity = st.number_input(
+                    "Количество/Menge",
+                    min_value=1,
+                    value=1
+                )
+                
+                if st.form_submit_button("Выдать/Ausgeben"):
+                    try:
+                        assignment_id = str(uuid.uuid4())
+                        execute_query("""
+                            INSERT INTO material_assignments 
+                            (id, material_id, team_id, quantity, assigned_date, status)
+                            VALUES (:id, :material_id, :team_id, :quantity, :date, 'active')
+                        """, {
+                            'id': assignment_id,
+                            'material_id': material_id,
+                            'team_id': team_id,
+                            'quantity': quantity,
+                            'date': datetime.now()
+                        })
+                        st.success("Материал выдан / Material ausgegeben")
+                        get_materials_cached.clear()  # Clear cache
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
