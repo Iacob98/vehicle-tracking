@@ -8,9 +8,17 @@ A comprehensive fleet management web application built with Streamlit that helps
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (August 13, 2025)
+## Recent Changes (August 14, 2025)
 
-### Database Structure Updates
+### User Management Enhancement
+- Added phone field to users table for contact information storage
+- Implemented complete user editing functionality with form pre-population
+- Enhanced user interface with edit and delete buttons in separate columns
+- Added phone number display in user listings
+- Fixed session state management issues for user editing workflow
+- Improved user form validation and error handling
+
+### Database Structure Updates (August 13, 2025)
 - Migrated users table from single "name" field to separate "first_name" and "last_name" fields
 - Added "Worker" role to user_role enum with Russian/German translations
 - Updated all SQL queries across application to use new user structure

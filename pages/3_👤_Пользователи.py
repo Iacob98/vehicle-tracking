@@ -23,6 +23,7 @@ def show_users_list():
                 u.first_name,
                 u.last_name,
                 u.role,
+                u.phone,
                 t.name as team_name
             FROM users u
             LEFT JOIN teams t ON u.team_id = t.id
@@ -38,8 +39,10 @@ def show_users_list():
                     
                     with col1:
                         st.write(f"**{user[1]} {user[2]}**")
-                        if user[4]:
-                            st.write(f"👥 {user[4]}")
+                        if user[4]:  # phone
+                            st.write(f"📞 {user[4]}")
+                        if user[5]:  # team_name
+                            st.write(f"👥 {user[5]}")
                     
                     with col2:
                         role_icons = {
@@ -104,6 +107,10 @@ def show_add_user_form():
                 "Фамилия / Nachname",
                 placeholder="Иванов"
             )
+            phone = st.text_input(
+                "📞 Телефон / Telefon",
+                placeholder="+7 900 123-45-67"
+            )
         
         with col2:
             role = st.selectbox(
@@ -127,12 +134,13 @@ def show_add_user_form():
                 try:
                     user_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO users (id, first_name, last_name, role, team_id)
-                        VALUES (:id, :first_name, :last_name, :role, :team_id)
+                        INSERT INTO users (id, first_name, last_name, phone, role, team_id)
+                        VALUES (:id, :first_name, :last_name, :phone, :role, :team_id)
                     """, {
                         'id': user_id,
                         'first_name': first_name,
                         'last_name': last_name,
+                        'phone': phone,
                         'role': role,
                         'team_id': team_id
                     })
@@ -148,7 +156,7 @@ def show_edit_user_form(user_id):
     try:
         # Get current user data
         user_data = execute_query("""
-            SELECT first_name, last_name, role, team_id 
+            SELECT first_name, last_name, phone, role, team_id 
             FROM users 
             WHERE id = :id
         """, {'id': user_id})
@@ -184,10 +192,15 @@ def show_edit_user_form(user_id):
                     value=current_user[1],
                     placeholder="Иванов"
                 )
+                phone = st.text_input(
+                    "📞 Телефон / Telefon",
+                    value=current_user[2] or "",
+                    placeholder="+7 900 123-45-67"
+                )
             
             with col2:
                 roles = ['admin', 'manager', 'team_lead', 'worker']
-                current_role_index = roles.index(current_user[2]) if current_user[2] in roles else 0
+                current_role_index = roles.index(current_user[3]) if current_user[3] in roles else 0
                 
                 role = st.selectbox(
                     "Роль / Rolle",
@@ -200,9 +213,9 @@ def show_edit_user_form(user_id):
                 teams = execute_query("SELECT id, name FROM teams ORDER BY name")
                 team_options = [None] + ([t[0] for t in teams] if teams else [])
                 current_team_index = 0
-                if current_user[3] and teams:
+                if current_user[4] and teams:
                     try:
-                        current_team_index = team_options.index(current_user[3])
+                        current_team_index = team_options.index(current_user[4])
                     except ValueError:
                         current_team_index = 0
                 
@@ -220,12 +233,13 @@ def show_edit_user_form(user_id):
                         try:
                             execute_query("""
                                 UPDATE users 
-                                SET first_name = :first_name, last_name = :last_name, role = :role, team_id = :team_id
+                                SET first_name = :first_name, last_name = :last_name, phone = :phone, role = :role, team_id = :team_id
                                 WHERE id = :id
                             """, {
                                 'id': user_id,
                                 'first_name': first_name,
                                 'last_name': last_name,
+                                'phone': phone,
                                 'role': role,
                                 'team_id': team_id
                             })
