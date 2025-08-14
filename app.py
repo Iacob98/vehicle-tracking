@@ -9,12 +9,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pages import dashboard, vehicles, teams, users, penalties, materials, expenses, car_expenses
 
-# Page configuration
+# Page configuration with performance optimization
 st.set_page_config(
     page_title="Fleet Management System",
     page_icon="🚗",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': "Fleet Management System v2.0"
+    }
 )
 
 # Database is already initialized manually via SQL tool

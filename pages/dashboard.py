@@ -6,48 +6,45 @@ from datetime import datetime, timedelta
 from database import execute_query
 from translations import get_text
 from utils import format_currency
+from cache_manager import get_dashboard_metrics, get_cached_vehicles, get_cached_teams
 
 def show_page(language='ru'):
     """Show dashboard page"""
     st.title(f"📊 {get_text('dashboard', language)}")
     
     try:
-        # Key metrics
+        # Key metrics with caching
+        metrics = get_dashboard_metrics()
+        
         col1, col2, col3, col4 = st.columns(4)
         
         # Total vehicles
         with col1:
-            vehicles_count = execute_query("SELECT COUNT(*) FROM vehicles")[0][0]
             st.metric(
                 label=get_text('total_vehicles', language),
-                value=vehicles_count
+                value=metrics['vehicles']
             )
         
         # Total teams
         with col2:
-            teams_count = execute_query("SELECT COUNT(*) FROM teams")[0][0]
             st.metric(
                 label=get_text('total_teams', language),
-                value=teams_count
+                value=metrics['teams']
             )
         
         # Total users
         with col3:
-            users_count = execute_query("SELECT COUNT(*) FROM users")[0][0]
             st.metric(
                 label=get_text('total_users', language),
-                value=users_count
+                value=metrics['users']
             )
         
         # Open penalties (manual only, not material damage)
         with col4:
-            open_penalties = execute_query(
-                "SELECT COUNT(*) FROM penalties WHERE status = 'open' AND (description IS NULL OR description NOT LIKE '%Поломка материала%')"
-            )[0][0]
             st.metric(
                 label=get_text('open_penalties', language),
-                value=open_penalties,
-                delta=f"-{open_penalties}" if open_penalties > 0 else "0"
+                value=metrics['open_penalties'],
+                delta=f"-{metrics['open_penalties']}" if metrics['open_penalties'] > 0 else "0"
             )
         
         st.divider()

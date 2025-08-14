@@ -5,6 +5,7 @@ from translations import get_text
 from utils import export_to_csv, show_pagination, paginate_data
 from datetime import datetime
 import uuid
+from cache_manager import get_cached_vehicles, clear_specific_cache
 
 def show_page(language='ru'):
     """Show vehicles management page"""
