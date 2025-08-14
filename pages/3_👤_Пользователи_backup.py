@@ -145,6 +145,26 @@ def get_user_documents_cached():
         ORDER BY ud.date_expiry ASC, u.first_name
     """)
 
+def show_user_documents():
+    """Show user documents management"""
+    st.subheader("Документы пользователей / Benutzerdokumente")
+    
+    # Sub-tabs for documents
+    doc_tab1, doc_tab2, doc_tab3 = st.tabs([
+        "Список / Liste",
+        "Добавить / Hinzufügen", 
+        "Истекающие / Ablaufend"
+    ])
+    
+    with doc_tab1:
+        show_user_documents_list()
+    
+    with doc_tab2:
+        show_add_user_document_form()
+    
+    with doc_tab3:
+        show_expiring_user_documents()
+
 def show_user_documents_list():
     """Show list of user documents"""
     try:
@@ -322,41 +342,3 @@ def delete_user_document(doc_id):
         st.rerun()
     except Exception as e:
         st.error(f"Error: {str(e)}")
-
-def show_user_documents():
-    """Show user documents management"""
-    st.subheader("Документы пользователей / Benutzerdokumente")
-    
-    # Sub-tabs for documents
-    doc_tab1, doc_tab2, doc_tab3 = st.tabs([
-        "Список / Liste",
-        "Добавить / Hinzufügen", 
-        "Истекающие / Ablaufend"
-    ])
-    
-    with doc_tab1:
-        show_user_documents_list()
-    
-    with doc_tab2:
-        show_add_user_document_form()
-    
-    with doc_tab3:
-        show_expiring_user_documents()
-
-# Main page
-st.title(f"👤 {get_text('users', language)}")
-
-tab1, tab2, tab3 = st.tabs([
-    get_text('users', language),
-    get_text('add', language),
-    "Документы / Dokumente"
-])
-
-with tab1:
-    show_users_list()
-
-with tab2:
-    show_add_user_form()
-
-with tab3:
-    show_user_documents()
