@@ -7,7 +7,8 @@ from translations import get_text, LANGUAGES
 # Ensure local pages directory is in Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pages import dashboard, vehicles, teams, users, penalties, materials, expenses, car_expenses
+from pages import dashboard, vehicles, teams, users, penalties, materials
+from pages.documents import show_documents_page
 
 # Page configuration
 st.set_page_config(
@@ -62,9 +63,7 @@ with st.sidebar:
         'users': {'icon': '👤', 'key': 'users'},
         'penalties': {'icon': '🚧', 'key': 'penalties'},
         'materials': {'icon': '📦', 'key': 'materials'},
-        'documents': {'icon': '📄', 'key': 'documents'},
-        'car_expenses': {'icon': '🚗💰', 'key': 'car_expenses'},
-        'expenses': {'icon': '💰', 'key': 'expenses'}
+        'documents': {'icon': '📄', 'key': 'documents'}
     }
     
     if 'current_page' not in st.session_state:
@@ -94,11 +93,6 @@ try:
     elif st.session_state.current_page == 'materials':
         materials.show_page(st.session_state.language)
     elif st.session_state.current_page == 'documents':
-        from pages.documents import show_documents_page
         show_documents_page(st.session_state.language)
-    elif st.session_state.current_page == 'car_expenses':
-        car_expenses.show_page(st.session_state.language)
-    elif st.session_state.current_page == 'expenses':
-        expenses.show_page(st.session_state.language)
 except Exception as e:
     st.error(f"Error loading page: {str(e)}")

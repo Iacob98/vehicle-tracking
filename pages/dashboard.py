@@ -17,7 +17,8 @@ def show_page(language='ru'):
         
         # Total vehicles
         with col1:
-            vehicles_count = execute_query("SELECT COUNT(*) FROM vehicles")[0][0]
+            vehicles_result = execute_query("SELECT COUNT(*) FROM vehicles")
+            vehicles_count = vehicles_result[0][0] if vehicles_result else 0
             st.metric(
                 label=get_text('total_vehicles', language),
                 value=vehicles_count
@@ -25,7 +26,8 @@ def show_page(language='ru'):
         
         # Total teams
         with col2:
-            teams_count = execute_query("SELECT COUNT(*) FROM teams")[0][0]
+            teams_result = execute_query("SELECT COUNT(*) FROM teams")
+            teams_count = teams_result[0][0] if teams_result else 0
             st.metric(
                 label=get_text('total_teams', language),
                 value=teams_count
@@ -33,7 +35,8 @@ def show_page(language='ru'):
         
         # Total users
         with col3:
-            users_count = execute_query("SELECT COUNT(*) FROM users")[0][0]
+            users_result = execute_query("SELECT COUNT(*) FROM users")
+            users_count = users_result[0][0] if users_result else 0
             st.metric(
                 label=get_text('total_users', language),
                 value=users_count
@@ -41,9 +44,10 @@ def show_page(language='ru'):
         
         # Open penalties (manual only, not material damage)
         with col4:
-            open_penalties = execute_query(
+            penalties_result = execute_query(
                 "SELECT COUNT(*) FROM penalties WHERE status = 'open' AND (description IS NULL OR description NOT LIKE '%Поломка материала%')"
-            )[0][0]
+            )
+            open_penalties = penalties_result[0][0] if penalties_result else 0
             st.metric(
                 label=get_text('open_penalties', language),
                 value=open_penalties,
@@ -65,19 +69,22 @@ def show_page(language='ru'):
                 ORDER BY count DESC
             """)
             
-            if vehicle_status_data:
-                df_status = pd.DataFrame(vehicle_status_data, columns=['Status', 'Count'])
-                df_status['Status_Translated'] = df_status['Status'].apply(
-                    lambda x: get_text(x, language)
-                )
-                
-                fig_status = px.pie(
-                    df_status, 
-                    values='Count', 
-                    names='Status_Translated',
-                    title=get_text('vehicles', language)
-                )
-                st.plotly_chart(fig_status, use_container_width=True)
+            if vehicle_status_data and len(vehicle_status_data) > 0:
+                try:
+                    df_status = pd.DataFrame(list(vehicle_status_data), columns=['Status', 'Count'])
+                    df_status['Status_Translated'] = df_status['Status'].apply(
+                        lambda x: get_text(x, language)
+                    )
+                    
+                    fig_status = px.pie(
+                        df_status, 
+                        values='Count', 
+                        names='Status_Translated',
+                        title=get_text('vehicles', language)
+                    )
+                    st.plotly_chart(fig_status, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Chart error: {e}")
             else:
                 st.info(get_text('no_data', language))
         
@@ -112,18 +119,21 @@ def show_page(language='ru'):
                 ORDER BY month
             """, {'six_months_ago': six_months_ago.date()})
             
-            if monthly_expenses:
-                df_expenses = pd.DataFrame(monthly_expenses, columns=['Month', 'Amount'])
-                df_expenses['Month'] = pd.to_datetime(df_expenses['Month'])
-                df_expenses['Month_Str'] = df_expenses['Month'].dt.strftime('%Y-%m')
-                
-                fig_expenses = px.bar(
-                    df_expenses,
-                    x='Month_Str',
-                    y='Amount',
-                    title=get_text('monthly_expenses', language)
-                )
-                st.plotly_chart(fig_expenses, use_container_width=True)
+            if monthly_expenses and len(monthly_expenses) > 0:
+                try:
+                    df_expenses = pd.DataFrame(list(monthly_expenses), columns=['Month', 'Amount'])
+                    df_expenses['Month'] = pd.to_datetime(df_expenses['Month'])
+                    df_expenses['Month_Str'] = df_expenses['Month'].dt.strftime('%Y-%m')
+                    
+                    fig_expenses = px.bar(
+                        df_expenses,
+                        x='Month_Str',
+                        y='Amount',
+                        title=get_text('monthly_expenses', language)
+                    )
+                    st.plotly_chart(fig_expenses, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Chart error: {e}")
             else:
                 st.info(get_text('no_data', language))
         
@@ -147,7 +157,7 @@ def show_page(language='ru'):
                 LIMIT 5
             """)
             
-            if recent_maintenances:
+            if recent_maintenances and len(recent_maintenances) > 0:
                 for maintenance in recent_maintenances:
                     with st.container():
                         st.write(f"**{maintenance[1]}**")
@@ -175,7 +185,7 @@ def show_page(language='ru'):
                 LIMIT 5
             """)
             
-            if recent_penalties:
+            if recent_penalties and len(recent_penalties) > 0:
                 for penalty in recent_penalties:
                     with st.container():
                         st.write(f"**{penalty[1]}**")
@@ -205,20 +215,24 @@ def show_page(language='ru'):
             ORDER BY t.name
         """)
         
-        if team_stats:
-            df_teams = pd.DataFrame(team_stats, columns=[
-                get_text('name', language),
-                get_text('vehicles', language),
-                get_text('users', language),
-                get_text('expenses', language)
-            ])
-            
-            # Format expenses column
-            df_teams[get_text('expenses', language)] = df_teams[get_text('expenses', language)].apply(
-                lambda x: format_currency(x)
-            )
-            
-            st.dataframe(df_teams, use_container_width=True)
+        if team_stats and len(team_stats) > 0:
+            try:
+                df_teams = pd.DataFrame(list(team_stats), columns=[
+                    get_text('name', language),
+                    get_text('vehicles', language),
+                    get_text('users', language),
+                    get_text('expenses', language)
+                ])
+                
+                # Format expenses column
+                expense_col = get_text('expenses', language)
+                df_teams[expense_col] = df_teams[expense_col].apply(
+                    lambda x: format_currency(x)
+                )
+                
+                st.dataframe(df_teams, use_container_width=True)
+            except Exception as e:
+                st.error(f"Table error: {e}")
         else:
             st.info(get_text('no_data', language))
             

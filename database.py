@@ -13,7 +13,9 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=300,
     pool_timeout=20,
-    max_overflow=0
+    max_overflow=10,
+    pool_size=5,
+    echo=False
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -22,37 +24,29 @@ def get_session() -> Session:
     return SessionLocal()
 
 def execute_query(query, params=None):
-    """Execute a query and return results with better error handling"""
-    max_retries = 3
-    retry_count = 0
-    
-    while retry_count < max_retries:
-        try:
-            with engine.connect() as connection:
-                if params:
-                    result = connection.execute(text(query), params)
-                else:
-                    result = connection.execute(text(query))
-                
-                # If it's a SELECT query, fetch results
-                if query.strip().upper().startswith('SELECT'):
-                    return result.fetchall()
-                else:
-                    connection.commit()
-                    return True
-        except Exception as e:
-            retry_count += 1
-            print(f"Database error (attempt {retry_count}/{max_retries}): {e}")
+    """Execute a query and return results with optimized error handling"""
+    try:
+        with engine.connect() as connection:
+            if params:
+                result = connection.execute(text(query), params)
+            else:
+                result = connection.execute(text(query))
             
-            if retry_count >= max_retries:
-                # If this is an SSL connection error, try to dispose and recreate the engine
-                if "SSL connection has been closed unexpectedly" in str(e):
-                    engine.dispose()
-                raise e
-            
-            # Wait a bit before retrying
-            import time
-            time.sleep(1)
+            # If it's a SELECT query, fetch results
+            if query.strip().upper().startswith('SELECT'):
+                rows = result.fetchall()
+                return rows if rows else []
+            else:
+                connection.commit()
+                return True
+    except Exception as e:
+        print(f"Database error: {e}")
+        if "SSL connection has been closed unexpectedly" in str(e):
+            engine.dispose()
+        # Return empty list for SELECT queries, False for others
+        if query.strip().upper().startswith('SELECT'):
+            return []
+        return False
 
 def init_db():
     """Initialize database with simple approach"""
@@ -139,7 +133,9 @@ def init_db():
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
                     type material_type NOT NULL,
-                    status material_status DEFAULT 'active',
+                    total_quantity INTEGER DEFAULT 0,
+                    available_quantity INTEGER DEFAULT 0,
+                    unit_price NUMERIC(10,2) DEFAULT 0,
                     photo_url TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
@@ -153,15 +149,16 @@ def init_db():
                     notes TEXT
                 )""",
                 
-                """CREATE TABLE IF NOT EXISTS expenses (
+                """CREATE TABLE IF NOT EXISTS car_expenses (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     date DATE NOT NULL,
+                    category TEXT NOT NULL,
                     amount NUMERIC(10,2) NOT NULL,
                     description TEXT,
-                    type expense_type NOT NULL,
-                    vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
-                    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-                    receipt_url TEXT
+                    file_url TEXT,
+                    maintenance_id UUID REFERENCES maintenances(id),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )"""
             ]
             
