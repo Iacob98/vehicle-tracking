@@ -136,7 +136,7 @@ def show_documents_list():
             sort_options = {
                 'date_expiry': 'По сроку действия / Nach Ablaufdatum',
                 'title': 'По названию / Nach Titel',
-                'vehicle_name': '🚗 По автомобилю / Nach Fahrzeug',
+                'vehicle_name': 'По автомобилю / Nach Fahrzeug',
                 'document_type': '📁 По типу документа / Nach Dokumenttyp'
             }
             sort_by = st.selectbox(
