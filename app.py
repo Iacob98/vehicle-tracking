@@ -17,16 +17,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Hide Streamlit's automatic page navigation
+# Hide only Streamlit's automatic page navigation, keep our custom sidebar
 st.markdown("""
 <style>
     [data-testid="stSidebarNav"] {
         display: none;
     }
-    [data-testid="stSidebarNavItems"] {
-        display: none;
-    }
-    section[data-testid="stSidebar"] > div:first-child {
+    .stAppViewBlockContainer [data-testid="stSidebarNav"] {
         display: none;
     }
 </style>
