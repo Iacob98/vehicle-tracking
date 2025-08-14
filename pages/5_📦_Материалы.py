@@ -26,7 +26,7 @@ def get_materials_cached():
             m.total_quantity,
             COALESCE(m.unit, 'шт.') as unit,
             m.unit_price,
-            0 as assigned_quantity
+            COALESCE(m.assigned_quantity, 0) as assigned_quantity
         FROM materials m
         ORDER BY m.name
     """)
@@ -58,24 +58,49 @@ def show_materials_list():
             
             # Display materials
             for material in materials:
-                available = material[3] - material[6]
+                material_type = material[2]
+                total_quantity = material[3]
+                assigned_quantity = material[6]
+                
+                # Calculate availability based on type
+                if material_type == 'material':
+                    # Consumables: total is available (already consumed items are deducted)
+                    available = total_quantity
+                    status_text = f"📦 Расходка/Verbrauchsmaterial"
+                else:
+                    # Equipment: total minus assigned is available
+                    available = total_quantity - assigned_quantity
+                    status_text = f"🔧 Оборудование/Ausrüstung"
                 
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                     
                     with col1:
                         st.write(f"**{material[1]}**")
-                        st.write(f"📁 {get_text(material[2], language)}")
+                        st.write(status_text)
                         if material[5]:
                             st.write(f"💰 {format_currency(material[5])}/{material[4]}")
                     
                     with col2:
-                        st.write(f"📦 Всего/Gesamt: {material[3]} {material[4]}")
-                        st.write(f"✅ Доступно/Verfügbar: {material[3]} {material[4]}")
+                        st.write(f"📦 Всего/Gesamt: {total_quantity} {material[4]}")
+                        if material_type == 'material':
+                            st.write(f"✅ Доступно/Verfügbar: {available} {material[4]}")
+                        else:
+                            st.write(f"✅ Свободно/Frei: {available} {material[4]}")
                     
                     with col3:
-                        st.write(f"🔧 Выдано/Ausgegeben: 0 {material[4]}")
-                        st.write("✅ В наличии/Verfügbar")
+                        if material_type == 'equipment':
+                            st.write(f"🔧 В использовании/Im Einsatz: {assigned_quantity} {material[4]}")
+                            status_color = "🟢" if available > 0 else "🟡" if available == 0 else "🔴"
+                            availability_text = "Доступно" if available > 0 else "Все выдано" if available == 0 else "Превышен лимит"
+                            st.write(f"{status_color} {availability_text}")
+                        else:
+                            if available > 10:
+                                st.write("🟢 В наличии")
+                            elif available > 0:
+                                st.write(f"🟡 Мало осталось ({available})")
+                            else:
+                                st.write("🔴 Закончился")
                     
                     with col4:
                         col_edit, col_delete = st.columns(2)
@@ -106,9 +131,9 @@ def show_add_material_form():
             )
             
             material_type = st.selectbox(
-                "Тип/Typ",
-                options=['equipment', 'consumables'],
-                format_func=lambda x: get_text(x, language)
+                "Тип/Typ", 
+                options=['material', 'equipment'],
+                format_func=lambda x: 'Материал (расходка)' if x == 'material' else 'Оборудование (возвратное)'
             )
             
             unit = st.text_input(
@@ -298,7 +323,10 @@ with tab3:
             material_id = st.selectbox(
                 "Материал/Material",
                 options=[m[0] for m in materials],
-                format_func=lambda x: next((f"{m[1]} (доступно: {m[3]-m[6]} {m[4]})" for m in materials if m[0] == x), x)
+                format_func=lambda x: next((
+                    f"{m[1]} - {'Расходка' if m[2] == 'material' else 'Оборудование'} " +
+                    f"(доступно: {m[3] if m[2] == 'material' else m[3] - m[6]} {m[4]})"
+                    for m in materials if m[0] == x), x)
             )
             
             # Team selection
@@ -318,6 +346,35 @@ with tab3:
                 
                 if st.form_submit_button("Выдать/Ausgeben"):
                     try:
+                        # Get material info to determine type
+                        material_info = execute_query("""
+                            SELECT type, total_quantity, assigned_quantity 
+                            FROM materials 
+                            WHERE id = :id
+                        """, {'id': material_id})
+                        
+                        if not material_info:
+                            st.error("Материал не найден")
+                            return
+                            
+                        material_type = material_info[0][0]
+                        current_total = material_info[0][1] or 0
+                        current_assigned = material_info[0][2] or 0
+                        
+                        # Check availability based on type
+                        if material_type == 'material':
+                            # For consumables, check if we have enough in stock
+                            if current_total < quantity:
+                                st.error(f"Недостаточно материала в наличии. Доступно: {current_total}")
+                                return
+                        else:
+                            # For equipment, check if we have enough unassigned
+                            available = current_total - current_assigned
+                            if available < quantity:
+                                st.error(f"Недостаточно свободного оборудования. Доступно: {available}")
+                                return
+                        
+                        # Create assignment record
                         assignment_id = str(uuid.uuid4())
                         execute_query("""
                             INSERT INTO material_assignments 
@@ -330,8 +387,27 @@ with tab3:
                             'quantity': quantity,
                             'date': datetime.now()
                         })
-                        st.success("Материал выдан / Material ausgegeben")
+                        
+                        # Update material quantities based on type
+                        if material_type == 'material':
+                            # For consumables: reduce total quantity (consumed)
+                            execute_query("""
+                                UPDATE materials 
+                                SET total_quantity = total_quantity - :quantity 
+                                WHERE id = :id
+                            """, {'id': material_id, 'quantity': quantity})
+                            st.success(f"✅ Материал выдан (списано {quantity} единиц)")
+                        else:
+                            # For equipment: increase assigned quantity (temporary assignment)
+                            execute_query("""
+                                UPDATE materials 
+                                SET assigned_quantity = COALESCE(assigned_quantity, 0) + :quantity 
+                                WHERE id = :id
+                            """, {'id': material_id, 'quantity': quantity})
+                            st.success(f"✅ Оборудование выдано (в использовании {quantity} единиц)")
+                        
                         get_materials_cached.clear()  # Clear cache
                         st.rerun()
+                        
                     except Exception as e:
-                        st.error(f"Error: {str(e)}")
+                        st.error(f"Ошибка при выдаче: {str(e)}")
