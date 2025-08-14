@@ -61,11 +61,15 @@ def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_f
     order_col = sort_mapping.get(sort_by, 'vd.date_expiry')
     order_direction = 'DESC' if sort_direction == 'desc' else 'ASC'
     
-    # Handle NULL values for date_expiry
+    # Handle NULL values and secondary sort
     if sort_by == 'date_expiry':
-        order_clause = f"ORDER BY {order_col} {order_direction} NULLS LAST"
+        order_clause = f"ORDER BY {order_col} {order_direction} NULLS LAST, v.name ASC"
+    elif sort_by == 'vehicle_name':
+        order_clause = f"ORDER BY v.name {order_direction}, vd.document_type ASC"
+    elif sort_by == 'document_type':
+        order_clause = f"ORDER BY vd.document_type {order_direction}, v.name ASC"
     else:
-        order_clause = f"ORDER BY {order_col} {order_direction}"
+        order_clause = f"ORDER BY {order_col} {order_direction}, v.name ASC"
     
     query = f"""
         SELECT 
@@ -128,22 +132,23 @@ def show_documents_list():
             sort_options = {
                 'date_expiry': 'По сроку действия / Nach Ablaufdatum',
                 'title': 'По названию / Nach Titel',
-                'vehicle_name': 'По автомобилю / Nach Fahrzeug',
-                'document_type': 'По типу документа / Nach Dokumenttyp'
+                'vehicle_name': '🚗 По автомобилю / Nach Fahrzeug',
+                'document_type': '📁 По типу документа / Nach Dokumenttyp'
             }
             sort_by = st.selectbox(
                 "Сортировать по / Sortieren nach",
                 options=list(sort_options.keys()),
                 format_func=lambda x: sort_options[x],
-                key="doc_sort_by"
+                key="doc_sort_by",
+                index=2  # Default to sort by vehicle
             )
         
         with col2:
             sort_direction = st.selectbox(
                 "Направление / Richtung",
                 options=['asc', 'desc'],
-                format_func=lambda x: 'По возрастанию / Aufsteigend' if x == 'asc' else 'По убыванию / Absteigend',
-                index=1,  # Default to desc
+                format_func=lambda x: '⬆️ По возрастанию / Aufsteigend' if x == 'asc' else '⬇️ По убыванию / Absteigend',
+                index=0,  # Default to asc for better vehicle/type sorting
                 key="doc_sort_dir"
             )
         
@@ -176,8 +181,24 @@ def show_documents_list():
             
             st.divider()
             
-            # Display documents
+            # Display documents with grouping
+            current_group = None
+            doc_types = get_document_types()
+            
             for doc in documents:
+                # Show group header for vehicle or type sorting
+                if sort_by == 'vehicle_name':
+                    group_key = f"{doc[6]} ({doc[7]})"
+                    if current_group != group_key:
+                        current_group = group_key
+                        st.subheader(f"🚗 {group_key}")
+                        
+                elif sort_by == 'document_type':
+                    group_key = doc_types.get(doc[1], doc[1])
+                    if current_group != group_key:
+                        current_group = group_key
+                        st.subheader(f"📁 {group_key}")
+                
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                     
@@ -186,9 +207,13 @@ def show_documents_list():
                         status_icon = '🔴' if doc[8] == 'expired' else '⚠️' if doc[8] == 'expiring' else '✅'
                         st.write(f"{status_icon} **{doc[2]}**")
                         
-                        doc_types = get_document_types()
-                        st.write(f"📁 {doc_types.get(doc[1], doc[1])}")
-                        st.write(f"🚗 {doc[6]} ({doc[7]})")
+                        # Show vehicle info only if not sorting by vehicle
+                        if sort_by != 'vehicle_name':
+                            st.write(f"🚗 {doc[6]} ({doc[7]})")
+                        
+                        # Show document type only if not sorting by type
+                        if sort_by != 'document_type':
+                            st.write(f"📁 {doc_types.get(doc[1], doc[1])}")
                     
                     with col2:
                         issued_date = doc[3].strftime('%d.%m.%Y') if doc[3] else ''
