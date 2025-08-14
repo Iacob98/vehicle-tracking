@@ -10,6 +10,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 14, 2025)
 
+### Vehicle Photo Management System
+- Added photo_url field to vehicles table for storing vehicle photographs
+- Implemented vehicle photo upload functionality with thumbnail display in vehicle lists
+- Enhanced vehicle forms (add/edit) with photo upload capabilities
+- Added 80px thumbnail display in vehicle listings for easier identification
+- Created uploads/vehicles directory for vehicle photo storage
+- Integrated with existing file storage system for reliable photo management
+
 ### User Management Enhancement
 - Added phone field to users table for contact information storage
 - Implemented complete user editing functionality with form pre-population

@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv
+from utils import export_to_csv, upload_file, display_file
 from pagination import paginate_data
 from datetime import datetime
 import uuid
@@ -50,7 +50,7 @@ def show_vehicles_list():
         
         # Build query with filters
         query = """
-            SELECT id, name, license_plate, vin, status, model, year
+            SELECT id, name, license_plate, vin, status, model, year, photo_url
             FROM vehicles
             WHERE 1=1
         """
@@ -78,19 +78,34 @@ def show_vehicles_list():
             
             for vehicle in paginated_vehicles:
                 with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                    col1, col2, col3, col4, col5 = st.columns([1, 3, 2, 1, 1])
                     
                     with col1:
+                        # Display vehicle photo thumbnail
+                        if vehicle[7]:  # photo_url
+                            photo_path = vehicle[7].lstrip('/') if vehicle[7].startswith('/') else vehicle[7]
+                            try:
+                                import os
+                                if os.path.exists(photo_path):
+                                    st.image(photo_path, width=80, caption="")
+                                else:
+                                    st.write("🚗")  # Default car icon
+                            except Exception:
+                                st.write("🚗")  # Default car icon
+                        else:
+                            st.write("🚗")  # Default car icon if no photo
+                    
+                    with col2:
                         st.write(f"**{vehicle[1]}**")
                         st.write(f"📋 {vehicle[2]} | VIN: {vehicle[3]}")
                     
-                    with col2:
+                    with col3:
                         if vehicle[6]:
                             st.write(f"📅 {vehicle[6]}")
                         if vehicle[5]:
                             st.write(f"🚗 {vehicle[5]}")
                     
-                    with col3:
+                    with col4:
                         status_icon = {
                             'active': '🟢',
                             'repair': '🔧',
@@ -98,7 +113,7 @@ def show_vehicles_list():
                         }.get(vehicle[4], '⚫')
                         st.write(f"{status_icon} {get_text(vehicle[4], language)}")
                     
-                    with col4:
+                    with col5:
                         col_edit, col_delete = st.columns(2)
                         with col_edit:
                             if st.button("✏️", key=f"edit_{vehicle[0]}", help="Редактировать"):
@@ -151,13 +166,26 @@ def show_add_vehicle_form():
                 format_func=lambda x: get_text(x, language)
             )
         
+        # Photo upload section
+        st.write("📷 **Фото автомобиля / Fahrzeugfoto**")
+        photo_file = st.file_uploader(
+            "Выберите фото / Foto auswählen",
+            type=['jpg', 'jpeg', 'png', 'gif'],
+            help="Загрузите фото автомобиля для отображения в списке"
+        )
+        
         if st.form_submit_button(get_text('save', language)):
             if name and license_plate:
                 try:
+                    # Handle photo upload
+                    photo_url = None
+                    if photo_file:
+                        photo_url = upload_file(photo_file, 'vehicles')
+                    
                     vehicle_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO vehicles (id, name, license_plate, vin, status, model, year)
-                        VALUES (:id, :name, :license_plate, :vin, :status, :model, :year)
+                        INSERT INTO vehicles (id, name, license_plate, vin, status, model, year, photo_url)
+                        VALUES (:id, :name, :license_plate, :vin, :status, :model, :year, :photo_url)
                     """, {
                         'id': vehicle_id,
                         'name': name,
@@ -165,7 +193,8 @@ def show_add_vehicle_form():
                         'vin': vin,
                         'status': status,
                         'model': model,
-                        'year': year
+                        'year': year,
+                        'photo_url': photo_url
                     })
                     st.success(get_text('success_save', language))
                     st.rerun()
@@ -179,7 +208,7 @@ def show_edit_vehicle_form(vehicle_id):
     try:
         # Get current vehicle data
         vehicle_data = execute_query("""
-            SELECT name, license_plate, vin, status, model, year 
+            SELECT name, license_plate, vin, status, model, year, photo_url 
             FROM vehicles 
             WHERE id = :id
         """, {'id': vehicle_id})
@@ -244,15 +273,59 @@ def show_edit_vehicle_form(vehicle_id):
                     format_func=lambda x: get_text(x, language)
                 )
             
+            # Current photo section
+            current_photo_url = current_vehicle[6] if len(current_vehicle) > 6 else None
+            
+            st.write("📷 **Фото автомобиля / Fahrzeugfoto**")
+            
+            if current_photo_url:
+                col_photo, col_info = st.columns([1, 2])
+                with col_photo:
+                    photo_path = current_photo_url.lstrip('/') if current_photo_url.startswith('/') else current_photo_url
+                    try:
+                        import os
+                        if os.path.exists(photo_path):
+                            st.image(photo_path, width=150, caption="Текущее фото")
+                        else:
+                            st.info("Текущее фото не найдено")
+                    except Exception:
+                        st.info("Ошибка отображения текущего фото")
+                with col_info:
+                    st.info("✅ Текущее фото загружено")
+                    replace_photo = st.checkbox("Заменить фото / Foto ersetzen")
+            else:
+                st.info("📷 Фото не загружено")
+                replace_photo = True
+            
+            # Photo upload
+            photo_file = None
+            if current_photo_url is None or replace_photo:
+                photo_file = st.file_uploader(
+                    "Выберите новое фото / Neues Foto auswählen" if current_photo_url else "Выберите фото / Foto auswählen",
+                    type=['jpg', 'jpeg', 'png', 'gif'],
+                    help="Загрузите фото автомобиля для отображения в списке"
+                )
+            
             col_save, col_cancel = st.columns(2)
             with col_save:
                 if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
                     if name and license_plate:
                         try:
+                            # Handle photo upload
+                            photo_url_to_save = current_photo_url  # Keep current photo by default
+                            if photo_file:
+                                # Upload new photo
+                                new_photo_url = upload_file(photo_file, 'vehicles')
+                                if new_photo_url:
+                                    photo_url_to_save = new_photo_url
+                            elif replace_photo and current_photo_url:
+                                # User wants to remove current photo
+                                photo_url_to_save = None
+                            
                             execute_query("""
                                 UPDATE vehicles 
                                 SET name = :name, license_plate = :license_plate, vin = :vin, 
-                                    status = :status, model = :model, year = :year
+                                    status = :status, model = :model, year = :year, photo_url = :photo_url
                                 WHERE id = :id
                             """, {
                                 'id': vehicle_id,
@@ -261,7 +334,8 @@ def show_edit_vehicle_form(vehicle_id):
                                 'vin': vin,
                                 'status': status,
                                 'model': model,
-                                'year': year
+                                'year': year,
+                                'photo_url': photo_url_to_save
                             })
                             st.success("Автомобиль обновлен / Fahrzeug aktualisiert")
                             del st.session_state.edit_vehicle_id
