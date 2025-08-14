@@ -153,7 +153,7 @@ def show_vehicle_analytics():
             SUM(CASE WHEN ce.expense_category = 'insurance' THEN ce.amount ELSE 0 END) as insurance_cost,
             SUM(CASE WHEN ce.expense_category = 'other' THEN ce.amount ELSE 0 END) as other_cost
         FROM vehicles v
-        LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id 
+        LEFT JOIN car_expenses ce ON v.id = ce.car_id 
             AND ce.date BETWEEN :date_from AND :date_to
         GROUP BY v.id, v.name, v.license_plate, v.photo_url
         HAVING COALESCE(SUM(ce.amount), 0) > 0
