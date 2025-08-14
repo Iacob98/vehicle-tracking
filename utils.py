@@ -164,6 +164,93 @@ def display_file(file_path, file_title="Файл"):
         st.error(f"Ошибка отображения файла: {str(e)}")
         return False
 
+def get_document_types():
+    """Get document types mapping based on database enum"""
+    return {
+        'fahrzeugschein': 'Fahrzeugschein/Регистрация',
+        'fahrzeugbrief': 'Fahrzeugbrief/Техпаспорт', 
+        'tuv_certificate': 'TÜV/Техосмотр',
+        'insurance': 'Versicherung/Страховка',
+        'purchase_contract': 'Kaufvertrag/Договор покупки',
+        'vehicle_photo': 'Fahrzeugfoto/Фото автомобиля',
+        'service_book': 'Serviceheft/Сервисная книжка',
+        'expense_report': 'Kostennachweis/Отчет о расходах',
+        'lease_contract': 'Leasingvertrag/Договор лизинга',
+        'tax_document': 'Steuerdokument/Налоговый документ',
+        'operation_permit': 'Betriebserlaubnis/Разрешение на эксплуатацию'
+    }
+
+def get_documents_with_sort(sort_by='title', sort_direction='asc', type_filter='all', vehicle_filter='all', search_term=''):
+    """Get documents with sorting and filtering"""
+    try:
+        # Base query
+        base_query = """
+            SELECT 
+                vd.id,
+                vd.document_type,
+                vd.title,
+                vd.date_issued,
+                vd.date_expiry,
+                vd.file_url,
+                v.name as vehicle_name,
+                v.license_plate,
+                CASE 
+                    WHEN vd.date_expiry IS NULL THEN 'valid'
+                    WHEN vd.date_expiry < CURRENT_DATE THEN 'expired'
+                    WHEN vd.date_expiry <= CURRENT_DATE + INTERVAL '30 days' THEN 'expiring'
+                    ELSE 'valid'
+                END as status
+            FROM vehicle_documents vd
+            JOIN vehicles v ON vd.vehicle_id = v.id
+            WHERE vd.is_active = true
+        """
+        
+        params = {}
+        
+        # Add filters
+        if type_filter != 'all':
+            base_query += " AND vd.document_type = :type_filter"
+            params['type_filter'] = type_filter
+        
+        if vehicle_filter != 'all':
+            base_query += " AND vd.vehicle_id = :vehicle_filter"
+            params['vehicle_filter'] = vehicle_filter
+        
+        if search_term:
+            base_query += " AND (vd.title ILIKE :search_term OR v.name ILIKE :search_term)"
+            params['search_term'] = f'%{search_term}%'
+        
+        # Add sorting
+        sort_column = {
+            'title': 'vd.title',
+            'document_type': 'vd.document_type',
+            'date_issued': 'vd.date_issued',
+            'date_expiry': 'vd.date_expiry',
+            'vehicle_name': 'v.name'
+        }.get(sort_by, 'vd.title')
+        
+        sort_dir = 'DESC' if sort_direction == 'desc' else 'ASC'
+        base_query += f" ORDER BY {sort_column} {sort_dir}, vd.title ASC"
+        
+        return execute_query(base_query, params) or []
+        
+    except Exception as e:
+        st.error(f"Error loading documents: {str(e)}")
+        return []
+
+def delete_document(document_id):
+    """Delete a document"""
+    try:
+        execute_query("""
+            UPDATE vehicle_documents 
+            SET is_active = false 
+            WHERE id = :id
+        """, {'id': document_id})
+        st.success("Документ удален")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка удаления документа: {str(e)}")
+
 def paginate_data(data, page_size=10):
     """Paginate data for display"""
     if not data:

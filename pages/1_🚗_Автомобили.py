@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, upload_file, display_file
+from utils import export_to_csv, upload_file, display_file, get_document_types, get_documents_with_sort, delete_document
 from pagination import paginate_data
 from datetime import datetime
 import uuid
@@ -42,71 +42,8 @@ def get_documents_cached():
         LIMIT 100
     """)
 
-def get_documents_with_sort(sort_by='document_type', sort_direction='asc', type_filter='all', vehicle_filter='all', search_term=''):
-    """Get vehicle documents with custom sorting and filtering"""
-    # Build WHERE clause
-    where_clause = "WHERE vd.is_active = true"
-    params = {}
-    
-    if type_filter != 'all':
-        where_clause += " AND vd.document_type = :type_filter"
-        params['type_filter'] = type_filter
-    
-    if vehicle_filter != 'all':
-        where_clause += " AND vd.vehicle_id = :vehicle_filter"
-        params['vehicle_filter'] = vehicle_filter
-    
-    if search_term:
-        where_clause += " AND vd.title ILIKE :search_term"
-        params['search_term'] = f"%{search_term}%"
-    
-    # Always sort by document type first for grouping, then by expiry date
-    order_clause = "ORDER BY vd.document_type ASC, vd.date_expiry ASC NULLS LAST, v.name ASC"
-    
-    query = f"""
-        SELECT 
-            vd.id,
-            vd.document_type,
-            vd.title,
-            vd.date_issued,
-            vd.date_expiry,
-            vd.file_url,
-            v.name as vehicle_name,
-            v.license_plate,
-            CASE 
-                WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry < CURRENT_DATE THEN 'expired'
-                WHEN vd.date_expiry IS NOT NULL AND vd.date_expiry <= CURRENT_DATE + INTERVAL '30 days' THEN 'expiring'
-                ELSE 'valid'
-            END as status
-        FROM vehicle_documents vd
-        JOIN vehicles v ON vd.vehicle_id = v.id
-        {where_clause}
-        {order_clause}
-        LIMIT 100
-    """
-    
-    return execute_query(query, params)
 
-def get_document_types():
-    """Get document type translations"""
-    return {
-        'insurance': 'Страховка / Versicherung',
-        'inspection': 'Техосмотр / TÜV',
-        'registration': 'Свидетельство о регистрации / Zulassungsbescheinigung',
-        'license': 'Лицензия / Lizenz',
-        'permit': 'Разрешение / Genehmigung',
-        'other': 'Другое / Sonstiges'
-    }
 
-def delete_document(document_id):
-    """Delete document"""
-    try:
-        execute_query("UPDATE vehicle_documents SET is_active = false WHERE id = :id", {'id': document_id})
-        st.success(get_text('success_delete', language))
-        get_documents_cached.clear()  # Clear cache
-        st.rerun()
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
 
 def show_vehicles_list():
     """Show list of vehicles with inline editing"""
