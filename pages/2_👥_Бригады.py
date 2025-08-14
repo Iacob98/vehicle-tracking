@@ -24,11 +24,11 @@ def show_teams_list():
                 t.name,
                 CONCAT(u.first_name, ' ', u.last_name) as leader_name,
                 COUNT(DISTINCT usr.id) as users_count,
-                COUNT(DISTINCT va.vehicle_id) as vehicles_count
+                0 as vehicles_count
             FROM teams t
             LEFT JOIN users u ON t.lead_id = u.id
             LEFT JOIN users usr ON t.id = usr.team_id
-            LEFT JOIN vehicle_assignments va ON t.id = va.team_id AND va.end_date IS NULL
+
             GROUP BY t.id, t.name, u.first_name, u.last_name
             ORDER BY t.name
         """)

@@ -152,7 +152,7 @@ try:
                 ce.description,
                 'car' as expense_type
             FROM car_expenses ce
-            JOIN vehicles v ON ce.vehicle_id = v.id
+            JOIN vehicles v ON ce.car_id = v.id
             ORDER BY ce.date DESC
             LIMIT 10
         ) car

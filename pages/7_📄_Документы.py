@@ -230,7 +230,7 @@ with tab3:
             vd.title,
             v.name as vehicle_name,
             vd.date_expiry,
-            EXTRACT(DAY FROM vd.date_expiry - CURRENT_DATE) as days_left
+            (vd.date_expiry - CURRENT_DATE)::integer as days_left
         FROM vehicle_documents vd
         JOIN vehicles v ON vd.vehicle_id = v.id
         WHERE vd.is_active = true

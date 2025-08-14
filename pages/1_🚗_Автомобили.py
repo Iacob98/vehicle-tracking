@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, show_pagination, paginate_data
+from utils import export_to_csv
+from pagination import paginate_data
 from datetime import datetime
 import uuid
 
@@ -65,9 +66,8 @@ def show_vehicles_list():
         vehicles = execute_query(query, params)
         
         if vehicles:
-            # Pagination
-            page_size = 20
-            paginated_vehicles = paginate_data(vehicles, page_size, 'vehicles_list')
+            # Pagination  
+            paginated_vehicles = paginate_data(vehicles, 20, 'vehicles_list')
             
             for vehicle in paginated_vehicles:
                 with st.container():

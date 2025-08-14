@@ -29,7 +29,7 @@ def get_car_expenses_cached():
             ce.file_url,
             ce.maintenance_id
         FROM car_expenses ce
-        JOIN vehicles v ON ce.vehicle_id = v.id
+        JOIN vehicles v ON ce.car_id = v.id
         ORDER BY ce.date DESC
         LIMIT 100
     """)
@@ -137,11 +137,11 @@ def show_add_expense_form():
                     expense_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO car_expenses 
-                        (id, vehicle_id, category, amount, date, description, file_url)
-                        VALUES (:id, :vehicle_id, :category, :amount, :date, :description, :file_url)
+                        (id, car_id, category, amount, date, description, file_url)
+                        VALUES (:id, :car_id, :category, :amount, :date, :description, :file_url)
                     """, {
                         'id': expense_id,
-                        'vehicle_id': vehicle_id,
+                        'car_id': vehicle_id,
                         'category': category,
                         'amount': amount,
                         'date': expense_date,

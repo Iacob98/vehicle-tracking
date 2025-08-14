@@ -29,7 +29,7 @@ def get_penalties_cached():
             p.status,
             p.photo_url
         FROM penalties p
-        JOIN vehicles v ON p.vehicle_id = v.id
+        LEFT JOIN vehicles v ON p.vehicle_id = v.id
         LEFT JOIN users u ON p.user_id = u.id
         WHERE (p.description IS NULL OR p.description NOT LIKE '%Поломка материала%')
         ORDER BY p.date DESC
