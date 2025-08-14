@@ -51,7 +51,7 @@ def get_teams_for_select(language='ru'):
     """Get teams for select box"""
     try:
         teams = execute_query("SELECT id, name FROM teams ORDER BY name")
-        if not teams:
+        if not teams or not isinstance(teams, list):
             return []
         return [(str(team[0]), team[1]) for team in teams]
     except Exception as e:
@@ -62,7 +62,7 @@ def get_users_for_select(language='ru'):
     """Get users for select box"""
     try:
         users = execute_query("SELECT id, first_name, last_name FROM users ORDER BY last_name, first_name")
-        if not users:
+        if not users or not isinstance(users, list):
             return []
         return [(str(user[0]), f"{user[1]} {user[2]}") for user in users]
     except Exception as e:
@@ -73,7 +73,7 @@ def get_vehicles_for_select(language='ru'):
     """Get vehicles for select box"""
     try:
         vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
-        if not vehicles:
+        if not vehicles or not isinstance(vehicles, list):
             return []
         return [(str(vehicle[0]), f"{vehicle[1]} ({vehicle[2]})") for vehicle in vehicles]
     except Exception as e:
@@ -84,7 +84,7 @@ def get_materials_for_select(language='ru'):
     """Get materials for select box"""
     try:
         materials = execute_query("SELECT id, name FROM materials ORDER BY name")
-        if not materials:
+        if not materials or not isinstance(materials, list):
             return []
         return [(str(material[0]), material[1]) for material in materials]
     except Exception as e:
@@ -92,7 +92,7 @@ def get_materials_for_select(language='ru'):
         return []
 
 def upload_file(file, upload_type='receipt'):
-    """Handle file upload and return URL"""
+    """Handle file upload and return file path"""
     if file is not None:
         import os
         
@@ -112,11 +112,57 @@ def upload_file(file, upload_type='receipt'):
         try:
             with open(file_path, "wb") as f:
                 f.write(file.getbuffer())
-            return f"/{file_path}"
+            return file_path  # Return relative path without leading slash
         except Exception as e:
-            # Fallback to simulated URL if file save fails
-            return f"/uploads/{upload_type}/{file_id}_{file.name}"
+            st.error(f"Ошибка сохранения файла: {str(e)}")
+            return None
     return None
+
+def display_file(file_path, file_title="Файл"):
+    """Display file content in Streamlit"""
+    if not file_path:
+        st.error("Путь к файлу не указан")
+        return False
+    
+    import os
+    
+    # Check if file exists
+    if not os.path.exists(file_path):
+        st.error("Файл не найден")
+        return False
+    
+    # Get file extension
+    file_ext = file_path.split('.')[-1].lower() if '.' in file_path else ''
+    
+    try:
+        if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']:
+            # Display image directly from file path
+            st.image(file_path, caption=file_title, use_container_width=True)
+            return True
+        elif file_ext == 'pdf':
+            # For PDF, provide download link and info
+            st.info("📄 PDF документ")
+            with open(file_path, "rb") as pdf_file:
+                st.download_button(
+                    label="📥 Скачать PDF",
+                    data=pdf_file.read(),
+                    file_name=os.path.basename(file_path),
+                    mime="application/pdf"
+                )
+            return True
+        else:
+            # For other files, provide download
+            st.info(f"📎 Файл: {os.path.basename(file_path)}")
+            with open(file_path, "rb") as file:
+                st.download_button(
+                    label="📥 Скачать файл",
+                    data=file.read(),
+                    file_name=os.path.basename(file_path)
+                )
+            return True
+    except Exception as e:
+        st.error(f"Ошибка отображения файла: {str(e)}")
+        return False
 
 def paginate_data(data, page_size=10):
     """Paginate data for display"""

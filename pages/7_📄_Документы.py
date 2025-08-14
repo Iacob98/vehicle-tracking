@@ -3,7 +3,7 @@ import uuid
 from datetime import date, timedelta
 from database import execute_query
 from translations import get_text
-from utils import upload_file
+from utils import upload_file, display_file
 
 # Page config
 st.set_page_config(
@@ -535,25 +535,37 @@ def show_document_viewer(document_id):
         
         st.divider()
         
-        # Display file
-        file_ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
+        # Display file using new system
+        file_path = file_url.lstrip('/') if file_url.startswith('/') else file_url
+        success = display_file(file_path, doc[0])
         
-        if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
-            # Display image
+        if not success:
+            st.error("❌ Не удалось отобразить файл")
+            st.write(f"Путь к файлу: {file_path}")
+            
+            # Try alternative display methods
+            import os
+            if os.path.exists(file_path):
+                st.info("✅ Файл существует на диске")
+                try:
+                    file_size = os.path.getsize(file_path)
+                    st.write(f"Размер файла: {file_size} байт")
+                except Exception as e:
+                    st.write(f"Ошибка получения размера: {str(e)}")
+            else:
+                st.error("❌ Файл не найден на диске")
+                
+            # Fallback download button
             try:
-                st.image(file_url, use_container_width=True, caption=doc[0])
+                if os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            label="📥 Скачать файл",
+                            data=f.read(),
+                            file_name=os.path.basename(file_path)
+                        )
             except Exception as e:
-                st.error("❌ Ошибка загрузки изображения")
-                st.write(f"🔗 [Скачать файл]({file_url})")
-        elif file_ext == 'pdf':
-            # Display PDF link and info
-            st.info("📄 PDF документ")
-            st.markdown(f"🔗 [Открыть PDF в новом окне]({file_url})")
-            st.markdown(f"🔗 [Скачать PDF]({file_url})")
-        else:
-            # Other file types
-            st.info(f"📎 Файл: {file_url.split('/')[-1]}")
-            st.markdown(f"🔗 [Скачать файл]({file_url})")
+                st.error(f"Ошибка скачивания: {str(e)}")
             
     except Exception as e:
         st.error(f"Ошибка просмотра документа: {str(e)}")
