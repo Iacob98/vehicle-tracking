@@ -10,7 +10,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 14, 2025)
 
-### Vehicle Photo Management System
+### Integrated Vehicle-Document Management System
+- Unified vehicles and documents into single cohesive interface for streamlined workflow
+- Added "📄 Документы" button to each vehicle in listings for direct access to vehicle documents
+- Implemented vehicle-specific document management with statistics (total, expired, expiring)
+- Created tabs interface: "📄 Документы" for viewing, "➕ Добавить документ" for new documents
+- Added complete CRUD operations for vehicle documents within vehicle context
+- Enhanced document viewer and editor accessible directly from vehicle interface
+- Integrated document status tracking with color-coded indicators (green/orange/red)
+
+### Vehicle Photo Management System  
 - Added photo_url field to vehicles table for storing vehicle photographs
 - Implemented vehicle photo upload functionality with thumbnail display in vehicle lists
 - Enhanced vehicle forms (add/edit) with photo upload capabilities
