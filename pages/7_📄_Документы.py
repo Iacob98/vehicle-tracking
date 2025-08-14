@@ -40,7 +40,7 @@ def get_documents_cached():
         LIMIT 100
     """)
 
-def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_filter='all', vehicle_filter='all'):
+def get_documents_with_sort(sort_by='document_type', sort_direction='asc', type_filter='all', vehicle_filter='all', search_term=''):
     """Get vehicle documents with custom sorting and filtering"""
     # Build WHERE clause
     where_clause = "WHERE vd.is_active = true"
@@ -54,26 +54,12 @@ def get_documents_with_sort(sort_by='date_expiry', sort_direction='desc', type_f
         where_clause += " AND vd.vehicle_id = :vehicle_filter"
         params['vehicle_filter'] = vehicle_filter
     
-    # Build ORDER BY clause
-    sort_mapping = {
-        'date_expiry': 'vd.date_expiry',
-        'title': 'vd.title',
-        'vehicle_name': 'v.name',
-        'document_type': 'vd.document_type'
-    }
+    if search_term:
+        where_clause += " AND vd.title ILIKE :search_term"
+        params['search_term'] = f"%{search_term}%"
     
-    order_col = sort_mapping.get(sort_by, 'vd.date_expiry')
-    order_direction = 'DESC' if sort_direction == 'desc' else 'ASC'
-    
-    # Handle NULL values and secondary sort
-    if sort_by == 'date_expiry':
-        order_clause = f"ORDER BY {order_col} {order_direction} NULLS LAST, v.name ASC"
-    elif sort_by == 'vehicle_name':
-        order_clause = f"ORDER BY v.name {order_direction}, vd.document_type ASC"
-    elif sort_by == 'document_type':
-        order_clause = f"ORDER BY vd.document_type {order_direction}, v.name ASC"
-    else:
-        order_clause = f"ORDER BY {order_col} {order_direction}, v.name ASC"
+    # Always sort by document type first for grouping, then by expiry date
+    order_clause = "ORDER BY vd.document_type ASC, vd.date_expiry ASC NULLS LAST, v.name ASC"
     
     query = f"""
         SELECT 
@@ -129,56 +115,45 @@ def show_documents_list():
             show_document_viewer(view_document_id)
             return
         
-        # Sorting and filtering controls
-        col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+        # Filtering controls - simplified layout
+        col1, col2, col3 = st.columns([2, 2, 1])
         
         with col1:
-            sort_options = {
-                'date_expiry': 'По сроку действия / Nach Ablaufdatum',
-                'title': 'По названию / Nach Titel',
-                'document_type': '📁 По типу документа / Nach Dokumenttyp'
-            }
-            sort_by = st.selectbox(
-                "Сортировать по / Sortieren nach",
-                options=list(sort_options.keys()),
-                format_func=lambda x: sort_options[x],
-                key="doc_sort_by",
-                index=0  # Default to sort by expiry date
-            )
-        
-        with col2:
-            sort_direction = st.selectbox(
-                "Направление / Richtung",
-                options=['asc', 'desc'],
-                format_func=lambda x: '⬆️ По возрастанию / Aufsteigend' if x == 'asc' else '⬇️ По убыванию / Absteigend',
-                index=0,  # Default to asc for better vehicle/type sorting
-                key="doc_sort_dir"
-            )
-        
-        with col3:
-            doc_types = get_document_types()
-            type_filter = st.selectbox(
-                "Фильтр по типу / Nach Typ filtern",
-                options=['all'] + list(doc_types.keys()),
-                format_func=lambda x: 'Все типы / Alle Typen' if x == 'all' else doc_types.get(x, x),
-                key="doc_type_filter"
-            )
-        
-        with col4:
             # Vehicle filter
             vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
             vehicle_options = ['all'] + [v[0] for v in vehicles] if vehicles else ['all']
             
             vehicle_filter = st.selectbox(
-                "🚗 Фильтр по автомобилю / Nach Fahrzeug filtern",
+                "Автомобили",
                 options=vehicle_options,
-                format_func=lambda x: 'Все автомобили / Alle Fahrzeuge' if x == 'all' else next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
+                format_func=lambda x: 'Все автомобили/Alle Fahrzeuge' if x == 'all' else next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x),
                 key="doc_vehicle_filter"
             )
         
+        with col2:
+            doc_types = get_document_types()
+            type_filter = st.selectbox(
+                "Тип документа/Dokumenttyp",
+                options=['all'] + list(doc_types.keys()),
+                format_func=lambda x: 'Все типы/Alle Typen' if x == 'all' else doc_types.get(x, x),
+                key="doc_type_filter"
+            )
+        
+        with col3:
+            # Search functionality
+            search_term = st.text_input(
+                "🔍 Поиск/Suche",
+                placeholder="Название документа...",
+                key="doc_search"
+            )
+        
+        # Always sort by document type first for grouping, then by expiry date
+        sort_by = 'document_type'
+        sort_direction = 'asc'
+        
         st.divider()
         
-        documents = get_documents_with_sort(sort_by, sort_direction, type_filter, vehicle_filter)
+        documents = get_documents_with_sort(sort_by, sort_direction, type_filter, vehicle_filter, search_term)
         
         if documents:
             # Statistics
@@ -201,67 +176,86 @@ def show_documents_list():
             
             st.divider()
             
-            # Display documents with grouping
-            current_group = None
+            # Group documents by type
             doc_types = get_document_types()
+            grouped_docs = {}
             
             for doc in documents:
-                # Show group header for vehicle or type sorting
-                if sort_by == 'vehicle_name':
-                    group_key = f"{doc[6]} ({doc[7]})"
-                    if current_group != group_key:
-                        current_group = group_key
-                        st.subheader(f"🚗 {group_key}")
-                        
-                elif sort_by == 'document_type':
-                    group_key = doc_types.get(doc[1], doc[1])
-                    if current_group != group_key:
-                        current_group = group_key
-                        st.subheader(f"📁 {group_key}")
+                doc_type = doc[1]  # document_type
+                if doc_type not in grouped_docs:
+                    grouped_docs[doc_type] = []
+                grouped_docs[doc_type].append(doc)
+            
+            # Display grouped documents
+            for doc_type, type_documents in grouped_docs.items():
+                type_name = doc_types.get(doc_type, doc_type)
                 
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                    
-                    with col1:
-                        # Status icon based on expiry
-                        status_icon = '🔴' if doc[8] == 'expired' else '⚠️' if doc[8] == 'expiring' else '✅'
-                        st.write(f"{status_icon} **{doc[2]}**")
+                st.subheader(f"📁 {type_name}")
+                
+                for doc in type_documents:
+                    with st.container():
+                        # Document card layout
+                        col1, col2, col3 = st.columns([4, 3, 1])
                         
-                        # Show vehicle info only if not sorting by vehicle
-                        if sort_by != 'vehicle_name':
+                        with col1:
+                            # Status icon and title
+                            status_icon = '🔴' if doc[8] == 'expired' else '⚠️' if doc[8] == 'expiring' else '✅'
+                            st.write(f"**{doc[2]}**")
+                            
+                            # Vehicle info
                             st.write(f"🚗 {doc[6]} ({doc[7]})")
+                            
+                            # Description
+                            if doc_type == 'insurance':
+                                st.write("📄 Страховка автомобиля")
+                            elif doc_type == 'inspection':
+                                st.write("🔧 Техосмотр автомобиля")
+                            elif doc_type == 'registration':
+                                st.write("📋 Свидетельство о регистрации")
+                            else:
+                                st.write("📄 Документ автомобиля")
                         
-                        # Show document type only if not sorting by type
-                        if sort_by != 'document_type':
-                            st.write(f"📁 {doc_types.get(doc[1], doc[1])}")
-                    
-                    with col2:
-                        issued_date = doc[3].strftime('%d.%m.%Y') if doc[3] else ''
-                        st.write(f"Выдан/Ausgestellt: {issued_date}")
-                        if doc[4]:
-                            expiry_date = doc[4].strftime('%d.%m.%Y')
-                            st.write(f"Действует до/Gültig bis: {expiry_date}")
-                    
-                    with col3:
-                        if doc[5]:
-                            st.write("📎 Файл есть/Datei vorhanden")
-                            if st.button("👁️", key=f"view_doc_btn_{doc[0]}", help="Просмотреть файл"):
-                                st.session_state[f"view_document_{doc[0]}"] = True
-                                st.rerun()
-                        else:
-                            st.write("📎 Нет файла/Keine Datei")
-                    
-                    with col4:
-                        col_edit, col_delete = st.columns(2)
-                        with col_edit:
-                            if st.button("✏️", key=f"edit_doc_{doc[0]}", help="Редактировать"):
+                        with col2:
+                            # Status and dates
+                            status_text = 'Действителен/Gültig' if doc[8] == 'valid' else 'Истекает/Läuft ab' if doc[8] == 'expiring' else 'Просрочен/Abgelaufen'
+                            status_color = 'green' if doc[8] == 'valid' else 'orange' if doc[8] == 'expiring' else 'red'
+                            
+                            st.markdown(f":{status_color}[{status_icon} {status_text}]")
+                            
+                            issued_date = doc[3].strftime('%d.%m.%Y') if doc[3] else ''
+                            st.write(f"🟦 Выдан/Ausgestellt: {issued_date}")
+                            
+                            if doc[4]:
+                                expiry_date = doc[4].strftime('%d.%m.%Y')
+                                st.write(f"🟦 Действует до/Gültig bis: {expiry_date}")
+                            
+                            # File info
+                            if doc[5]:
+                                file_ext = doc[5].split('.')[-1].upper() if '.' in doc[5] else ''
+                                st.write(f"📄 {file_ext} документ/{file_ext}-Dokument")
+                                file_name = doc[5].split('/')[-1] if '/' in doc[5] else doc[5]
+                                st.caption(f"📎 {file_name}")
+                            
+                            # User info
+                            st.write("👤 Иван Иванов")  # Placeholder for uploaded_by
+                        
+                        with col3:
+                            # Action buttons
+                            st.write("")  # Spacing
+                            
+                            if doc[5]:  # Has file
+                                if st.button("👁️", key=f"view_{doc[0]}", help="Просмотр"):
+                                    st.session_state[f"view_document_{doc[0]}"] = True
+                                    st.rerun()
+                            
+                            if st.button("✏️", key=f"edit_{doc[0]}", help="Редактировать"):
                                 st.session_state.edit_document_id = doc[0]
                                 st.rerun()
-                        with col_delete:
-                            if st.button("🗑️", key=f"delete_doc_{doc[0]}", help="Удалить"):
+                            
+                            if st.button("🗑️", key=f"delete_{doc[0]}", help="Удалить"):
                                 delete_document(doc[0])
-                    
-                    st.divider()
+                
+                st.divider()
         else:
             st.info(get_text('no_data', language))
     
