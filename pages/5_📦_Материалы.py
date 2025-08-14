@@ -416,9 +416,6 @@ with tab3:
                     except Exception as e:
                         st.error(f"Ошибка при выдаче: {str(e)}")
 
-with tab4:
-    show_material_assignments()
-
 def show_material_assignments():
     """Show active material assignments with return/break options"""
     st.subheader("📋 Выданные материалы / Ausgegebene Materialien")
@@ -630,3 +627,7 @@ def mark_material_broken(assignment_id, is_worker_fault=True, unit_price=None, q
         
     except Exception as e:
         st.error(f"Ошибка при отметке поломки: {str(e)}")
+
+# Main interface with tabs
+with tab4:
+    show_material_assignments()
