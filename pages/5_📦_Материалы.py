@@ -167,10 +167,11 @@ def show_add_material_form():
                     try:
                         material_id = str(uuid.uuid4())
                         execute_query("""
-                            INSERT INTO materials (id, name, type, total_quantity, unit, unit_price, assigned_quantity)
-                            VALUES (:id, :name, :type, :total_quantity, :unit, :unit_price, 0)
+                            INSERT INTO materials (id, organization_id, name, type, total_quantity, unit, unit_price, assigned_quantity)
+                            VALUES (:id, :organization_id, :name, :type, :total_quantity, :unit, :unit_price, 0)
                         """, {
                             'id': material_id,
+                            'organization_id': st.session_state.get('organization_id'),
                             'name': name.strip(),
                             'type': material_type,
                             'total_quantity': total_quantity,
@@ -711,10 +712,11 @@ with tab2:
                             assignment_id = str(uuid.uuid4())
                             execute_query("""
                                 INSERT INTO material_assignments 
-                                (id, material_id, team_id, quantity, date, status, event)
-                                VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
+                                (id, organization_id, material_id, team_id, quantity, date, status, event)
+                                VALUES (:id, :organization_id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
                             """, {
                                 'id': assignment_id,
+                                'organization_id': st.session_state.get('organization_id'),
                                 'material_id': selected_material_id,
                                 'team_id': selected_team_id,
                                 'quantity': quantity,
