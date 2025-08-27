@@ -3,6 +3,7 @@ import uuid
 from database import execute_query
 from translations import get_text
 from datetime import date, datetime
+import hashlib
 from utils import upload_file
 
 # Page config
@@ -238,13 +239,18 @@ def show_add_user_form():
             if first_name and last_name:
                 try:
                     user_id = str(uuid.uuid4())
+                    # Generate default password hash (users should change this)
+                    default_password = "password123"  # Default password
+                    password_hash = hashlib.sha256(default_password.encode()).hexdigest()
+                    
                     execute_query("""
-                        INSERT INTO users (id, organization_id, email, first_name, last_name, phone, role, team_id, created_at)
-                        VALUES (:id, :organization_id, :email, :first_name, :last_name, :phone, :role, :team_id, :created_at)
+                        INSERT INTO users (id, organization_id, email, password_hash, first_name, last_name, phone, role, team_id, created_at)
+                        VALUES (:id, :organization_id, :email, :password_hash, :first_name, :last_name, :phone, :role, :team_id, :created_at)
                     """, {
                         'id': user_id,
                         'organization_id': st.session_state.get('organization_id'),
                         'email': f"{first_name.lower()}.{last_name.lower()}@organization.local",
+                        'password_hash': password_hash,
                         'first_name': first_name,
                         'last_name': last_name,
                         'phone': phone,
@@ -252,7 +258,8 @@ def show_add_user_form():
                         'team_id': team_id,
                         'created_at': datetime.now()
                     })
-                    st.success(get_text('success_save', language))
+                    st.success("✅ Пользователь создан! Email: " + f"{first_name.lower()}.{last_name.lower()}@organization.local" + " | Пароль: password123")
+                    st.info("⚠️ Пользователь должен сменить пароль при первом входе")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
