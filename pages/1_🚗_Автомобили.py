@@ -1199,9 +1199,11 @@ def show_vehicle_assignments():
     st.subheader("👥 Назначения автомобилей бригадам")
     st.info("""
     На этой странице вы можете:
-    - **🚗 Назначить** автомобиль бригаде  
-    - **📋 Просмотреть** текущие назначения
+    - **🚗 Назначить** автомобиль бригаде с выбором конкретного водителя
+    - **📋 Просмотреть** текущие назначения с информацией о водителях
     - **⏹️ Завершить** назначение автомобиля
+    
+    **Логика штрафов:** Штрафы за нарушения будут привязаны к конкретному водителю в бригаде.
     """)
     
     # Add new assignment section
@@ -1218,10 +1220,12 @@ def show_vehicle_assignments():
                 t.name as team_name,
                 va.start_date,
                 va.end_date,
-                v.photo_url
+                v.photo_url,
+                u.first_name || ' ' || u.last_name as driver_name
             FROM vehicle_assignments va
             JOIN vehicles v ON va.vehicle_id = v.id
             JOIN teams t ON va.team_id = t.id
+            LEFT JOIN users u ON va.driver_id = u.id
             WHERE va.organization_id = :organization_id
             ORDER BY va.start_date DESC
         """, {
@@ -1265,6 +1269,10 @@ def show_vehicle_assignments():
                     with col2:
                         st.write(f"**🚗 {assignment[1]}** ({assignment[2]})")
                         st.write(f"👥 Бригада: {assignment[3]}")
+                        if assignment[7]:  # driver_name
+                            st.write(f"👤 Водитель: {assignment[7]}")
+                        else:
+                            st.write("👤 Водитель: не указан")
                     
                     with col3:
                         start_date = assignment[4].strftime('%d.%m.%Y') if assignment[4] else ''
@@ -1290,9 +1298,13 @@ def show_vehicle_assignments():
         st.error(f"Ошибка загрузки назначений: {str(e)}")
 
 def show_add_assignment_form():
-    """Show form to add vehicle assignment"""
+    """Show form to add vehicle assignment with driver selection"""
+    # Initialize session state for dynamic driver loading
+    if 'selected_team_for_assignment' not in st.session_state:
+        st.session_state.selected_team_for_assignment = None
+    
     with st.form("add_assignment_form"):
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         # Get vehicles and teams for selection
         vehicles = execute_query("""
@@ -1335,12 +1347,47 @@ def show_add_assignment_form():
                 key="assign_team_id"
             )
         
-        with col3:
-            start_date = st.date_input(
-                "📅 Дата начала",
-                value=datetime.now().date(),
-                key="assign_start_date"
-            )
+        # Get drivers from selected team
+        if team_id:
+            drivers = execute_query("""
+                SELECT u.id, u.first_name, u.last_name, u.role
+                FROM users u
+                WHERE u.organization_id = :organization_id
+                AND (u.id IN (
+                    SELECT team_lead_id FROM teams WHERE id = :team_id
+                ) OR u.id IN (
+                    SELECT member_id FROM team_members WHERE team_id = :team_id
+                ))
+                ORDER BY u.first_name, u.last_name
+            """, {
+                'organization_id': st.session_state.get('organization_id'),
+                'team_id': team_id
+            })
+            
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                if drivers:
+                    driver_options = [('none', 'Не указывать водителя')] + [(str(d[0]), f"{d[1]} {d[2]} ({d[3]})") for d in drivers]
+                    driver_id = st.selectbox(
+                        "👤 Выберите водителя",
+                        options=[d[0] for d in driver_options],
+                        format_func=lambda x: next(d[1] for d in driver_options if d[0] == x),
+                        key="assign_driver_id"
+                    )
+                else:
+                    st.info("В выбранной бригаде нет пользователей")
+                    driver_id = 'none'
+            
+            with col4:
+                start_date = st.date_input(
+                    "📅 Дата начала",
+                    value=datetime.now().date(),
+                    key="assign_start_date"
+                )
+        else:
+            driver_id = 'none'
+            start_date = datetime.now().date()
         
         submitted = st.form_submit_button("✅ Назначить автомобиль", type="primary")
         
@@ -1361,22 +1408,30 @@ def show_add_assignment_form():
                 
                 # Create new assignment
                 assignment_id = str(uuid.uuid4())
+                driver_id_to_insert = driver_id if driver_id != 'none' else None
+                
                 execute_query("""
                     INSERT INTO vehicle_assignments 
-                    (id, organization_id, vehicle_id, team_id, start_date)
-                    VALUES (:id, :organization_id, :vehicle_id, :team_id, :start_date)
+                    (id, organization_id, vehicle_id, team_id, driver_id, start_date)
+                    VALUES (:id, :organization_id, :vehicle_id, :team_id, :driver_id, :start_date)
                 """, {
                     'id': assignment_id,
                     'organization_id': st.session_state.get('organization_id'),
                     'vehicle_id': vehicle_id,
                     'team_id': team_id,
+                    'driver_id': driver_id_to_insert,
                     'start_date': start_date
                 })
                 
                 vehicle_name = next(v[1] for v in vehicle_options if v[0] == vehicle_id)
                 team_name = next(t[1] for t in team_options if t[0] == team_id)
                 
-                st.success(f"✅ Автомобиль **{vehicle_name}** назначен бригаде **{team_name}** с {start_date.strftime('%d.%m.%Y')}")
+                if driver_id_to_insert:
+                    driver_name = next(d[1] for d in driver_options if d[0] == driver_id).split(' (')[0]
+                    st.success(f"✅ Автомобиль **{vehicle_name}** назначен бригаде **{team_name}** (водитель: **{driver_name}**) с {start_date.strftime('%d.%m.%Y')}")
+                else:
+                    st.success(f"✅ Автомобиль **{vehicle_name}** назначен бригаде **{team_name}** (без указания водителя) с {start_date.strftime('%d.%m.%Y')}")
+                
                 st.rerun()
             except Exception as e:
                 st.error(f"Ошибка назначения: {str(e)}")

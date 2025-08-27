@@ -10,6 +10,23 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 27, 2025)
 
+### Vehicle Assignment System with Driver Selection (August 27, 2025)
+- Enhanced vehicle assignments to include specific driver selection from team members
+- Added driver_id column to vehicle_assignments table for tracking assigned drivers
+- Updated assignment interface to show three-step selection: vehicle → team → driver
+- Implemented driver display in assignment listings with "not specified" fallback
+- Enhanced assignment form with dynamic driver loading based on selected team
+- Prepared foundation for driver-specific penalty tracking for traffic violations
+- Added comprehensive driver information display in assignment management interface
+
+### Two-Stage Equipment Return Process (August 27, 2025)
+- Implemented two-stage equipment return workflow: mark for return → confirm return
+- Added 'pending_return' status to material_status enum for intermediate state
+- Created three-tab interface: "In Use", "Pending Confirmation", "Return History"
+- Equipment marked for return remains visible until explicit confirmation as returned/broken
+- Enhanced user experience with clear process explanation and visual status indicators
+- Maintained automatic penalty creation for broken equipment after confirmation
+
 ### Multi-Tenant Authentication System (August 27, 2025)
 - Implemented complete user registration and authentication system with organization-based data separation
 - Added organizations table as the foundation for multi-tenancy architecture
