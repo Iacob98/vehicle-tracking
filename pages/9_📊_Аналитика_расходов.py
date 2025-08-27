@@ -289,7 +289,7 @@ def show_team_analytics():
     
     # Get team statistics with simplified query
     try:
-        # First get team penalties (only real driving/violation penalties, not equipment damage)
+        # Get team penalties - все штрафы в таблице penalties = дорожные нарушения
         penalties_data = execute_query("""
             SELECT 
                 t.id,
@@ -299,11 +299,15 @@ def show_team_analytics():
             FROM teams t
             LEFT JOIN penalties p ON t.id = p.team_id 
                 AND p.date BETWEEN :date_from AND :date_to
-                AND p.description NOT LIKE 'Поломка%'  -- Exclude equipment damage penalties
+            WHERE t.organization_id = :organization_id
             GROUP BY t.id, t.name
-        """, {'date_from': date_from, 'date_to': date_to})
+        """, {
+            'date_from': date_from, 
+            'date_to': date_to,
+            'organization_id': st.session_state.get('organization_id')
+        })
         
-        # Then get team materials
+        # Get team materials data
         materials_data = execute_query("""
             SELECT 
                 t.id,
@@ -316,8 +320,13 @@ def show_team_analytics():
             LEFT JOIN material_assignments ma ON t.id = ma.team_id 
                 AND ma.date BETWEEN :date_from AND :date_to
             LEFT JOIN materials m ON ma.material_id = m.id
+            WHERE t.organization_id = :organization_id
             GROUP BY t.id, t.name
-        """, {'date_from': date_from, 'date_to': date_to})
+        """, {
+            'date_from': date_from, 
+            'date_to': date_to,
+            'organization_id': st.session_state.get('organization_id')
+        })
         
         # Combine the data
         team_stats = []
@@ -659,22 +668,19 @@ st.info("""
 from decimal import Decimal
 
 def get_penalty_statistics():
-    """Get comprehensive penalty statistics"""
+    """Get comprehensive penalty statistics - ИСПРАВЛЕНО"""
     return execute_query("""
         SELECT 
             p.id,
             p.amount,
             p.date,
-            p.description,
+            COALESCE(p.description, '') as description,
             p.status,
-            t.name as team_name,
+            COALESCE(t.name, 'Бригада не указана') as team_name,
             COALESCE(u.first_name || ' ' || u.last_name, 'Водитель не указан') as user_name,
-            CASE 
-                WHEN p.description LIKE '%Поломка оборудования%' THEN 'equipment_damage'
-                ELSE 'traffic_violation'
-            END as penalty_type
+            'traffic_violation' as penalty_type
         FROM penalties p
-        JOIN teams t ON p.team_id = t.id
+        LEFT JOIN teams t ON p.team_id = t.id
         LEFT JOIN users u ON p.user_id = u.id
         WHERE p.organization_id = :organization_id
         ORDER BY p.date DESC
@@ -683,19 +689,19 @@ def get_penalty_statistics():
     })
 
 def get_user_penalty_summary():
-    """Get penalty summary by user - using direct user_id link"""
+    """Get penalty summary by user - ИСПРАВЛЕНО с LEFT JOIN"""
     return execute_query("""
         SELECT 
             u.first_name || ' ' || u.last_name as user_name,
             u.role,
-            t.name as team_name,
+            COALESCE(t.name, 'Без бригады') as team_name,
             COUNT(p.id) as total_penalties,
-            COALESCE(SUM(CASE WHEN p.description LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as equipment_costs,
-            COALESCE(SUM(CASE WHEN p.description NOT LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as traffic_fines,
+            0 as equipment_costs,
+            COALESCE(SUM(p.amount), 0) as traffic_fines,
             COALESCE(SUM(p.amount), 0) as total_amount
         FROM penalties p
         JOIN users u ON p.user_id = u.id
-        JOIN teams t ON p.team_id = t.id
+        LEFT JOIN teams t ON p.team_id = t.id
         WHERE p.organization_id = :organization_id
         AND p.user_id IS NOT NULL
         GROUP BY u.id, u.first_name, u.last_name, u.role, t.name
@@ -716,8 +722,8 @@ def show_penalty_overview():
     
     # Calculate totals
     total_amount = sum(float(p[1]) for p in penalties)
-    equipment_costs = sum(float(p[1]) for p in penalties if p[3] and 'Поломка оборудования' in p[3])
-    traffic_fines = sum(float(p[1]) for p in penalties if not p[3] or 'Поломка оборудования' not in p[3])
+    equipment_costs = 0  # Поломки оборудования отслеживаются через material_assignments
+    traffic_fines = sum(float(p[1]) for p in penalties)  # Все штрафы = нарушения ПДД
     open_penalties = len([p for p in penalties if p[4] == 'open'])
     paid_penalties = len([p for p in penalties if p[4] == 'paid'])
     

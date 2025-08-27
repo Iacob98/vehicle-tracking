@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; }
+      .table { fill: #f8f9fa; stroke: #343a40; stroke-width: 2; }
+      .header { fill: #007bff; }
+      .text { font-family: Arial, sans-serif; font-size: 12px; fill: #343a40; }
+      .header-text { font-family: Arial, sans-serif; font-size: 12px; fill: white; font-weight: bold; }
+      .relationship { stroke: #dc3545; stroke-width: 2; marker-end: url(#arrow); }
+      .key { fill: #ffc107; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#dc3545"/>
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" class="title">Структура данных флот-менеджмента</text>
+  
+  <!-- Organizations (Root) -->
+  <rect x="500" y="50" width="200" height="80" class="table"/>
+  <rect x="500" y="50" width="200" height="25" class="header"/>
+  <text x="600" y="68" text-anchor="middle" class="header-text">ORGANIZATIONS</text>
+  <text x="510" y="85" class="text">🔑 id (UUID)</text>
+  <text x="510" y="100" class="text">📋 name</text>
+  <text x="510" y="115" class="text">📅 created_at</text>
+  
+  <!-- Teams -->
+  <rect x="50" y="200" width="200" height="100" class="table"/>
+  <rect x="50" y="200" width="200" height="25" class="header"/>
+  <text x="150" y="218" text-anchor="middle" class="header-text">TEAMS</text>
+  <text x="60" y="235" class="text">🔑 id (UUID)</text>
+  <text x="60" y="250" class="text">📋 name</text>
+  <text x="60" y="265" class="text">👑 lead_id → users.id</text>
+  <text x="60" y="280" class="text">🏢 organization_id</text>
+  <text x="60" y="295" class="text">📅 created_at</text>
+  
+  <!-- Users -->
+  <rect x="300" y="200" width="200" height="140" class="table"/>
+  <rect x="300" y="200" width="200" height="25" class="header"/>
+  <text x="400" y="218" text-anchor="middle" class="header-text">USERS</text>
+  <text x="310" y="235" class="text">🔑 id (UUID)</text>
+  <text x="310" y="250" class="text">👤 first_name, last_name</text>
+  <text x="310" y="265" class="text">📧 email</text>
+  <text x="310" y="280" class="text">👥 team_id → teams.id</text>
+  <text x="310" y="295" class="text">🎭 role (admin/manager/team_lead/worker)</text>
+  <text x="310" y="310" class="text">🏢 organization_id</text>
+  <text x="310" y="325" class="text">📅 created_at</text>
+  
+  <!-- Vehicles -->
+  <rect x="550" y="200" width="200" height="120" class="table"/>
+  <rect x="550" y="200" width="200" height="25" class="header"/>
+  <text x="650" y="218" text-anchor="middle" class="header-text">VEHICLES</text>
+  <text x="560" y="235" class="text">🔑 id (UUID)</text>
+  <text x="560" y="250" class="text">🚗 name, model, year</text>
+  <text x="560" y="265" class="text">🔢 license_plate, vin</text>
+  <text x="560" y="280" class="text">📸 photo_url</text>
+  <text x="560" y="295" class="text">🏢 organization_id</text>
+  <text x="560" y="310" class="text">📅 created_at</text>
+  
+  <!-- Materials -->
+  <rect x="800" y="200" width="200" height="120" class="table"/>
+  <rect x="800" y="200" width="200" height="25" class="header"/>
+  <text x="900" y="218" text-anchor="middle" class="header-text">MATERIALS</text>
+  <text x="810" y="235" class="text">🔑 id (UUID)</text>
+  <text x="810" y="250" class="text">📦 name, type, unit</text>
+  <text x="810" y="265" class="text">💰 unit_price</text>
+  <text x="810" y="280" class="text">📊 total_quantity, assigned_quantity</text>
+  <text x="810" y="295" class="text">🏢 organization_id</text>
+  <text x="810" y="310" class="text">📅 created_at</text>
+  
+  <!-- PENALTIES (центральная таблица) -->
+  <rect x="300" y="400" width="250" height="160" class="table"/>
+  <rect x="300" y="400" width="250" height="25" class="header"/>
+  <text x="425" y="418" text-anchor="middle" class="header-text">PENALTIES ⭐</text>
+  <text x="310" y="435" class="text">🔑 id (UUID)</text>
+  <text x="310" y="450" class="text">💰 amount</text>
+  <text x="310" y="465" class="text">📅 date</text>
+  <text x="310" y="480" class="text">📝 description</text>
+  <text x="310" y="495" class="text">📸 photo_url</text>
+  <text x="310" y="510" class="text">🚗 vehicle_id → vehicles.id</text>
+  <text x="310" y="525" class="text">👥 team_id → teams.id</text>
+  <text x="310" y="540" class="text">👤 user_id → users.id</text>
+  <text x="310" y="555" class="text">🏢 organization_id</text>
+  
+  <!-- Vehicle Assignments -->
+  <rect x="600" y="400" width="220" height="140" class="table"/>
+  <rect x="600" y="400" width="220" height="25" class="header"/>
+  <text x="710" y="418" text-anchor="middle" class="header-text">VEHICLE_ASSIGNMENTS</text>
+  <text x="610" y="435" class="text">🔑 id (UUID)</text>
+  <text x="610" y="450" class="text">🚗 vehicle_id → vehicles.id</text>
+  <text x="610" y="465" class="text">👥 team_id → teams.id</text>
+  <text x="610" y="480" class="text">👤 driver_id → users.id</text>
+  <text x="610" y="495" class="text">📅 start_date, end_date</text>
+  <text x="610" y="510" class="text">🏢 organization_id</text>
+  <text x="610" y="525" class="text">📅 created_at</text>
+  
+  <!-- Material Assignments -->
+  <rect x="850" y="400" width="220" height="140" class="table"/>
+  <rect x="850" y="400" width="220" height="25" class="header"/>
+  <text x="960" y="418" text-anchor="middle" class="header-text">MATERIAL_ASSIGNMENTS</text>
+  <text x="860" y="435" class="text">🔑 id (UUID)</text>
+  <text x="860" y="450" class="text">📦 material_id → materials.id</text>
+  <text x="860" y="465" class="text">👥 team_id → teams.id</text>
+  <text x="860" y="480" class="text">📊 quantity, event</text>
+  <text x="860" y="495" class="text">📅 date</text>
+  <text x="860" y="510" class="text">📝 notes, status</text>
+  <text x="860" y="525" class="text">🏢 organization_id</text>
+  
+  <!-- Car Expenses -->
+  <rect x="50" y="400" width="200" height="120" class="table"/>
+  <rect x="50" y="400" width="200" height="25" class="header"/>
+  <text x="150" y="418" text-anchor="middle" class="header-text">CAR_EXPENSES</text>
+  <text x="60" y="435" class="text">🔑 id (UUID)</text>
+  <text x="60" y="450" class="text">🚗 vehicle_id → vehicles.id</text>
+  <text x="60" y="465" class="text">💰 amount, category</text>
+  <text x="60" y="480" class="text">📅 date</text>
+  <text x="60" y="495" class="text">📝 description</text>
+  <text x="60" y="510" class="text">🏢 organization_id</text>
+  
+  <!-- Relationships -->
+  <!-- Organization to all tables -->
+  <line x1="600" y1="130" x2="150" y2="200" class="relationship"/>
+  <line x1="600" y1="130" x2="400" y2="200" class="relationship"/>
+  <line x1="600" y1="130" x2="650" y2="200" class="relationship"/>
+  <line x1="600" y1="130" x2="900" y2="200" class="relationship"/>
+  
+  <!-- Teams to Users -->
+  <line x1="250" y1="250" x2="300" y2="280" class="relationship"/>
+  
+  <!-- Users to Penalties -->
+  <line x1="400" y1="340" x2="425" y2="400" class="relationship"/>
+  
+  <!-- Teams to Penalties -->
+  <line x1="200" y1="300" x2="350" y2="400" class="relationship"/>
+  
+  <!-- Vehicles to Penalties -->
+  <line x1="620" y1="320" x2="500" y2="400" class="relationship"/>
+  
+  <!-- Legend -->
+  <rect x="50" y="600" width="300" height="160" class="table"/>
+  <rect x="50" y="600" width="300" height="25" class="header"/>
+  <text x="200" y="618" text-anchor="middle" class="header-text">ЛЕГЕНДА</text>
+  <text x="60" y="635" class="text">🔑 Первичный ключ (Primary Key)</text>
+  <text x="60" y="650" class="text">👥 Связь с таблицей (Foreign Key)</text>
+  <text x="60" y="665" class="text">⭐ Центральная таблица штрафов</text>
+  <text x="60" y="680" class="text">🏢 Мультитенантность (Organization ID)</text>
+  <text x="60" y="695" class="text">📅 Временные метки</text>
+  <text x="60" y="710" class="text">💰 Финансовые данные</text>
+  <text x="60" y="725" class="text">📸 Файлы и документы</text>
+  <text x="60" y="740" class="text">📝 Текстовые описания</text>
+  
+  <!-- Problem Areas -->
+  <rect x="600" y="600" width="350" height="160" class="table"/>
+  <rect x="600" y="600" width="350" height="25" fill="#dc3545"/>
+  <text x="775" y="618" text-anchor="middle" class="header-text">ПРОБЛЕМЫ В АНАЛИТИКЕ</text>
+  <text x="610" y="635" class="text">❌ Штрафы могут быть без team_id</text>
+  <text x="610" y="650" class="text">❌ Description может быть пустым</text>
+  <text x="610" y="665" class="text">❌ Логика "Поломка оборудования" неточная</text>
+  <text x="610" y="680" class="text">❌ JOIN исключает штрафы без команды</text>
+  <text x="610" y="695" class="text">✅ Нужно использовать LEFT JOIN</text>
+  <text x="610" y="710" class="text">✅ Проверять description IS NOT NULL</text>
+  <text x="610" y="725" class="text">✅ Все штрафы = traffic violations</text>
+  <text x="610" y="740" class="text">✅ Поломки = через material_assignments</text>
+  
+</svg>
