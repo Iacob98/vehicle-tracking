@@ -318,6 +318,11 @@ def show_material_assignments():
     
     try:
         # Get active assignments
+        user_info = st.session_state.get('user_info')
+        if not user_info:
+            st.error("Не авторизован")
+            return
+            
         assignments = execute_query("""
             SELECT 
                 ma.id::text,
@@ -331,9 +336,9 @@ def show_material_assignments():
             FROM material_assignments ma
             JOIN materials m ON ma.material_id = m.id
             JOIN teams t ON ma.team_id = t.id
-            WHERE ma.status = 'active'
+            WHERE ma.status = 'active' AND ma.organization_id = %s
             ORDER BY ma.date DESC
-        """)
+        """, (user_info['organization_id'],))
         
         if assignments:
             # Summary statistics
@@ -424,12 +429,14 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
         }
         
         # Update assignment status
+        user_info = st.session_state.get('user_info')
         execute_query("""
             UPDATE material_assignments 
             SET status = :status, event = :event
-            WHERE id = :id
+            WHERE id = :id AND organization_id = :organization_id
         """, {
             'id': assignment_id,
+            'organization_id': user_info['organization_id'],
             'status': new_status,
             'event': event_mapping.get(new_status, 'assigned')
         })
@@ -442,7 +449,8 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     UPDATE materials 
                     SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity
                     WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
-                """, {'quantity': quantity, 'assignment_id': assignment_id})
+                      AND organization_id = :organization_id
+                """, {'quantity': quantity, 'assignment_id': assignment_id, 'organization_id': user_info['organization_id']})
                 st.success(f"✅ {material_name} возвращено в инвентарь ({quantity} ед.)")
                 
             elif new_status == 'broken':
@@ -452,7 +460,8 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     SET assigned_quantity = COALESCE(assigned_quantity, 0) - :quantity,
                         total_quantity = total_quantity - :quantity
                     WHERE id = (SELECT material_id FROM material_assignments WHERE id = :assignment_id)
-                """, {'quantity': quantity, 'assignment_id': assignment_id})
+                      AND organization_id = :organization_id
+                """, {'quantity': quantity, 'assignment_id': assignment_id, 'organization_id': user_info['organization_id']})
                 
                 # Create penalty for broken equipment
                 if unit_price:
@@ -460,15 +469,16 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     penalty_id = str(uuid.uuid4())
                     
                     team_id = execute_query(
-                        "SELECT team_id FROM material_assignments WHERE id = :id", 
-                        {'id': assignment_id}
+                        "SELECT team_id FROM material_assignments WHERE id = :id AND organization_id = :organization_id", 
+                        {'id': assignment_id, 'organization_id': user_info['organization_id']}
                     )[0][0]
                     
                     execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
-                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                        INSERT INTO penalties (id, organization_id, team_id, amount, description, date, status, created_at)
+                        VALUES (:id, :organization_id, :team_id, :amount, :description, :date, 'open', :created_at)
                     """, {
                         'id': penalty_id,
+                        'organization_id': user_info['organization_id'],
                         'team_id': team_id,
                         'amount': penalty_amount,
                         'description': f'Поломка оборудования: {material_name} ({quantity} ед.)',
@@ -490,15 +500,16 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     penalty_id = str(uuid.uuid4())
                     
                     team_id = execute_query(
-                        "SELECT team_id FROM material_assignments WHERE id = :id", 
-                        {'id': assignment_id}
+                        "SELECT team_id FROM material_assignments WHERE id = :id AND organization_id = :organization_id", 
+                        {'id': assignment_id, 'organization_id': user_info['organization_id']}
                     )[0][0]
                     
                     execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
-                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                        INSERT INTO penalties (id, organization_id, team_id, amount, description, date, status, created_at)
+                        VALUES (:id, :organization_id, :team_id, :amount, :description, :date, 'open', :created_at)
                     """, {
                         'id': penalty_id,
+                        'organization_id': user_info['organization_id'],
                         'team_id': team_id,
                         'amount': penalty_amount,
                         'description': f'Поломка материала: {material_name} ({quantity} ед.)',
@@ -541,6 +552,15 @@ def show_material_history():
         if status_filter != 'all':
             where_clause += " AND ma.status = :status"
             params['status'] = status_filter
+        
+        user_info = st.session_state.get('user_info')
+        if not user_info:
+            st.error("Не авторизован")
+            return
+            
+        # Add organization filter
+        if where_clause == "WHERE ma.status != 'active'":
+            where_clause += f" AND ma.organization_id = '{user_info['organization_id']}'"
         
         history = execute_query(f"""
             SELECT 
@@ -682,7 +702,7 @@ with tab2:
         
         with col2:
             # Team selection
-            teams = execute_query("SELECT id::text, name FROM teams ORDER BY name")
+            teams = execute_query("SELECT id::text, name FROM teams WHERE organization_id = %s ORDER BY name", (user_info['organization_id'],))
             if teams and selected_material_id:
                 team_options = [t[0] for t in teams]
                 team_labels = [t[1] for t in teams]
@@ -709,8 +729,8 @@ with tab2:
                     material_info = execute_query("""
                         SELECT type, total_quantity, assigned_quantity, name
                         FROM materials 
-                        WHERE id = :id
-                    """, {'id': selected_material_id})
+                        WHERE id = :id AND organization_id = :organization_id
+                    """, {'id': selected_material_id, 'organization_id': user_info['organization_id']})
                     
                     if not material_info:
                         st.error("Материал не найден")
@@ -731,10 +751,11 @@ with tab2:
                             assignment_id = str(uuid.uuid4())
                             execute_query("""
                                 INSERT INTO material_assignments 
-                                (id, material_id, team_id, quantity, date, status, event)
-                                VALUES (:id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
+                                (id, organization_id, material_id, team_id, quantity, date, status, event)
+                                VALUES (:id, :organization_id, :material_id, :team_id, :quantity, :date, 'active', 'assigned')
                             """, {
                                 'id': assignment_id,
+                                'organization_id': user_info['organization_id'],
                                 'material_id': selected_material_id,
                                 'team_id': selected_team_id,
                                 'quantity': quantity,
@@ -747,16 +768,16 @@ with tab2:
                                 execute_query("""
                                     UPDATE materials 
                                     SET total_quantity = total_quantity - :quantity 
-                                    WHERE id = :id
-                                """, {'id': selected_material_id, 'quantity': quantity})
+                                    WHERE id = :id AND organization_id = :organization_id
+                                """, {'id': selected_material_id, 'quantity': quantity, 'organization_id': user_info['organization_id']})
                                 st.success(f"✅ Материал '{material_name}' выдан (списано {quantity} ед.)")
                             else:
                                 # Equipment: increase assigned quantity
                                 execute_query("""
                                     UPDATE materials 
                                     SET assigned_quantity = COALESCE(assigned_quantity, 0) + :quantity 
-                                    WHERE id = :id
-                                """, {'id': selected_material_id, 'quantity': quantity})
+                                    WHERE id = :id AND organization_id = :organization_id
+                                """, {'id': selected_material_id, 'quantity': quantity, 'organization_id': user_info['organization_id']})
                                 st.success(f"✅ Оборудование '{material_name}' выдано (в использовании {quantity} ед.)")
                             
                             get_materials_cached.clear()  # Clear cache
