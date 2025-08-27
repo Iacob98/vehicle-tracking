@@ -39,17 +39,17 @@ def get_vehicle_expense_statistics(date_from=None, date_to=None):
                 AVG(ce.amount) as avg_expense,
                 MAX(ce.amount) as max_expense,
                 MIN(ce.amount) as min_expense,
-                ce.expense_category,
-                COUNT(CASE WHEN ce.expense_category = 'fuel' THEN 1 END) as fuel_count,
-                COUNT(CASE WHEN ce.expense_category = 'repair' THEN 1 END) as repair_count,
-                COUNT(CASE WHEN ce.expense_category = 'maintenance' THEN 1 END) as maintenance_count,
-                SUM(CASE WHEN ce.expense_category = 'fuel' THEN ce.amount ELSE 0 END) as fuel_total,
-                SUM(CASE WHEN ce.expense_category = 'repair' THEN ce.amount ELSE 0 END) as repair_total,
-                SUM(CASE WHEN ce.expense_category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_total
+                ce.category,
+                COUNT(CASE WHEN ce.category = 'fuel' THEN 1 END) as fuel_count,
+                COUNT(CASE WHEN ce.category = 'repair' THEN 1 END) as repair_count,
+                COUNT(CASE WHEN ce.category = 'maintenance' THEN 1 END) as maintenance_count,
+                SUM(CASE WHEN ce.category = 'fuel' THEN ce.amount ELSE 0 END) as fuel_total,
+                SUM(CASE WHEN ce.category = 'repair' THEN ce.amount ELSE 0 END) as repair_total,
+                SUM(CASE WHEN ce.category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_total
             FROM vehicles v
-            LEFT JOIN car_expenses ce ON v.id = ce.car_id
+            LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id
             {where_clause}
-            GROUP BY v.id, v.name, v.license_plate, ce.expense_category
+            GROUP BY v.id, v.name, v.license_plate, ce.category
             HAVING SUM(ce.amount) > 0
             ORDER BY total_amount DESC
         """

@@ -153,17 +153,17 @@ def show_add_expense_form():
                     expense_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO car_expenses 
-                        (id, organization_id, car_id, category, amount, date, description, file_url)
-                        VALUES (:id, :organization_id, :car_id, :category, :amount, :date, :description, :file_url)
+                        (id, organization_id, vehicle_id, category, amount, date, description, receipt_url)
+                        VALUES (:id, :organization_id, :vehicle_id, :category, :amount, :date, :description, :receipt_url)
                     """, {
                         'id': expense_id,
                         'organization_id': st.session_state.get('organization_id'),
-                        'car_id': vehicle_id,
+                        'vehicle_id': vehicle_id,
                         'category': category,
                         'amount': amount,
                         'date': expense_date,
                         'description': description if description else None,
-                        'file_url': file_url
+                        'receipt_url': file_url
                     })
                     st.success(get_text('success_save', language))
                     get_car_expenses_cached.clear()  # Clear cache
@@ -273,18 +273,18 @@ def show_edit_expense_form(expense_id):
                             
                             execute_query("""
                                 UPDATE car_expenses 
-                                SET car_id = :car_id, date = :date, category = :category, 
-                                    amount = :amount, description = :description, file_url = :file_url
+                                SET vehicle_id = :vehicle_id, date = :date, category = :category, 
+                                    amount = :amount, description = :description, receipt_url = :receipt_url
                                 WHERE id = :id AND organization_id = :organization_id
                             """, {
                                 'id': expense_id,
                                 'organization_id': st.session_state.get('organization_id'),
-                                'car_id': vehicle_id,
+                                'vehicle_id': vehicle_id,
                                 'date': expense_date,
                                 'category': category,
                                 'amount': amount,
                                 'description': description if description else None,
-                                'file_url': file_url
+                                'receipt_url': file_url
                             })
                             st.success("Расход обновлен / Ausgabe aktualisiert")
                             get_car_expenses_cached.clear()  # Clear cache
