@@ -4,6 +4,7 @@ from datetime import date, datetime
 from database import execute_query
 from translations import get_text
 from utils import format_currency
+from auth import require_auth, show_org_header
 
 # Page config
 st.set_page_config(
@@ -12,12 +13,24 @@ st.set_page_config(
     layout="wide"
 )
 
+# Check authentication
+user_info = require_auth()
+if not user_info:
+    st.stop()
+
+# Show organization header
+show_org_header()
+
 # Language from session state
 language = st.session_state.get('language', 'ru')
 
 @st.cache_data(ttl=300)
 def get_materials_cached():
     """Get materials with caching"""
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        return []
+    
     results = execute_query("""
         SELECT 
             m.id::text,
@@ -28,8 +41,9 @@ def get_materials_cached():
             m.unit_price,
             COALESCE(m.assigned_quantity, 0) as assigned_quantity
         FROM materials m
+        WHERE m.organization_id = %s
         ORDER BY m.name
-    """)
+    """, (user_info['organization_id'],))
     return results
 
 def show_materials_list():
@@ -167,10 +181,11 @@ def show_add_material_form():
                     try:
                         material_id = str(uuid.uuid4())
                         execute_query("""
-                            INSERT INTO materials (id, name, type, total_quantity, unit, unit_price, assigned_quantity)
-                            VALUES (:id, :name, :type, :total_quantity, :unit, :unit_price, 0)
+                            INSERT INTO materials (id, organization_id, name, type, total_quantity, unit, unit_price, assigned_quantity)
+                            VALUES (:id, :organization_id, :name, :type, :total_quantity, :unit, :unit_price, 0)
                         """, {
                             'id': material_id,
+                            'organization_id': user_info['organization_id'],
                             'name': name.strip(),
                             'type': material_type,
                             'total_quantity': total_quantity,
@@ -199,8 +214,8 @@ def show_edit_material_form(material_id):
         # Get current material data
         material_data = execute_query("""
             SELECT id::text, name, type, total_quantity, unit, unit_price
-            FROM materials WHERE id = :id
-        """, {'id': material_id})
+            FROM materials WHERE id = :id AND organization_id = :organization_id
+        """, {'id': material_id, 'organization_id': user_info['organization_id']})
         
         if not material_data:
             st.error("Материал не найден")
@@ -250,13 +265,14 @@ def show_edit_material_form(material_id):
                                 UPDATE materials 
                                 SET name = :name, type = :type, total_quantity = :total_quantity,
                                     unit = :unit, unit_price = :unit_price
-                                WHERE id = :id
+                                WHERE id = :id AND organization_id = :organization_id
                             """, {
                                 'id': material_id,
+                                'organization_id': user_info['organization_id'],
                                 'name': name.strip(),
                                 'type': material_type,
                                 'total_quantity': total_quantity,
-                                'unit': unit.strip() if unit.strip() else 'шт.',
+                                'unit': unit.strip() if unit.strip() else 'шt.',
                                 'unit_price': unit_price if unit_price > 0 else None
                             })
                             
@@ -285,7 +301,11 @@ def show_edit_material_form(material_id):
 def delete_material(material_id):
     """Delete material"""
     try:
-        execute_query("DELETE FROM materials WHERE id = :id", {'id': material_id})
+        user_info = st.session_state.get('user_info')
+        execute_query("DELETE FROM materials WHERE id = :id AND organization_id = :organization_id", {
+            'id': material_id,
+            'organization_id': user_info['organization_id']
+        })
         st.success(get_text('success_delete', language))
         get_materials_cached.clear()  # Clear cache
         st.rerun()

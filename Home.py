@@ -61,11 +61,16 @@ try:
     # Key metrics - cached for performance
     @st.cache_data(ttl=60)
     def get_metrics():
-        vehicles_count = execute_query("SELECT COUNT(*) FROM vehicles")[0][0]
-        teams_count = execute_query("SELECT COUNT(*) FROM teams")[0][0]
-        users_count = execute_query("SELECT COUNT(*) FROM users")[0][0]
+        user_info = st.session_state.get('user_info')
+        if not user_info:
+            return 0, 0, 0, 0
+        
+        org_id = user_info['organization_id']
+        vehicles_count = execute_query("SELECT COUNT(*) FROM vehicles WHERE organization_id = %s", (org_id,))[0][0]
+        teams_count = execute_query("SELECT COUNT(*) FROM teams WHERE organization_id = %s", (org_id,))[0][0]
+        users_count = execute_query("SELECT COUNT(*) FROM users WHERE organization_id = %s", (org_id,))[0][0]
         open_penalties = execute_query(
-            "SELECT COUNT(*) FROM penalties WHERE status = 'open' AND (description IS NULL OR description NOT LIKE '%Поломка материала%')"
+            "SELECT COUNT(*) FROM penalties WHERE status = 'open' AND organization_id = %s AND (description IS NULL OR description NOT LIKE '%Поломка материала%')", (org_id,)
         )[0][0]
         return vehicles_count, teams_count, users_count, open_penalties
     
@@ -109,12 +114,17 @@ try:
         
         @st.cache_data(ttl=300)
         def get_vehicle_status():
+            user_info = st.session_state.get('user_info')
+            if not user_info:
+                return []
+            
             return execute_query("""
                 SELECT status, COUNT(*) as count 
                 FROM vehicles 
+                WHERE organization_id = %s
                 GROUP BY status
                 ORDER BY count DESC
-            """)
+            """, (user_info['organization_id'],))
         
         vehicle_status_data = get_vehicle_status()
         
@@ -140,6 +150,11 @@ try:
         
         @st.cache_data(ttl=300)
         def get_monthly_expenses():
+            user_info = st.session_state.get('user_info')
+            if not user_info:
+                return []
+            
+            org_id = user_info['organization_id']
             six_months_ago = datetime.now() - timedelta(days=180)
             return execute_query("""
                 SELECT 
@@ -150,7 +165,7 @@ try:
                         DATE_TRUNC('month', date) as month,
                         SUM(amount) as total_amount
                     FROM car_expenses 
-                    WHERE date >= :six_months_ago
+                    WHERE date >= %s AND organization_id = %s
                     GROUP BY DATE_TRUNC('month', date)
                     
                     UNION ALL
@@ -159,12 +174,12 @@ try:
                         DATE_TRUNC('month', date) as month,
                         SUM(amount) as total_amount
                     FROM penalties 
-                    WHERE date >= :six_months_ago
+                    WHERE date >= %s AND organization_id = %s
                     GROUP BY DATE_TRUNC('month', date)
                 ) combined_expenses
                 GROUP BY month
                 ORDER BY month
-            """, {'six_months_ago': six_months_ago.date()})
+            """, (six_months_ago.date(), org_id, six_months_ago.date(), org_id))
         
         monthly_expenses = get_monthly_expenses()
         
@@ -190,6 +205,11 @@ try:
     
     @st.cache_data(ttl=300)
     def get_team_stats():
+        user_info = st.session_state.get('user_info')
+        if not user_info:
+            return []
+        
+        org_id = user_info['organization_id']
         return execute_query("""
             SELECT 
                 t.name,
@@ -197,11 +217,12 @@ try:
                 COUNT(DISTINCT u.id) as users_count,
                 COALESCE(SUM(p.amount), 0) as total_expenses
             FROM teams t
-            LEFT JOIN users u ON t.id = u.team_id
-            LEFT JOIN penalties p ON t.id = p.team_id
+            LEFT JOIN users u ON t.id = u.team_id AND u.organization_id = %s
+            LEFT JOIN penalties p ON t.id = p.team_id AND p.organization_id = %s
+            WHERE t.organization_id = %s
             GROUP BY t.id, t.name
             ORDER BY t.name
-        """)
+        """, (org_id, org_id, org_id))
     
     team_stats = get_team_stats()
     
