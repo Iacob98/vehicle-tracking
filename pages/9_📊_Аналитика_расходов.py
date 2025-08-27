@@ -200,7 +200,7 @@ def show_vehicle_analytics():
         
         category_totals = {}
         for i, cat in enumerate(categories):
-            category_totals[category_names[i]] = sum(float(v[5 + i]) if v[5 + i] is not None else 0 for v in vehicle_stats)
+            category_totals[category_names[i]] = sum(float(v[7 + i]) if v[7 + i] is not None else 0 for v in vehicle_stats)
         
         # Pie chart for expense categories
         fig_pie = px.pie(
