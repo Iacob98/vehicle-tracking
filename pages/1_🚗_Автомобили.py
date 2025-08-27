@@ -1353,9 +1353,7 @@ def show_add_assignment_form():
                 SELECT u.id, u.first_name, u.last_name, u.role
                 FROM users u
                 WHERE u.organization_id = :organization_id
-                AND (u.id IN (
-                    SELECT member_id FROM team_members WHERE team_id = :team_id
-                ) OR u.id IN (
+                AND (u.team_id = :team_id OR u.id = (
                     SELECT lead_id FROM teams WHERE id = :team_id AND lead_id IS NOT NULL
                 ))
                 ORDER BY u.first_name, u.last_name

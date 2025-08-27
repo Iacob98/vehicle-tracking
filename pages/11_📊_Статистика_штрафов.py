@@ -75,13 +75,13 @@ def get_user_penalty_summary():
             COALESCE(SUM(CASE WHEN p.description NOT LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as traffic_fines,
             COALESCE(SUM(p.amount), 0) as total_amount
         FROM users u
-        JOIN team_members tm ON u.id = tm.member_id
-        JOIN teams t ON tm.team_id = t.id
+        LEFT JOIN teams t ON u.team_id = t.id
         LEFT JOIN vehicle_assignments va ON va.driver_id = u.id
         LEFT JOIN penalties p ON p.team_id = t.id 
             AND va.start_date <= p.date 
             AND (va.end_date IS NULL OR va.end_date >= p.date)
         WHERE u.organization_id = :organization_id
+        AND t.id IS NOT NULL
         GROUP BY u.id, u.first_name, u.last_name, u.role, t.name
         HAVING COUNT(p.id) > 0
         ORDER BY total_amount DESC
