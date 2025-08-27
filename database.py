@@ -57,7 +57,14 @@ def execute_query(query, params=None):
 def init_db():
     """Initialize database with simple approach"""
     try:
-        # Use autocommit for individual DDL statements
+        # Check if database is already initialized
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'organizations'"))
+            if result.scalar() > 0:
+                print("Database already initialized")
+                return True
+        
+        # Use autocommit for individual DDL statements  
         with engine.connect() as conn:
             # Set autocommit mode
             trans = conn.begin()
