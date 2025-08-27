@@ -585,9 +585,8 @@ def show_add_user_document_form():
                     
                     user_name = next((u[1] for u in users if u[0] == user_id), "")
                     st.success(f"✅ Документ добавлен для {user_name}")
+                    st.info("💡 Перейдите на вкладку 'Список' чтобы увидеть добавленный документ")
                     
-                    # Update session state to show this user in the list tab
-                    st.session_state["user_docs_filter"] = user_id
                     get_user_documents_cached.clear()
                     st.rerun()
                     

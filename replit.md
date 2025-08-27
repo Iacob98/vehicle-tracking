@@ -14,13 +14,16 @@ Preferred communication style: Simple, everyday language.
 - Implemented complete user registration and authentication system with organization-based data separation
 - Added organizations table as the foundation for multi-tenancy architecture
 - Updated all existing tables to include organization_id for data isolation between organizations
-- Created secure password hashing system with salt for user authentication
+- Created secure password hashing system with SHA-256 for user authentication
 - Built registration system allowing new organizations to sign up with admin user creation
 - Added login/logout functionality with session management using Streamlit session state
 - Implemented organization header display showing current organization and user role
 - Created utility functions for organization-based query filtering and data access control
 - Enhanced database schema with proper foreign key relationships and cascade deletion
 - Added mandatory receipt photo upload system for penalty payments with form validation
+- Fixed all database schema inconsistencies (date_issued→issue_date, date_expiry→expiry_date)
+- Resolved Streamlit session state conflicts in widget key management
+- Added automatic password generation (default: "password123") for admin-created users
 - Prepared system for production deployment with isolated data per organization
 
 ### Equipment Return Tracking System (August 14, 2025)
