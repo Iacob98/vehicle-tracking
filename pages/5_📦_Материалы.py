@@ -546,21 +546,17 @@ def show_material_history():
     
     try:
         # Get historical assignments based on filter
-        where_clause = "WHERE ma.status != 'active'"
-        params = {}
-        
-        if status_filter != 'all':
-            where_clause += " AND ma.status = :status"
-            params['status'] = status_filter
-        
         user_info = st.session_state.get('user_info')
         if not user_info:
             st.error("Не авторизован")
             return
             
-        # Add organization filter
-        if where_clause == "WHERE ma.status != 'active'":
-            where_clause += f" AND ma.organization_id = '{user_info['organization_id']}'"
+        where_clause = "WHERE ma.status != 'active' AND ma.organization_id = :organization_id"
+        params = {'organization_id': user_info['organization_id']}
+        
+        if status_filter != 'all':
+            where_clause += " AND ma.status = :status"
+            params['status'] = status_filter
         
         history = execute_query(f"""
             SELECT 

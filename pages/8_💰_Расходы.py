@@ -19,6 +19,10 @@ language = st.session_state.get('language', 'ru')
 @st.cache_data(ttl=60)
 def get_expenses_summary():
     """Get expenses summary with caching"""
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        return [], []
+        
     # Car expenses
     car_expenses = execute_query("""
         SELECT 
@@ -27,8 +31,9 @@ def get_expenses_summary():
             SUM(ce.amount) as total,
             COUNT(*) as count
         FROM car_expenses ce
+        WHERE ce.organization_id = %s
         GROUP BY ce.category
-    """)
+    """, (user_info['organization_id'],))
     
     # Team expenses (penalties for broken materials)
     team_expenses = execute_query("""
@@ -39,7 +44,8 @@ def get_expenses_summary():
             COUNT(*) as count
         FROM penalties p
         WHERE p.description LIKE '%Поломка материала%'
-    """)
+          AND p.organization_id = %s
+    """, (user_info['organization_id'],))
     
     return car_expenses, team_expenses
 
@@ -98,6 +104,11 @@ try:
     st.subheader("📈 Динамика расходов / Ausgabentrend")
     
     six_months_ago = datetime.now() - timedelta(days=180)
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        st.error("Не авторизован")
+        return
+        
     monthly_trend = execute_query("""
         SELECT 
             month,
@@ -108,6 +119,7 @@ try:
                 SUM(amount) as total_amount
             FROM car_expenses 
             WHERE date >= :six_months_ago
+              AND organization_id = :organization_id
             GROUP BY DATE_TRUNC('month', date)
             
             UNION ALL
@@ -117,12 +129,13 @@ try:
                 SUM(amount) as total_amount
             FROM penalties 
             WHERE date >= :six_months_ago
-            AND description LIKE '%Поломка материала%'
+              AND description LIKE '%Поломка материала%'
+              AND organization_id = :organization_id
             GROUP BY DATE_TRUNC('month', date)
         ) combined
         GROUP BY month
         ORDER BY month
-    """, {'six_months_ago': six_months_ago.date()})
+    """, {'six_months_ago': six_months_ago.date(), 'organization_id': user_info['organization_id']})
     
     if monthly_trend:
         df_trend = pd.DataFrame(monthly_trend, columns=['Month', 'Total'])
@@ -153,6 +166,7 @@ try:
                 'car' as expense_type
             FROM car_expenses ce
             JOIN vehicles v ON ce.car_id = v.id
+            WHERE ce.organization_id = :organization_id
             ORDER BY ce.date DESC
             LIMIT 10
         ) car
@@ -171,13 +185,14 @@ try:
                 'team' as expense_type
             FROM penalties p
             JOIN teams t ON p.team_id = t.id
-            WHERE p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%'
+            WHERE (p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%')
+              AND p.organization_id = :organization_id
             ORDER BY p.date DESC
             LIMIT 10
         ) team
         ORDER BY date DESC
         LIMIT 20
-    """)
+    """, {'organization_id': user_info['organization_id']})
     
     if recent_expenses:
         for expense in recent_expenses:
