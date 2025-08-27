@@ -1,236 +1,67 @@
 # Fleet Management System
 
 ## Overview
-
-A comprehensive fleet management web application built with Streamlit that helps organizations manage their vehicle fleet, teams, users, penalties, maintenance, materials, and expenses. The system supports multi-language functionality (Russian and German) and provides a complete solution for fleet operations management with real-time dashboards and analytics.
+A comprehensive, multi-language (Russian and German) fleet management web application built with Streamlit. It enables organizations to manage vehicles, teams, users, penalties, maintenance, materials, and expenses. The system provides a complete solution for fleet operations management with real-time dashboards and analytics, supporting multi-tenancy for data isolation between organizations.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
-
-## Recent Changes (August 27, 2025)
-
-### Vehicle Assignment System with Driver Selection (August 27, 2025)
-- Enhanced vehicle assignments to include specific driver selection from team members
-- Added driver_id column to vehicle_assignments table for tracking assigned drivers
-- Updated assignment interface to show three-step selection: vehicle → team → driver
-- Implemented driver display in assignment listings with "not specified" fallback
-- Enhanced assignment form with dynamic driver loading based on selected team
-- Prepared foundation for driver-specific penalty tracking for traffic violations
-- Added comprehensive driver information display in assignment management interface
-
-### Two-Stage Equipment Return Process (August 27, 2025)
-- Implemented two-stage equipment return workflow: mark for return → confirm return
-- Added 'pending_return' status to material_status enum for intermediate state
-- Created three-tab interface: "In Use", "Pending Confirmation", "Return History"
-- Equipment marked for return remains visible until explicit confirmation as returned/broken
-- Enhanced user experience with clear process explanation and visual status indicators
-- Maintained automatic penalty creation for broken equipment after confirmation
-
-### Multi-Tenant Authentication System (August 27, 2025)
-- Implemented complete user registration and authentication system with organization-based data separation
-- Added organizations table as the foundation for multi-tenancy architecture
-- Updated all existing tables to include organization_id for data isolation between organizations
-- Created secure password hashing system with SHA-256 for user authentication
-- Built registration system allowing new organizations to sign up with admin user creation
-- Added login/logout functionality with session management using Streamlit session state
-- Implemented organization header display showing current organization and user role
-- Created utility functions for organization-based query filtering and data access control
-- Enhanced database schema with proper foreign key relationships and cascade deletion
-- Added mandatory receipt photo upload system for penalty payments with form validation
-- Fixed all database schema inconsistencies (date_issued→issue_date, date_expiry→expiry_date)
-- Resolved Streamlit session state conflicts in widget key management
-- Added automatic password generation (default: "password123") for admin-created users
-- Prepared system for production deployment with isolated data per organization
-
-### Equipment Return Tracking System (August 14, 2025)
-
-### Equipment Return Tracking System (August 14, 2025)
-- Created dedicated equipment return page (🔄 Возврат оборудования) for tracking equipment lifecycle
-- Implemented active equipment assignments view showing all equipment currently in use by teams
-- Added one-click return functionality with status selection (returned/broken)
-- Automatic penalty creation for broken equipment with calculated costs
-- Comprehensive return history with filtering and statistics
-- Visual status indicators and summary metrics for return rates
-- Integration with existing material assignment and penalty systems
-
-### Advanced Expense Analytics Dashboard
-- Created comprehensive expense analytics page (📊 Аналитика расходов) with three main sections
-- Implemented vehicle expense analytics with detailed breakdown by categories (fuel, repair, maintenance, insurance)
-- Added team/brigade expense analytics including penalties and material costs
-- Created comparative analytics showing vehicle vs team expense distribution
-- Built interactive charts and visualizations using Plotly for expense trends and breakdowns
-- Added TOP-10 ranking system for most expensive vehicles and teams
-- Implemented date range filtering for all analytics with last 30 days as default
-- Added efficiency indicators and recommendations based on expense patterns
-- Integrated real-time expense tracking with visual alerts for high-cost teams/vehicles
-
-### Integrated Vehicle-Document Management System
-- Unified vehicles and documents into single cohesive interface for streamlined workflow
-- Added "📄 Документы" button to each vehicle in listings for direct access to vehicle documents
-- Implemented vehicle-specific document management with statistics (total, expired, expiring)
-- Created tabs interface: "📄 Документы" for viewing, "➕ Добавить документ" for new documents
-- Added "⚠️ Истекающие документы" tab showing all expiring/expired documents across all vehicles
-- Added complete CRUD operations for vehicle documents within vehicle context
-- Enhanced document viewer and editor accessible directly from vehicle interface
-- Integrated document status tracking with color-coded indicators (green/orange/red)
-- Added quick navigation from expiring documents to specific vehicle or document editing
-
-### Vehicle Photo Management System  
-- Added photo_url field to vehicles table for storing vehicle photographs
-- Implemented vehicle photo upload functionality with thumbnail display in vehicle lists
-- Enhanced vehicle forms (add/edit) with photo upload capabilities
-- Added 80px thumbnail display in vehicle listings for easier identification
-- Created uploads/vehicles directory for vehicle photo storage
-- Integrated with existing file storage system for reliable photo management
-
-### User Management Enhancement
-- Added phone field to users table for contact information storage
-- Implemented complete user editing functionality with form pre-population
-- Enhanced user interface with edit and delete buttons in separate columns
-- Added phone number display in user listings
-- Fixed session state management issues for user editing workflow
-- Improved user form validation and error handling
-
-### Database Structure Updates (August 13, 2025)
-- Migrated users table from single "name" field to separate "first_name" and "last_name" fields
-- Added "Worker" role to user_role enum with Russian/German translations
-- Updated all SQL queries across application to use new user structure
-- Fixed database transaction issues and completed clean database recreation
-
-### User Document Management System
-- Created user_documents table with support for 10 document types including driving licenses
-- Added comprehensive document management interface in Users section
-- Implemented full CRUD operations for user documents with file upload/viewing
-- Created expiring documents tracking for user documents with visual alerts
-- Added document type translations for Russian and German languages
-- Integrated file viewer with full-width display for optimal document viewing
-
-### Currency System Update
-- Changed system currency from rubles (₽) to euros (€) throughout the entire application
-- Updated format_currency function in utils.py to use euro symbol as default
-- Fixed all direct currency references to use euro symbol consistently
-- All financial displays now show amounts in euros (expenses, penalties, materials costs)
-
-### Enhanced Expense Management System
-- Restructured expenses into two specialized systems:
-  - Car Expenses (car_expenses table): repair, maintenance, fuel, insurance, toll, car_wash, other
-  - Brigade Expenses (brigade_expenses table): broken_equipment, fine
-- Created dedicated PostgreSQL enum types for expense categories
-- Implemented separate management interfaces for car and brigade expenses
-- Added comprehensive analytics and reporting for both expense types
-- Integrated file upload support for receipts and documentation
-- All expense amounts displayed in euros with proper formatting
-
-### Maintenance and Expenses Integration
-- Unified maintenance repairs and car expenses into single entity system
-- Automatic expense creation when repair maintenance is recorded with cost
-- Added maintenance_id foreign key to car_expenses table for linking
-- Visual indicators showing expense source (manual entry vs maintenance-linked)
-- Protection against accidental deletion of maintenance-linked expenses
-- Removed separate maintenance page - now managed through car expenses
-
-### Materials and Penalty System Integration
-- Removed "Brigade Expenses" page as it duplicated penalty functionality
-- Added unit_price field to materials table for cost tracking
-- Updated materials interface to display price per unit in euros
-- Automatic penalty creation when materials are marked as broken
-- Penalty amount calculated as unit_price × quantity for broken materials
-- Integrated broken material penalties with existing penalty system
-
-### Enhanced System Logic Requirements
-- Bidirectional entity relationships with automatic updates
-- Snapshot system for team compositions at specific events
-- Equipment categorization: returnable equipment vs consumable materials
-- Automatic penalty assignment to team compositions based on incident dates
-- Historical tracking of vehicle assignments with proper date ranges
-- CSV import/export with preview and validation workflows
-- Document management with expiry dates and file attachments
 
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: Streamlit web application framework with integrated authentication
-- **UI Pattern**: Multi-page application with tabbed interfaces and organization-based access control
-- **Authentication**: Session-based authentication with login/registration pages and secure logout
-- **Language Support**: Built-in internationalization system supporting Russian and German
-- **Navigation**: Sidebar-based navigation with icon-based menu system and organization header
-- **State Management**: Streamlit session state for authentication, language preferences, and user interactions
-- **Multi-Tenancy**: Organization-based data isolation with automatic filtering across all pages
+- **Framework**: Streamlit web application framework.
+- **UI Pattern**: Multi-page application with tabbed interfaces and organization-based access control.
+- **Authentication**: Session-based authentication with login/registration, secure logout, and multi-tenancy support.
+- **Language Support**: Internationalization system for Russian and German.
+- **Navigation**: Sidebar-based navigation with icon-based menu and organization header.
+- **State Management**: Streamlit session state for authentication, language, and user interactions.
 
 ### Backend Architecture
-- **Database ORM**: SQLAlchemy with declarative base models and multi-tenant architecture
-- **Database Connection**: PostgreSQL with connection pooling via SQLAlchemy engine
-- **Authentication System**: Custom authentication with password hashing and organization management
-- **Multi-Tenancy**: Organization-based data isolation with automatic filtering on all database operations
-- **Data Models**: Comprehensive entity relationship model covering:
-  - Organizations as the top-level tenant container
-  - Users with email authentication and role-based access (admin, manager, team_lead, worker)
-  - Vehicles with status tracking (active, repair, unavailable) per organization
-  - Teams with hierarchical leadership structure within organizations
-  - Vehicle assignments to teams with date ranges
-  - Penalties tracking with payment status and mandatory receipt uploads
-  - Maintenance records (inspection, repair)
-  - Materials and equipment management with organization isolation
-  - Expense tracking by vehicle and team within organization boundaries
-  - Material assignment history with event logging
-  - Document management for both vehicles and users with expiry tracking
+- **Database ORM**: SQLAlchemy with declarative base models.
+- **Database Connection**: PostgreSQL with connection pooling.
+- **Authentication System**: Custom authentication with password hashing and organization management.
+- **Multi-Tenancy**: Organization-based data isolation with automatic filtering on all database operations.
+- **Data Models**: Comprehensive ERM including Organizations, Users (with roles: admin, manager, team_lead, worker), Vehicles, Teams, Vehicle Assignments, Penalties (with receipt uploads), Maintenance, Materials/Equipment, Expense Tracking (car and brigade), Material Assignment History, and Document Management (for vehicles and users).
 
 ### Data Storage Solutions
-- **Primary Database**: PostgreSQL with custom enum types for status fields and multi-tenant architecture
-- **Schema Design**: Normalized relational database with foreign key constraints and organization-based data isolation
-- **Multi-Tenancy**: Every data table includes organization_id for complete data separation between tenants
-- **Data Types**: UUID primary keys, PostgreSQL-specific enums, timestamp tracking, secure password hashing
-- **Query Execution**: Organization-filtered SQL execution via SQLAlchemy engine with automatic access control
-- **Security**: Cascading deletion on organization removal, unique constraints within organization scope
+- **Primary Database**: PostgreSQL with custom enum types and multi-tenant architecture.
+- **Schema Design**: Normalized relational database with foreign key constraints and `organization_id` in every table for data isolation.
+- **Data Types**: UUID primary keys, PostgreSQL enums, timestamps, secure password hashing.
+- **Security**: Cascading deletion on organization removal, unique constraints within organization scope.
 
 ### Authentication and Authorization
-- **Organization Registration**: Self-service organization creation with admin user setup
-- **Secure Authentication**: Email/password authentication with salted SHA-256 password hashing
-- **Role-Based Access**: Four-tier user role system (admin, manager, team_lead, worker)
-- **Multi-Tenant Security**: Complete data isolation between organizations with automatic filtering
-- **Session Management**: Streamlit session state with secure authentication tracking
-- **Team Hierarchy**: Team leaders have specific privileges within their teams and organization
-- **Organization Management**: Admin users can manage their organization's users and settings
+- **Organization Registration**: Self-service organization creation with admin user setup.
+- **Secure Authentication**: Email/password authentication with salted SHA-256 password hashing.
+- **Role-Based Access**: Four-tier user role system (admin, manager, team_lead, worker).
+- **Multi-Tenant Security**: Complete data isolation between organizations.
+- **Session Management**: Streamlit session state for authentication tracking.
 
 ### Key Features
-- **Dashboard Analytics**: Real-time metrics with Plotly visualizations
-- **Multi-Entity Management**: CRUD operations for all major entities
-- **Export Functionality**: CSV export capabilities for all data views
-- **Search and Filtering**: Advanced filtering across all entity types
-- **Date Range Operations**: Historical data analysis with date-based queries
-- **Pagination Support**: Efficient data loading for large datasets
-- **Snapshot System**: Historical composition tracking for team assignments
-- **Equipment vs Consumables**: Returnable equipment and consumable materials tracking
-- **Automatic Logging**: All user actions logged with timestamps and user attribution
-- **CSV Import/Export**: Bulk data operations with preview and validation
-- **Document Management**: File attachments with expiry dates for official documents
+- **Dashboard Analytics**: Real-time metrics with Plotly visualizations for expenses, vehicles, and teams.
+- **Multi-Entity Management**: CRUD operations for all core entities (vehicles, users, teams, materials, penalties, expenses, documents).
+- **Document Management**: File attachments with expiry dates for vehicles and users, including alerts for expiring documents.
+- **Expense Management**: Categorized car and brigade expenses with receipt uploads and integration with maintenance and material systems.
+- **Vehicle Assignment System**: Driver selection and multi-step assignment process.
+- **Equipment Return Tracking**: Two-stage return process (mark for return, confirm) with automatic penalty creation for broken equipment.
+- **CSV Import/Export**: Bulk data operations with preview and validation.
+- **Search and Filtering**: Advanced filtering across all entity types.
+- **Historical Tracking**: Vehicle assignments, team compositions (snapshots), and expense trends.
+- **Multi-Language Support**: Russian and German translations across the application.
+- **Photo Management**: Vehicle photo upload and display.
 
 ## External Dependencies
 
 ### Core Framework Dependencies
-- **Streamlit**: Web application framework for the user interface
-- **SQLAlchemy**: Database ORM and connection management
-- **Plotly**: Interactive charts and data visualizations
-- **Pandas**: Data manipulation and CSV export functionality
+- **Streamlit**: Web application framework.
+- **SQLAlchemy**: Database ORM.
+- **Plotly**: Interactive charts and visualizations.
+- **Pandas**: Data manipulation and CSV export.
 
 ### Database Dependencies
-- **PostgreSQL**: Primary database system
-- **psycopg2**: PostgreSQL database adapter (implied by SQLAlchemy usage)
+- **PostgreSQL**: Primary database system.
 
 ### Python Standard Libraries
-- **uuid**: Unique identifier generation
-- **datetime**: Date and time handling
-- **enum**: Enumeration support for status fields
-- **os**: Environment variable management for database configuration
-
-### Visualization and Analytics
-- **Plotly Express**: Simplified plotting interface
-- **Plotly Graph Objects**: Advanced chart customization
-
-### Data Processing
-- **Pandas**: DataFrame operations and CSV generation for exports
-
-### Environment Configuration
-- **DATABASE_URL**: Environment variable for PostgreSQL connection string
-- **Default Configuration**: Fallback PostgreSQL connection for development
+- **uuid**: For unique identifier generation.
+- **datetime**: For date and time handling.
+- **enum**: For enumeration support.
+- **os**: For environment variable management.
