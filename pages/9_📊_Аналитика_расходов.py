@@ -582,7 +582,7 @@ def show_comparative_analytics():
         ORDER BY expense_date
     """)
     
-    if daily_expenses:
+    if daily_expenses and len(daily_expenses) > 0:
         df_daily = pd.DataFrame(daily_expenses, columns=['Date', 'Vehicle_Expenses', 'Team_Expenses'])
         df_daily['Total'] = df_daily['Vehicle_Expenses'] + df_daily['Team_Expenses']
         
@@ -619,8 +619,19 @@ def show_comparative_analytics():
         )
         
         st.plotly_chart(fig_trend, use_container_width=True)
+        
+        # Summary of trends
+        avg_daily = float(df_daily['Total'].mean())
+        max_daily = float(df_daily['Total'].max())
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Средний дневной расход", format_currency(avg_daily))
+        with col2:
+            st.metric("Максимальный дневной расход", format_currency(max_daily))
     else:
-        st.info("Недостаточно данных для отображения трендов")
+        st.info("📊 Нет данных о расходах за последние 30 дней")
+        st.write("Для отображения трендов необходимы данные о расходах")
 
 # Main page
 st.title("📊 Аналитика расходов")
