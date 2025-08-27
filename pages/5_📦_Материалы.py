@@ -396,13 +396,22 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
             st.warning("Статус не изменился")
             return
         
-        # Map status to appropriate event enum value
+        # Map status to appropriate database enum values
+        status_mapping = {
+            'returned': 'returned',
+            'broken': 'broken', 
+            'finished': 'broken'  # finished materials are marked as broken in DB
+        }
+        
         event_mapping = {
             'returned': 'returned',
             'broken': 'broken',
             'finished': 'broken',  # finished materials use 'broken' event
             'active': 'assigned'
         }
+        
+        # Get the database-compatible status
+        db_status = status_mapping.get(new_status, new_status)
         
         # Update assignment status
         execute_query("""
@@ -411,7 +420,7 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
             WHERE id = :id
         """, {
             'id': assignment_id,
-            'status': new_status,
+            'status': db_status,
             'event': event_mapping.get(new_status, 'assigned')
         })
         
@@ -648,7 +657,7 @@ with tab2:
                     
                     if available > 0:
                         material_options.append(material_id)
-                        material_labels.append(f"{name} - {type_label} (доступно: {available} {unit})")
+                        material_labels.append(f"{name} ({type_label}) - доступно: {available} {unit}")
                 
                 if material_options:
                     selected_material_idx = st.selectbox(
