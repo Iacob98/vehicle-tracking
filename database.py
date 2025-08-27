@@ -82,15 +82,20 @@ def init_db():
                         pass  # Type already exists
                 
                 # Create organizations table first
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS organizations (
-                        id UUID PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        subscription_status VARCHAR(50) DEFAULT 'active',
-                        subscription_expires_at TIMESTAMP
-                    )
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS organizations (
+                            id UUID PRIMARY KEY,
+                            name VARCHAR(255) NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            subscription_status VARCHAR(50) DEFAULT 'active',
+                            subscription_expires_at TIMESTAMP
+                        )
+                    """))
+                    print("Organizations table created successfully")
+                except Exception as e:
+                    print(f"Error creating organizations table: {e}")
+                    raise
                 
                 # Create tables without foreign key dependencies first
                 table_statements = [
@@ -218,8 +223,13 @@ def init_db():
                 )"""
             ]
             
-                for stmt in table_statements:
-                    conn.execute(text(stmt))
+                for i, stmt in enumerate(table_statements):
+                    try:
+                        conn.execute(text(stmt))
+                        print(f"Table {i+1} created successfully")
+                    except Exception as e:
+                        print(f"Error creating table {i+1}: {e}")
+                        raise
                 
                 # Add foreign key constraints after all tables are created
                 constraint_statements = [
