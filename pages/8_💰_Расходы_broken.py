@@ -109,31 +109,31 @@ try:
         st.error("Не авторизован")
     else:
         monthly_trend = execute_query("""
+        SELECT 
+            month,
+            SUM(total_amount) as total
+        FROM (
             SELECT 
-                month,
-                SUM(total_amount) as total
-            FROM (
-                SELECT 
-                    DATE_TRUNC('month', date) as month,
-                    SUM(amount) as total_amount
-                FROM car_expenses 
-                WHERE date >= :six_months_ago
-                  AND organization_id = :organization_id
-                GROUP BY DATE_TRUNC('month', date)
-                
-                UNION ALL
-                
-                SELECT 
-                    DATE_TRUNC('month', date) as month,
-                    SUM(amount) as total_amount
-                FROM penalties 
-                WHERE date >= :six_months_ago
-                  AND description LIKE '%Поломка материала%'
-                  AND organization_id = :organization_id
-                GROUP BY DATE_TRUNC('month', date)
-            ) combined
-            GROUP BY month
-            ORDER BY month
+                DATE_TRUNC('month', date) as month,
+                SUM(amount) as total_amount
+            FROM car_expenses 
+            WHERE date >= :six_months_ago
+              AND organization_id = :organization_id
+            GROUP BY DATE_TRUNC('month', date)
+            
+            UNION ALL
+            
+            SELECT 
+                DATE_TRUNC('month', date) as month,
+                SUM(amount) as total_amount
+            FROM penalties 
+            WHERE date >= :six_months_ago
+              AND description LIKE '%Поломка материала%'
+              AND organization_id = :organization_id
+            GROUP BY DATE_TRUNC('month', date)
+        ) combined
+        GROUP BY month
+        ORDER BY month
         """, {'six_months_ago': six_months_ago.date(), 'organization_id': user_info['organization_id']})
         
         if monthly_trend:
@@ -157,42 +157,42 @@ try:
         st.subheader("📋 Последние расходы / Letzte Ausgaben")
         
         recent_expenses = execute_query("""
-            SELECT * FROM (
-                SELECT 
-                    ce.date,
-                    v.name as entity_name,
-                    ce.category::text as category,
-                    ce.amount,
-                    ce.description,
-                    'car' as expense_type
-                FROM car_expenses ce
-                JOIN vehicles v ON ce.car_id = v.id
-                WHERE ce.organization_id = :organization_id
-                ORDER BY ce.date DESC
-                LIMIT 10
-            ) car
-            UNION ALL
-            SELECT * FROM (
-                SELECT 
-                    p.date,
-                    t.name as entity_name,
-                    'broken_material' as category,
-                    p.amount,
-                    CASE 
-                        WHEN p.description LIKE '%Поломка материала%' THEN p.description
-                        WHEN p.description LIKE '%Поломка оборудования%' THEN p.description
-                        ELSE 'Поломка материала / Defektes Material'
-                    END as description,
-                    'team' as expense_type
-                FROM penalties p
-                JOIN teams t ON p.team_id = t.id
-                WHERE (p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%')
-                  AND p.organization_id = :organization_id
-                ORDER BY p.date DESC
-                LIMIT 10
-            ) team
-            ORDER BY date DESC
-            LIMIT 20
+        SELECT * FROM (
+            SELECT 
+                ce.date,
+                v.name as entity_name,
+                ce.category::text as category,
+                ce.amount,
+                ce.description,
+                'car' as expense_type
+            FROM car_expenses ce
+            JOIN vehicles v ON ce.car_id = v.id
+            WHERE ce.organization_id = :organization_id
+            ORDER BY ce.date DESC
+            LIMIT 10
+        ) car
+        UNION ALL
+        SELECT * FROM (
+            SELECT 
+                p.date,
+                t.name as entity_name,
+                'broken_material' as category,
+                p.amount,
+                CASE 
+                    WHEN p.description LIKE '%Поломка материала%' THEN p.description
+                    WHEN p.description LIKE '%Поломка оборудования%' THEN p.description
+                    ELSE 'Поломка материала / Defektes Material'
+                END as description,
+                'team' as expense_type
+            FROM penalties p
+            JOIN teams t ON p.team_id = t.id
+            WHERE (p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%')
+              AND p.organization_id = :organization_id
+            ORDER BY p.date DESC
+            LIMIT 10
+        ) team
+        ORDER BY date DESC
+        LIMIT 20
         """, {'organization_id': user_info['organization_id']})
         
         if recent_expenses:

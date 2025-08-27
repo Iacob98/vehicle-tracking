@@ -5,6 +5,11 @@ from database import execute_query
 from translations import get_text
 from utils import format_currency
 from auth import require_auth, show_org_header
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
@@ -49,6 +54,7 @@ def get_materials_cached():
 def show_materials_list():
     """Show list of materials with inline editing"""
     try:
+        logger.info("Loading materials list")
         # Check if we're editing a material
         edit_material_id = st.session_state.get('edit_material_id', None)
         
@@ -57,6 +63,7 @@ def show_materials_list():
             return
         
         materials = get_materials_cached()
+        logger.info(f"Retrieved {len(materials) if materials else 0} materials")
         
         if materials:
             # Statistics
@@ -134,7 +141,9 @@ def show_materials_list():
             st.info(get_text('no_data', language))
     
     except Exception as e:
-        st.error(f"Error loading materials: {str(e)}")
+        logger.error(f"Error loading materials: {str(e)}", exc_info=True)
+        st.error(f"Ошибка загрузки материалов: {str(e)}")
+        st.write("Детали ошибки:", str(e))
 
 def show_add_material_form():
     """Show form to add new material"""
@@ -317,6 +326,7 @@ def show_material_assignments():
     st.subheader("📋 Выданные материалы / Ausgegebene Materialien")
     
     try:
+        logger.info("Loading material assignments")
         # Get active assignments
         user_info = st.session_state.get('user_info')
         if not user_info:
@@ -339,6 +349,8 @@ def show_material_assignments():
             WHERE ma.status = 'active' AND ma.organization_id = %s
             ORDER BY ma.date DESC
         """, (user_info['organization_id'],))
+        
+        logger.info(f"Retrieved {len(assignments) if assignments else 0} active assignments")
         
         if assignments:
             # Summary statistics
