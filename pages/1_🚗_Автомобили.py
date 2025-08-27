@@ -251,6 +251,9 @@ def show_add_vehicle_form():
                         'photo_url': photo_url
                     })
                     st.success(get_text('success_save', language))
+                    # Clear file uploader by resetting session state
+                    if 'photo_file' in st.session_state:
+                        del st.session_state['photo_file']
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
@@ -640,10 +643,11 @@ def show_add_vehicle_document_form(vehicle_id):
                     doc_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO vehicle_documents 
-                        (id, vehicle_id, document_type, title, date_issued, date_expiry, file_url, is_active)
-                        VALUES (:id, :vehicle_id, :document_type, :title, :date_issued, :date_expiry, :file_url, true)
+                        (id, organization_id, vehicle_id, document_type, title, date_issued, date_expiry, file_url, is_active)
+                        VALUES (:id, :organization_id, :vehicle_id, :document_type, :title, :date_issued, :date_expiry, :file_url, true)
                     """, {
                         'id': doc_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'vehicle_id': vehicle_id,
                         'document_type': document_type,
                         'title': title,
@@ -653,6 +657,9 @@ def show_add_vehicle_document_form(vehicle_id):
                     })
                     
                     st.success("✅ Документ добавлен!")
+                    # Clear file uploader by resetting session state
+                    if 'uploaded_file' in st.session_state:
+                        del st.session_state['uploaded_file']
                     st.rerun()
                 
                 except Exception as e:
