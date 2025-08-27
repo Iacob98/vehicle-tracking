@@ -289,7 +289,7 @@ def show_team_analytics():
     
     # Get team statistics with simplified query
     try:
-        # First get team penalties
+        # First get team penalties (only real driving/violation penalties, not equipment damage)
         penalties_data = execute_query("""
             SELECT 
                 t.id,
@@ -299,6 +299,7 @@ def show_team_analytics():
             FROM teams t
             LEFT JOIN penalties p ON t.id = p.team_id 
                 AND p.date BETWEEN :date_from AND :date_to
+                AND p.description NOT LIKE 'Поломка%'  -- Exclude equipment damage penalties
             GROUP BY t.id, t.name
         """, {'date_from': date_from, 'date_to': date_to})
         
@@ -332,7 +333,8 @@ def show_team_analytics():
                 penalty_row = penalties_dict.get(team_id, (team_id, "Unknown", 0, 0))
                 material_row = materials_dict.get(team_id, (team_id, penalty_row[1], 0, 0, 0, 0))
                 
-                total_cost = penalty_row[3] + material_row[3]
+                # Only consider real penalties, equipment damage is separate cost tracking
+                total_cost = penalty_row[3] + material_row[5]  # penalties + broken equipment cost
                 if total_cost > 0:
                     combined_row = (
                         penalty_row[0],  # id
@@ -390,32 +392,34 @@ def show_team_analytics():
             fig.update_xaxes(tickangle=45)
             st.plotly_chart(fig, use_container_width=True)
         
-        # Expense breakdown: penalties vs materials
-        st.subheader("📈 Структура расходов: штрафы vs материалы")
+        # Expense breakdown: real penalties vs equipment damage costs
+        st.subheader("📈 Структура: штрафы за нарушения vs ущерб от поломок")
         
         total_penalties = sum(float(t[3]) if t[3] is not None else 0 for t in team_stats)
-        total_materials = sum(float(t[5]) if t[5] is not None else 0 for t in team_stats)
+        total_damage = sum(float(t[7]) if t[7] is not None else 0 for t in team_stats)
         
         col1, col2 = st.columns(2)
         
         with col1:
             # Pie chart
             fig_pie = px.pie(
-                values=[total_penalties, total_materials],
-                names=['Штрафы', 'Материалы'],
-                title="Штрафы vs Материалы"
+                values=[total_penalties, total_damage],
+                names=['Штрафы за нарушения', 'Ущерб от поломок'],
+                title="Штрафы vs Ущерб"
             )
             st.plotly_chart(fig_pie, use_container_width=True)
         
         with col2:
-            st.metric("Общие штрафы", format_currency(total_penalties))
-            st.metric("Стоимость материалов", format_currency(total_materials))
+            st.metric("Штрафы за нарушения", format_currency(total_penalties), 
+                     delta="Бригада платит", delta_color="inverse")
+            st.metric("Ущерб от поломок", format_currency(total_damage),
+                     delta="Затраты компании", delta_color="normal")
             
             if total_spent > 0:
                 penalty_pct = (total_penalties / total_spent) * 100
-                material_pct = (total_materials / total_spent) * 100
-                st.write(f"**Штрафы:** {penalty_pct:.1f}% от общих расходов")
-                st.write(f"**Материалы:** {material_pct:.1f}% от общих расходов")
+                damage_pct = (total_damage / total_spent) * 100
+                st.write(f"**Штрафы за нарушения:** {penalty_pct:.1f}% от общих расходов")
+                st.write(f"**Ущерб от поломок:** {damage_pct:.1f}% от общих расходов")
         
         st.divider()
         
@@ -427,21 +431,25 @@ def show_team_analytics():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.write("**Штрафы:**")
+                    st.write("**🚫 Штрафы за нарушения:**")
                     st.write(f"Количество: {team[2]}")
                     st.write(f"Сумма: {format_currency(team[3])}")
+                    if team[3] > 0:
+                        st.error("💸 Бригада платит")
                 
                 with col2:
-                    st.write("**Материалы:**")
+                    st.write("**📦 Материалы:**")
                     st.write(f"Выдач: {team[4]}")
-                    st.write(f"Стоимость: {format_currency(team[5])}")
+                    st.write(f"Общая стоимость: {format_currency(team[5])}")
                     st.write(f"Сломано: {team[6]} шт.")
                 
                 with col3:
-                    st.write("**Итого:**")
-                    st.write(f"Общая сумма: {format_currency(team[8])}")
+                    st.write("**💔 Ущерб от поломок:**")
+                    st.write(f"Стоимость поломок: {format_currency(team[7])}")
                     if team[7] > 0:
-                        st.write(f"Ущерб: {format_currency(team[7])}")
+                        st.info("🏢 Затраты компании")
+                    
+                    st.write(f"**💰 Общий ущерб:** {format_currency(team[8])}")
                     
                     # Calculate efficiency
                     if team[8] > 0:
