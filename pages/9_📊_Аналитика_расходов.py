@@ -642,21 +642,160 @@ def show_comparative_analytics():
         st.write("Для отображения трендов необходимы данные о расходах")
 
 # Main page
-st.title("📊 Аналитика расходов")
+st.title("📊 Комплексная аналитика расходов")
 
 st.info("""
-**🎯 Комплексная аналитика расходов флота**
+**🎯 Единая система аналитики**
 
-Эта страница предоставляет детальную аналитику всех расходов в системе управления флотом:
+Эта страница предоставляет полную аналитику всех расходов в системе управления флотом:
 - **🚗 Расходы по автомобилям** - топливо, ремонт, обслуживание, страховка
 - **👥 Расходы по бригадам** - штрафы, материалы, поломки оборудования
+- **👤 Статистика по водителям** - персональные штрафы и ответственность
+- **📊 Статистика штрафов** - детальная аналитика штрафов и ущерба
 - **⚖️ Сравнительный анализ** - что обходится дороже: автомобили или бригады
 """)
 
+# Import penalty functions from the other file
+from decimal import Decimal
+
+def get_penalty_statistics():
+    """Get comprehensive penalty statistics"""
+    return execute_query("""
+        SELECT 
+            p.id,
+            p.amount,
+            p.date,
+            p.description,
+            p.status,
+            t.name as team_name,
+            u.first_name || ' ' || u.last_name as user_name,
+            CASE 
+                WHEN p.description LIKE '%Поломка оборудования%' THEN 'equipment_damage'
+                ELSE 'traffic_violation'
+            END as penalty_type
+        FROM penalties p
+        JOIN teams t ON p.team_id = t.id
+        LEFT JOIN vehicle_assignments va ON va.team_id = p.team_id 
+            AND va.start_date <= p.date 
+            AND (va.end_date IS NULL OR va.end_date >= p.date)
+        LEFT JOIN users u ON va.driver_id = u.id
+        WHERE p.organization_id = :organization_id
+        ORDER BY p.date DESC
+    """, {
+        'organization_id': st.session_state.get('organization_id')
+    })
+
+def get_user_penalty_summary():
+    """Get penalty summary by user"""
+    return execute_query("""
+        SELECT 
+            u.first_name || ' ' || u.last_name as user_name,
+            u.role,
+            t.name as team_name,
+            COUNT(p.id) as total_penalties,
+            COALESCE(SUM(CASE WHEN p.description LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as equipment_costs,
+            COALESCE(SUM(CASE WHEN p.description NOT LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as traffic_fines,
+            COALESCE(SUM(p.amount), 0) as total_amount
+        FROM users u
+        LEFT JOIN teams t ON u.team_id = t.id
+        LEFT JOIN vehicle_assignments va ON va.driver_id = u.id
+        LEFT JOIN penalties p ON p.team_id = t.id 
+            AND va.start_date <= p.date 
+            AND (va.end_date IS NULL OR va.end_date >= p.date)
+        WHERE u.organization_id = :organization_id
+        AND t.id IS NOT NULL
+        GROUP BY u.id, u.first_name, u.last_name, u.role, t.name
+        HAVING COUNT(p.id) > 0
+        ORDER BY total_amount DESC
+    """, {
+        'organization_id': st.session_state.get('organization_id')
+    })
+
+def show_penalty_overview():
+    """Show penalty overview with key metrics"""
+    st.subheader("📊 Общая статистика штрафов")
+    
+    penalties = get_penalty_statistics()
+    
+    if not penalties:
+        st.info("📝 Нет данных о штрафах")
+        return
+    
+    # Calculate totals
+    total_amount = sum(float(p[1]) for p in penalties)
+    equipment_costs = sum(float(p[1]) for p in penalties if 'Поломка оборудования' in p[3])
+    traffic_fines = sum(float(p[1]) for p in penalties if 'Поломка оборудования' not in p[3])
+    open_penalties = len([p for p in penalties if p[4] == 'open'])
+    paid_penalties = len([p for p in penalties if p[4] == 'paid'])
+    
+    # Key metrics
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric("💰 Общая сумма", format_currency(total_amount))
+    
+    with col2:
+        st.metric("🚨 Штрафы за нарушения", format_currency(traffic_fines))
+    
+    with col3:
+        st.metric("🔧 Ущерб от поломок", format_currency(equipment_costs))
+    
+    with col4:
+        st.metric("📋 Открытые штрафы", open_penalties)
+    
+    with col5:
+        st.metric("✅ Оплаченные штрафы", paid_penalties)
+
+def show_user_statistics():
+    """Show penalty statistics by user"""
+    st.subheader("👤 Статистика по водителям")
+    
+    user_stats = get_user_penalty_summary()
+    
+    if not user_stats:
+        st.info("📝 Нет данных по пользователям с штрафами")
+        return
+    
+    # Create DataFrame for better display
+    df_data = []
+    for stat in user_stats:
+        user_name, role, team_name, total_penalties, equipment_costs, traffic_fines, total_amount = stat
+        
+        df_data.append({
+            "Пользователь": user_name,
+            "Роль": role,
+            "Бригада": team_name,
+            "Всего штрафов": total_penalties,
+            "Штрафы за нарушения": format_currency(float(traffic_fines)),
+            "Ущерб от поломок": format_currency(float(equipment_costs)),
+            "Общая сумма": format_currency(float(total_amount))
+        })
+    
+    if df_data:
+        df = pd.DataFrame(df_data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # Top violators chart
+        if len(df_data) > 0:
+            users = [stat[0] for stat in user_stats[:10]]  # Top 10
+            amounts = [float(stat[6]) for stat in user_stats[:10]]
+            
+            fig_users = px.bar(
+                x=amounts,
+                y=users,
+                orientation='h',
+                title="🎯 Топ водителей по сумме штрафов",
+                labels={'x': 'Сумма (₽)', 'y': 'Водители'}
+            )
+            fig_users.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_users, use_container_width=True)
+
 # Tabs for different analytics
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🚗 По автомобилям",
     "👥 По бригадам", 
+    "📊 Статистика штрафов",
+    "👤 По водителям",
     "⚖️ Сравнительная аналитика"
 ])
 
@@ -667,4 +806,10 @@ with tab2:
     show_team_analytics()
 
 with tab3:
+    show_penalty_overview()
+
+with tab4:
+    show_user_statistics()
+
+with tab5:
     show_comparative_analytics()
