@@ -4,6 +4,7 @@ from datetime import date
 from database import execute_query
 from translations import get_text
 from utils import format_currency, upload_file
+from auth import require_auth, show_org_header
 
 # Page config
 st.set_page_config(
@@ -12,12 +13,24 @@ st.set_page_config(
     layout="wide"
 )
 
+# Check authentication
+user_info = require_auth()
+if not user_info:
+    st.stop()
+
+# Show organization header
+show_org_header()
+
 # Language from session state
 language = st.session_state.get('language', 'ru')
 
 @st.cache_data(ttl=300)
 def get_car_expenses_cached():
     """Get car expenses with caching"""
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        return []
+    
     return execute_query("""
         SELECT 
             ce.id,
@@ -30,9 +43,10 @@ def get_car_expenses_cached():
             ce.maintenance_id
         FROM car_expenses ce
         JOIN vehicles v ON ce.car_id = v.id
+        WHERE ce.organization_id = %s
         ORDER BY ce.date DESC
         LIMIT 100
-    """)
+    """, (user_info['organization_id'],))
 
 def show_expenses_list():
     """Show list of car expenses with inline editing"""
@@ -103,7 +117,7 @@ def show_add_expense_form():
         
         with col1:
             # Vehicle selection
-            vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+            vehicles = execute_query("SELECT id, name, license_plate FROM vehicles WHERE organization_id = %s ORDER BY name", (user_info['organization_id'],))
             if not vehicles:
                 st.warning("Необходимо создать автомобили")
                 return
@@ -153,10 +167,11 @@ def show_add_expense_form():
                     expense_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO car_expenses 
-                        (id, car_id, category, amount, date, description, file_url)
-                        VALUES (:id, :car_id, :category, :amount, :date, :description, :file_url)
+                        (id, organization_id, car_id, category, amount, date, description, file_url)
+                        VALUES (:id, :organization_id, :car_id, :category, :amount, :date, :description, :file_url)
                     """, {
                         'id': expense_id,
+                        'organization_id': user_info['organization_id'],
                         'car_id': vehicle_id,
                         'category': category,
                         'amount': amount,
@@ -181,8 +196,8 @@ def show_edit_expense_form(expense_id):
                    v.name as vehicle_name
             FROM car_expenses ce
             JOIN vehicles v ON ce.car_id = v.id
-            WHERE ce.id = :id
-        """, {'id': expense_id})
+            WHERE ce.id = :id AND ce.organization_id = :organization_id
+        """, {'id': expense_id, 'organization_id': user_info['organization_id']})
         
         if not expense_data:
             st.error("Расход не найден")
@@ -204,7 +219,7 @@ def show_edit_expense_form(expense_id):
             
             with col1:
                 # Vehicle selection
-                vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY name")
+                vehicles = execute_query("SELECT id, name, license_plate FROM vehicles WHERE organization_id = %s ORDER BY name", (user_info['organization_id'],))
                 if not vehicles:
                     st.warning("Необходимо создать автомобили")
                     return
@@ -274,9 +289,10 @@ def show_edit_expense_form(expense_id):
                                 UPDATE car_expenses 
                                 SET car_id = :car_id, date = :date, category = :category, 
                                     amount = :amount, description = :description, file_url = :file_url
-                                WHERE id = :id
+                                WHERE id = :id AND organization_id = :organization_id
                             """, {
                                 'id': expense_id,
+                                'organization_id': user_info['organization_id'],
                                 'car_id': vehicle_id,
                                 'date': expense_date,
                                 'category': category,
