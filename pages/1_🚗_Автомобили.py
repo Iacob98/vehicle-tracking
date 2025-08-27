@@ -237,10 +237,11 @@ def show_add_vehicle_form():
                     
                     vehicle_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO vehicles (id, name, license_plate, vin, status, model, year, photo_url)
-                        VALUES (:id, :name, :license_plate, :vin, :status, :model, :year, :photo_url)
+                        INSERT INTO vehicles (id, organization_id, name, license_plate, vin, status, model, year, photo_url)
+                        VALUES (:id, :organization_id, :name, :license_plate, :vin, :status, :model, :year, :photo_url)
                     """, {
                         'id': vehicle_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'name': name,
                         'license_plate': license_plate,
                         'vin': vin,
