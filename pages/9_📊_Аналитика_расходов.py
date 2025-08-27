@@ -200,7 +200,7 @@ def show_vehicle_analytics():
         
         category_totals = {}
         for i, cat in enumerate(categories):
-            category_totals[category_names[i]] = sum(v[5 + i] for v in vehicle_stats)
+            category_totals[category_names[i]] = sum(float(v[5 + i]) if v[5 + i] is not None else 0 for v in vehicle_stats)
         
         # Pie chart for expense categories
         fig_pie = px.pie(
@@ -218,7 +218,7 @@ def show_vehicle_analytics():
             st.write("**Расходы по категориям:**")
             for cat_name, amount in category_totals.items():
                 if amount > 0:
-                    percentage = (amount / total_spent) * 100
+                    percentage = (float(amount) / total_spent) * 100
                     st.metric(cat_name, format_currency(amount), f"{percentage:.1f}%")
         
         st.divider()
