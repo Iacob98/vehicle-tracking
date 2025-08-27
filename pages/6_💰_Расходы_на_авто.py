@@ -153,10 +153,11 @@ def show_add_expense_form():
                     expense_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO car_expenses 
-                        (id, car_id, category, amount, date, description, file_url)
-                        VALUES (:id, :car_id, :category, :amount, :date, :description, :file_url)
+                        (id, organization_id, car_id, category, amount, date, description, file_url)
+                        VALUES (:id, :organization_id, :car_id, :category, :amount, :date, :description, :file_url)
                     """, {
                         'id': expense_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'car_id': vehicle_id,
                         'category': category,
                         'amount': amount,
@@ -274,9 +275,10 @@ def show_edit_expense_form(expense_id):
                                 UPDATE car_expenses 
                                 SET car_id = :car_id, date = :date, category = :category, 
                                     amount = :amount, description = :description, file_url = :file_url
-                                WHERE id = :id
+                                WHERE id = :id AND organization_id = :organization_id
                             """, {
                                 'id': expense_id,
+                                'organization_id': st.session_state.get('organization_id'),
                                 'car_id': vehicle_id,
                                 'date': expense_date,
                                 'category': category,

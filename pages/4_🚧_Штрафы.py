@@ -272,10 +272,11 @@ def show_add_penalty_form():
                 penalty_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO penalties 
-                    (id, vehicle_id, user_id, amount, date, status, description, photo_url)
-                    VALUES (:id, :vehicle_id, :user_id, :amount, :date, 'open', :description, :photo_url)
+                    (id, organization_id, vehicle_id, user_id, amount, date, status, description, photo_url)
+                    VALUES (:id, :organization_id, :vehicle_id, :user_id, :amount, :date, 'open', :description, :photo_url)
                 """, {
                     'id': penalty_id,
+                    'organization_id': st.session_state.get('organization_id'),
                     'vehicle_id': vehicle_id,
                     'user_id': user_id,
                     'amount': amount,

@@ -205,10 +205,11 @@ def show_add_team_form():
                 try:
                     team_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO teams (id, name, lead_id)
-                        VALUES (:id, :name, :lead_id)
+                        INSERT INTO teams (id, organization_id, name, lead_id)
+                        VALUES (:id, :organization_id, :name, :lead_id)
                     """, {
                         'id': team_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'name': name,
                         'lead_id': leader_id
                     })

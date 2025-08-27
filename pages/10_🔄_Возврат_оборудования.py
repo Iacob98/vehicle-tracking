@@ -119,10 +119,11 @@ def return_equipment(assignment_id, return_status, notes=None):
             
             execute_query("""
                 INSERT INTO penalties 
-                (id, team_id, date, amount, status, description)
-                VALUES (:id, :team_id, :date, :amount, 'open', :description)
+                (id, organization_id, team_id, date, amount, status, description)
+                VALUES (:id, :organization_id, :team_id, :date, :amount, 'open', :description)
             """, {
                 'id': penalty_id,
+                'organization_id': st.session_state.get('organization_id'),
                 'team_id': team_id,
                 'date': date.today(),
                 'amount': penalty_amount,

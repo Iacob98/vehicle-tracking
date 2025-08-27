@@ -445,15 +445,15 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     )[0][0]
                     
                     execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
-                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                        INSERT INTO penalties (id, organization_id, team_id, amount, description, date, status)
+                        VALUES (:id, :organization_id, :team_id, :amount, :description, :date, 'open')
                     """, {
                         'id': penalty_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'team_id': team_id,
                         'amount': penalty_amount,
                         'description': f'Поломка оборудования: {material_name} ({quantity} ед.)',
-                        'date': datetime.now().date(),
-                        'created_at': datetime.now()
+                        'date': datetime.now().date()
                     })
                     
                     st.error(f"🔴 {material_name} отмечено как сломанное. Штраф: {format_currency(penalty_amount)}")
@@ -475,15 +475,15 @@ def update_assignment_status(assignment_id, new_status, material_type, assignmen
                     )[0][0]
                     
                     execute_query("""
-                        INSERT INTO penalties (id, team_id, amount, description, date, status, created_at)
-                        VALUES (:id, :team_id, :amount, :description, :date, 'open', :created_at)
+                        INSERT INTO penalties (id, organization_id, team_id, amount, description, date, status)
+                        VALUES (:id, :organization_id, :team_id, :amount, :description, :date, 'open')
                     """, {
                         'id': penalty_id,
+                        'organization_id': st.session_state.get('organization_id'),
                         'team_id': team_id,
                         'amount': penalty_amount,
                         'description': f'Поломка материала: {material_name} ({quantity} ед.)',
-                        'date': datetime.now().date(),
-                        'created_at': datetime.now()
+                        'date': datetime.now().date()
                     })
                     
                     st.error(f"🔴 Материал {material_name} сломан. Штраф: {format_currency(penalty_amount)}")

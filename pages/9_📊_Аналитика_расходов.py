@@ -47,7 +47,7 @@ def get_vehicle_expense_statistics(date_from=None, date_to=None):
                 SUM(CASE WHEN ce.expense_category = 'repair' THEN ce.amount ELSE 0 END) as repair_total,
                 SUM(CASE WHEN ce.expense_category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_total
             FROM vehicles v
-            LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id
+            LEFT JOIN car_expenses ce ON v.id = ce.car_id
             {where_clause}
             GROUP BY v.id, v.name, v.license_plate, ce.expense_category
             HAVING SUM(ce.amount) > 0
