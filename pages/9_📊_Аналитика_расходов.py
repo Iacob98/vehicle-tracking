@@ -675,10 +675,7 @@ def get_penalty_statistics():
             END as penalty_type
         FROM penalties p
         JOIN teams t ON p.team_id = t.id
-        LEFT JOIN vehicle_assignments va ON va.team_id = p.team_id 
-            AND va.start_date <= p.date 
-            AND (va.end_date IS NULL OR va.end_date >= p.date)
-        LEFT JOIN users u ON va.driver_id = u.id
+        LEFT JOIN users u ON p.user_id = u.id
         WHERE p.organization_id = :organization_id
         ORDER BY p.date DESC
     """, {
@@ -686,7 +683,7 @@ def get_penalty_statistics():
     })
 
 def get_user_penalty_summary():
-    """Get penalty summary by user - simplified approach"""
+    """Get penalty summary by user - using direct user_id link"""
     return execute_query("""
         SELECT 
             u.first_name || ' ' || u.last_name as user_name,
@@ -697,12 +694,11 @@ def get_user_penalty_summary():
             COALESCE(SUM(CASE WHEN p.description NOT LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as traffic_fines,
             COALESCE(SUM(p.amount), 0) as total_amount
         FROM penalties p
+        JOIN users u ON p.user_id = u.id
         JOIN teams t ON p.team_id = t.id
-        LEFT JOIN users u ON u.team_id = t.id
         WHERE p.organization_id = :organization_id
-        AND u.id IS NOT NULL
+        AND p.user_id IS NOT NULL
         GROUP BY u.id, u.first_name, u.last_name, u.role, t.name
-        HAVING COUNT(p.id) > 0
         ORDER BY total_amount DESC
     """, {
         'organization_id': st.session_state.get('organization_id')
@@ -720,8 +716,8 @@ def show_penalty_overview():
     
     # Calculate totals
     total_amount = sum(float(p[1]) for p in penalties)
-    equipment_costs = sum(float(p[1]) for p in penalties if 'Поломка оборудования' in p[3])
-    traffic_fines = sum(float(p[1]) for p in penalties if 'Поломка оборудования' not in p[3])
+    equipment_costs = sum(float(p[1]) for p in penalties if p[3] and 'Поломка оборудования' in p[3])
+    traffic_fines = sum(float(p[1]) for p in penalties if not p[3] or 'Поломка оборудования' not in p[3])
     open_penalties = len([p for p in penalties if p[4] == 'open'])
     paid_penalties = len([p for p in penalties if p[4] == 'paid'])
     

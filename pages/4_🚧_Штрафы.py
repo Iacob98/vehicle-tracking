@@ -230,8 +230,28 @@ def show_add_penalty_form():
                 format_func=lambda x: next((f"{v[1]} ({v[2]})" for v in vehicles if v[0] == x), x)
             )
             
-            # User selection
-            users = execute_query("SELECT id, first_name || ' ' || last_name as full_name FROM users ORDER BY first_name")
+            # Team selection
+            teams = execute_query("SELECT id, name FROM teams ORDER BY name")
+            if not teams:
+                st.warning("Необходимо создать бригады")
+                return
+            
+            team_id = st.selectbox(
+                "Бригада/Team",
+                options=[t[0] for t in teams],
+                format_func=lambda x: next((t[1] for t in teams if t[0] == x), x)
+            )
+            
+            # User selection from selected team
+            users = execute_query("""
+                SELECT id, first_name || ' ' || last_name as full_name 
+                FROM users 
+                WHERE team_id = :team_id OR id = (
+                    SELECT lead_id FROM teams WHERE id = :team_id
+                )
+                ORDER BY first_name
+            """, {'team_id': team_id})
+            
             user_id = None
             if users:
                 user_id = st.selectbox(
@@ -272,12 +292,13 @@ def show_add_penalty_form():
                 penalty_id = str(uuid.uuid4())
                 execute_query("""
                     INSERT INTO penalties 
-                    (id, organization_id, vehicle_id, user_id, amount, date, status, description, photo_url)
-                    VALUES (:id, :organization_id, :vehicle_id, :user_id, :amount, :date, 'open', :description, :photo_url)
+                    (id, organization_id, vehicle_id, team_id, user_id, amount, date, status, description, photo_url)
+                    VALUES (:id, :organization_id, :vehicle_id, :team_id, :user_id, :amount, :date, 'open', :description, :photo_url)
                 """, {
                     'id': penalty_id,
                     'organization_id': st.session_state.get('organization_id'),
                     'vehicle_id': vehicle_id,
+                    'team_id': team_id,
                     'user_id': user_id,
                     'amount': amount,
                     'date': penalty_date,
@@ -377,11 +398,13 @@ def show_edit_penalty_form(penalty_id):
     try:
         # Get current penalty data
         penalty_data = execute_query("""
-            SELECT p.vehicle_id, p.user_id, p.date, p.amount, p.status, p.photo_url, p.description,
+            SELECT p.vehicle_id, p.team_id, p.user_id, p.date, p.amount, p.status, p.photo_url, p.description,
                    v.name as vehicle_name, v.license_plate,
+                   t.name as team_name,
                    CONCAT(u.first_name, ' ', u.last_name) as user_name
             FROM penalties p
             LEFT JOIN vehicles v ON p.vehicle_id = v.id
+            LEFT JOIN teams t ON p.team_id = t.id
             LEFT JOIN users u ON p.user_id = u.id
             WHERE p.id = :id
         """, {'id': penalty_id})
@@ -425,13 +448,41 @@ def show_edit_penalty_form(penalty_id):
                     index=current_vehicle_index
                 )
                 
-                # User selection
-                users = execute_query("SELECT id, first_name || ' ' || last_name as full_name FROM users ORDER BY first_name")
+                # Team selection
+                teams = execute_query("SELECT id, name FROM teams ORDER BY name")
+                if not teams:
+                    st.warning("Необходимо создать бригады")
+                    return
+                
+                current_team_index = 0
+                if current_penalty[1]:  # team_id is at index 1 now
+                    try:
+                        current_team_index = [t[0] for t in teams].index(current_penalty[1])
+                    except ValueError:
+                        current_team_index = 0
+                
+                team_id = st.selectbox(
+                    "Бригада/Team",
+                    options=[t[0] for t in teams],
+                    format_func=lambda x: next((t[1] for t in teams if t[0] == x), x),
+                    index=current_team_index
+                )
+                
+                # User selection from selected team
+                users = execute_query("""
+                    SELECT id, first_name || ' ' || last_name as full_name 
+                    FROM users 
+                    WHERE team_id = :team_id OR id = (
+                        SELECT lead_id FROM teams WHERE id = :team_id
+                    )
+                    ORDER BY first_name
+                """, {'team_id': team_id})
+                
                 user_options = [None] + [u[0] for u in users] if users else [None]
                 current_user_index = 0
-                if current_penalty[1] and users:
+                if current_penalty[2] and users:  # user_id is at index 2 now
                     try:
-                        current_user_index = user_options.index(current_penalty[1])
+                        current_user_index = user_options.index(current_penalty[2])
                     except ValueError:
                         current_user_index = 0
                 
@@ -445,20 +496,20 @@ def show_edit_penalty_form(penalty_id):
             with col2:
                 penalty_date = st.date_input(
                     "Дата/Datum",
-                    value=current_penalty[2] if current_penalty[2] else date.today()
+                    value=current_penalty[3] if current_penalty[3] else date.today()  # date is at index 3
                 )
                 
                 amount = st.number_input(
                     "Сумма/Betrag (€)",
                     min_value=0.0,
                     step=10.0,
-                    value=float(current_penalty[3]) if current_penalty[3] else 100.0
+                    value=float(current_penalty[4]) if current_penalty[4] else 100.0  # amount is at index 4
                 )
                 
                 status_options = ['open', 'paid']
                 current_status_index = 0
-                if current_penalty[4] in status_options:
-                    current_status_index = status_options.index(current_penalty[4])
+                if current_penalty[5] in status_options:  # status is at index 5
+                    current_status_index = status_options.index(current_penalty[5])
                 
                 status = st.selectbox(
                     get_text('status', language),
@@ -468,8 +519,8 @@ def show_edit_penalty_form(penalty_id):
                 )
                 
                 # File upload
-                if current_penalty[5]:
-                    st.info(f"Текущее фото: {current_penalty[5].split('/')[-1]}")
+                if current_penalty[6]:  # photo_url is at index 6
+                    st.info(f"Текущее фото: {current_penalty[6].split('/')[-1]}")
                 
                 uploaded_file = st.file_uploader(
                     "Новое фото/Neues Foto",
@@ -478,25 +529,26 @@ def show_edit_penalty_form(penalty_id):
             
             description = st.text_area(
                 "Описание/Beschreibung",
-                value=current_penalty[6] or ""
+                value=current_penalty[7] or ""  # description is at index 7
             )
             
             col_save, col_cancel = st.columns(2)
             with col_save:
                 if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
                     try:
-                        photo_url = current_penalty[5]  # Keep existing photo
+                        photo_url = current_penalty[6]  # Keep existing photo (photo_url is at index 6)
                         if uploaded_file:
                             photo_url = upload_file(uploaded_file, 'penalties')
                         
                         execute_query("""
                             UPDATE penalties 
-                            SET vehicle_id = :vehicle_id, user_id = :user_id, date = :date, 
+                            SET vehicle_id = :vehicle_id, team_id = :team_id, user_id = :user_id, date = :date, 
                                 amount = :amount, status = :status, photo_url = :photo_url, description = :description
                             WHERE id = :id
                         """, {
                             'id': penalty_id,
                             'vehicle_id': vehicle_id,
+                            'team_id': team_id,
                             'user_id': user_id,
                             'date': penalty_date,
                             'amount': amount,
