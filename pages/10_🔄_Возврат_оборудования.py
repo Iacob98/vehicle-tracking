@@ -49,12 +49,12 @@ def get_return_history():
             ma.quantity,
             ma.date as assigned_date,
             ma.status,
-            ma.end_date as return_date
+            ma.notes
         FROM material_assignments ma
         JOIN materials m ON ma.material_id = m.id
         JOIN teams t ON ma.team_id = t.id
         WHERE ma.status IN ('returned', 'broken') AND m.type = 'equipment'
-        ORDER BY ma.end_date DESC
+        ORDER BY ma.date DESC
         LIMIT 100
     """)
 
@@ -194,7 +194,7 @@ def show_return_history():
     # Create DataFrame for better display
     df_data = []
     for record in history:
-        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status, return_date = record
+        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status, notes = record
         
         status_emoji = "✅" if status == "returned" else "❌"
         status_text = "Возвращено" if status == "returned" else "Сломано"
@@ -205,7 +205,7 @@ def show_return_history():
             "Бригада": team_name,
             "Количество": f"{quantity} {unit}",
             "Дата выдачи": assigned_date.strftime('%d.%m.%Y') if assigned_date else '',
-            "Дата возврата": return_date.strftime('%d.%m.%Y %H:%M') if return_date else ''
+            "Примечания": notes if notes else ''
         })
     
     if df_data:
