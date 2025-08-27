@@ -2,7 +2,7 @@ import streamlit as st
 import uuid
 from database import execute_query
 from translations import get_text
-from datetime import datetime, date
+from datetime import date, datetime
 from utils import upload_file
 
 # Page config
@@ -239,15 +239,18 @@ def show_add_user_form():
                 try:
                     user_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO users (id, first_name, last_name, phone, role, team_id)
-                        VALUES (:id, :first_name, :last_name, :phone, :role, :team_id)
+                        INSERT INTO users (id, organization_id, email, first_name, last_name, phone, role, team_id, created_at)
+                        VALUES (:id, :organization_id, :email, :first_name, :last_name, :phone, :role, :team_id, :created_at)
                     """, {
                         'id': user_id,
+                        'organization_id': st.session_state.get('organization_id'),
+                        'email': f"{first_name.lower()}.{last_name.lower()}@organization.local",
                         'first_name': first_name,
                         'last_name': last_name,
                         'phone': phone,
                         'role': role,
-                        'team_id': team_id
+                        'team_id': team_id,
+                        'created_at': datetime.now()
                     })
                     st.success(get_text('success_save', language))
                     st.rerun()
@@ -333,12 +336,12 @@ def show_user_documents_list():
                     ud.id,
                     ud.document_type,
                     ud.title,
-                    ud.date_issued,
-                    ud.date_expiry,
+                    ud.issue_date,
+                    ud.expiry_date,
                     ud.file_url
                 FROM user_documents ud
                 WHERE ud.user_id = :user_id AND ud.is_active = true
-                ORDER BY ud.document_type, ud.date_expiry ASC
+                ORDER BY ud.document_type, ud.expiry_date ASC
             """, {'user_id': selected_user_id})
             
             if user_documents:
@@ -559,15 +562,17 @@ def show_add_user_document_form():
                     doc_id = str(uuid.uuid4())
                     execute_query("""
                         INSERT INTO user_documents 
-                        (id, user_id, document_type, title, date_issued, date_expiry, file_url, is_active)
-                        VALUES (:id, :user_id, :document_type, :title, :date_issued, :date_expiry, :file_url, true)
+                        (id, organization_id, user_id, document_type, title, issue_date, expiry_date, file_url, notes)
+                        VALUES (:id, :organization_id, :user_id, :document_type, :title, :issue_date, :expiry_date, :file_url, :notes)
                     """, {
                         'id': doc_id,
                         'user_id': user_id,
                         'document_type': document_type,
                         'title': title,
-                        'date_issued': date_issued,
-                        'date_expiry': date_expiry,
+                        'organization_id': st.session_state.get('organization_id'),
+                        'issue_date': date_issued,
+                        'expiry_date': date_expiry,
+                        'notes': None,
                         'file_url': file_url
                     })
                     
