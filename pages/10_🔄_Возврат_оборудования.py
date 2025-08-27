@@ -19,6 +19,9 @@ language = st.session_state.get('language', 'ru')
 @st.cache_data(ttl=300)
 def get_active_assignments():
     """Get active material assignments (equipment only)"""
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        return []
     return execute_query("""
         SELECT 
             ma.id::text,
@@ -32,13 +35,16 @@ def get_active_assignments():
         FROM material_assignments ma
         JOIN materials m ON ma.material_id = m.id
         JOIN teams t ON ma.team_id = t.id
-        WHERE ma.status = 'active' AND m.type = 'equipment'
+        WHERE ma.status = 'active' AND m.type = 'equipment' AND ma.organization_id = %s
         ORDER BY ma.date DESC
-    """)
+    """, (user_info['organization_id'],))
 
 @st.cache_data(ttl=300)
 def get_return_history():
     """Get equipment return history"""
+    user_info = st.session_state.get('user_info')
+    if not user_info:
+        return []
     return execute_query("""
         SELECT 
             ma.id::text,
@@ -53,15 +59,20 @@ def get_return_history():
         FROM material_assignments ma
         JOIN materials m ON ma.material_id = m.id
         JOIN teams t ON ma.team_id = t.id
-        WHERE ma.status IN ('returned', 'broken') AND m.type = 'equipment'
+        WHERE ma.status IN ('returned', 'broken') AND m.type = 'equipment' AND ma.organization_id = %s
         ORDER BY ma.end_date DESC
         LIMIT 100
-    """)
+    """, (user_info['organization_id'],))
 
 def return_equipment(assignment_id, return_status, notes=None):
     """Return equipment and update inventory"""
     try:
         # Get assignment details
+        user_info = st.session_state.get('user_info')
+        if not user_info:
+            st.error("Не авторизован")
+            return False
+            
         assignment_data = execute_query("""
             SELECT 
                 ma.material_id::text,
@@ -73,8 +84,8 @@ def return_equipment(assignment_id, return_status, notes=None):
             FROM material_assignments ma
             JOIN materials m ON ma.material_id = m.id
             JOIN teams t ON ma.team_id = t.id
-            WHERE ma.id = :assignment_id AND ma.status = 'active'
-        """, {'assignment_id': assignment_id})
+            WHERE ma.id = :assignment_id AND ma.status = 'active' AND ma.organization_id = :organization_id
+        """, {'assignment_id': assignment_id, 'organization_id': user_info['organization_id']})
         
         if not assignment_data:
             st.error("Назначение оборудования не найдено или уже обработано")
