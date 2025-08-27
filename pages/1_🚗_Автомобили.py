@@ -1194,6 +1194,209 @@ def show_expiring_documents():
     except Exception as e:
         st.error(f"Ошибка загрузки истекающих документов: {str(e)}")
 
+def show_vehicle_assignments():
+    """Show and manage vehicle assignments to teams"""
+    st.subheader("👥 Назначения автомобилей бригадам")
+    st.info("""
+    На этой странице вы можете:
+    - **🚗 Назначить** автомобиль бригаде  
+    - **📋 Просмотреть** текущие назначения
+    - **⏹️ Завершить** назначение автомобиля
+    """)
+    
+    # Add new assignment section
+    with st.expander("➕ Назначить автомобиль бригаде"):
+        show_add_assignment_form()
+    
+    # Current assignments
+    try:
+        assignments = execute_query("""
+            SELECT 
+                va.id,
+                v.name as vehicle_name,
+                v.license_plate,
+                t.name as team_name,
+                va.start_date,
+                va.end_date,
+                v.photo_url
+            FROM vehicle_assignments va
+            JOIN vehicles v ON va.vehicle_id = v.id
+            JOIN teams t ON va.team_id = t.id
+            WHERE va.organization_id = :organization_id
+            ORDER BY va.start_date DESC
+        """, {
+            'organization_id': st.session_state.get('organization_id')
+        })
+        
+        if assignments:
+            st.subheader("🚗 Текущие назначения")
+            
+            # Show statistics
+            active_assignments = [a for a in assignments if a[5] is None]
+            inactive_assignments = [a for a in assignments if a[5] is not None]
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Активные назначения", len(active_assignments))
+            with col2:
+                st.metric("Завершенные назначения", len(inactive_assignments))
+            
+            st.divider()
+            
+            for assignment in assignments:
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
+                    
+                    with col1:
+                        # Vehicle photo thumbnail
+                        if assignment[6]:  # photo_url
+                            photo_path = assignment[6].lstrip('/') if assignment[6].startswith('/') else assignment[6]
+                            try:
+                                import os
+                                if os.path.exists(photo_path):
+                                    st.image(photo_path, width=60)
+                                else:
+                                    st.write("🚗")
+                            except Exception:
+                                st.write("🚗")
+                        else:
+                            st.write("🚗")
+                    
+                    with col2:
+                        st.write(f"**🚗 {assignment[1]}** ({assignment[2]})")
+                        st.write(f"👥 Бригада: {assignment[3]}")
+                    
+                    with col3:
+                        start_date = assignment[4].strftime('%d.%m.%Y') if assignment[4] else ''
+                        end_date = assignment[5].strftime('%d.%m.%Y') if assignment[5] else 'Активно'
+                        
+                        if assignment[5] is None:  # Active assignment
+                            st.markdown(f":green[📅 С {start_date}]")
+                            st.markdown(f":green[✅ {end_date}]")
+                        else:  # Ended assignment  
+                            st.write(f"📅 {start_date} - {end_date}")
+                            st.markdown(f":gray[⏹️ Завершено]")
+                    
+                    with col4:
+                        if assignment[5] is None:  # If end_date is None (active assignment)
+                            if st.button("⏹️ Завершить", key=f"end_assignment_{assignment[0]}", help="Завершить назначение"):
+                                end_assignment(assignment[0])
+                
+                st.divider()
+        else:
+            st.info("Нет назначений автомобилей")
+    
+    except Exception as e:
+        st.error(f"Ошибка загрузки назначений: {str(e)}")
+
+def show_add_assignment_form():
+    """Show form to add vehicle assignment"""
+    with st.form("add_assignment_form"):
+        col1, col2, col3 = st.columns(3)
+        
+        # Get vehicles and teams for selection
+        vehicles = execute_query("""
+            SELECT id, name, license_plate 
+            FROM vehicles 
+            WHERE organization_id = :organization_id
+            ORDER BY name
+        """, {
+            'organization_id': st.session_state.get('organization_id')
+        })
+        
+        teams = execute_query("""
+            SELECT id, name 
+            FROM teams 
+            WHERE organization_id = :organization_id
+            ORDER BY name
+        """, {
+            'organization_id': st.session_state.get('organization_id')
+        })
+        
+        if not vehicles or not teams:
+            st.warning("⚠️ Необходимо создать автомобили и бригады перед назначением")
+            return
+        
+        with col1:
+            vehicle_options = [(str(v[0]), f"{v[1]} ({v[2]})") for v in vehicles]
+            vehicle_id = st.selectbox(
+                "🚗 Выберите автомобиль",
+                options=[v[0] for v in vehicle_options],
+                format_func=lambda x: next(v[1] for v in vehicle_options if v[0] == x),
+                key="assign_vehicle_id"
+            )
+        
+        with col2:
+            team_options = [(str(t[0]), t[1]) for t in teams]
+            team_id = st.selectbox(
+                "👥 Выберите бригаду",
+                options=[t[0] for t in team_options],
+                format_func=lambda x: next(t[1] for t in team_options if t[0] == x),
+                key="assign_team_id"
+            )
+        
+        with col3:
+            start_date = st.date_input(
+                "📅 Дата начала",
+                value=datetime.now().date(),
+                key="assign_start_date"
+            )
+        
+        submitted = st.form_submit_button("✅ Назначить автомобиль", type="primary")
+        
+        if submitted:
+            try:
+                # End any existing assignment for this vehicle
+                execute_query("""
+                    UPDATE vehicle_assignments 
+                    SET end_date = :date 
+                    WHERE vehicle_id = :vehicle_id 
+                    AND end_date IS NULL 
+                    AND organization_id = :organization_id
+                """, {
+                    'date': start_date,
+                    'vehicle_id': vehicle_id,
+                    'organization_id': st.session_state.get('organization_id')
+                })
+                
+                # Create new assignment
+                assignment_id = str(uuid.uuid4())
+                execute_query("""
+                    INSERT INTO vehicle_assignments 
+                    (id, organization_id, vehicle_id, team_id, start_date)
+                    VALUES (:id, :organization_id, :vehicle_id, :team_id, :start_date)
+                """, {
+                    'id': assignment_id,
+                    'organization_id': st.session_state.get('organization_id'),
+                    'vehicle_id': vehicle_id,
+                    'team_id': team_id,
+                    'start_date': start_date
+                })
+                
+                vehicle_name = next(v[1] for v in vehicle_options if v[0] == vehicle_id)
+                team_name = next(t[1] for t in team_options if t[0] == team_id)
+                
+                st.success(f"✅ Автомобиль **{vehicle_name}** назначен бригаде **{team_name}** с {start_date.strftime('%d.%m.%Y')}")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка назначения: {str(e)}")
+
+def end_assignment(assignment_id):
+    """End vehicle assignment"""
+    try:
+        execute_query("""
+            UPDATE vehicle_assignments 
+            SET end_date = CURRENT_DATE 
+            WHERE id = :id AND organization_id = :organization_id
+        """, {
+            'id': assignment_id,
+            'organization_id': st.session_state.get('organization_id')
+        })
+        st.success("⏹️ Назначение завершено")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка завершения назначения: {str(e)}")
+
 def export_vehicles():
     """Export vehicles to CSV"""
     vehicles = execute_query("SELECT * FROM vehicles")
@@ -1232,10 +1435,11 @@ else:
     
     # Only show main tabs if no special views are active
     if not document_viewer_active:
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             get_text('vehicles', language),
             "📄 Все документы",
             "⚠️ Истекающие документы", 
+            "👥 Назначения автомобилей",
             get_text('add', language)
         ])
 
@@ -1249,4 +1453,7 @@ else:
             show_expiring_documents()
 
         with tab4:
+            show_vehicle_assignments()
+
+        with tab5:
             show_add_vehicle_form()
