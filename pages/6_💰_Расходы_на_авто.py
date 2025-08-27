@@ -26,7 +26,7 @@ def get_car_expenses_cached():
             ce.category,
             ce.amount,
             ce.description,
-            ce.file_url,
+            ce.receipt_url,
             ce.maintenance_id
         FROM car_expenses ce
         JOIN vehicles v ON ce.vehicle_id = v.id
