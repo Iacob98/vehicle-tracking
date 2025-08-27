@@ -668,7 +668,7 @@ def get_penalty_statistics():
             p.description,
             p.status,
             t.name as team_name,
-            u.first_name || ' ' || u.last_name as user_name,
+            COALESCE(u.first_name || ' ' || u.last_name, 'Водитель не указан') as user_name,
             CASE 
                 WHEN p.description LIKE '%Поломка оборудования%' THEN 'equipment_damage'
                 ELSE 'traffic_violation'
@@ -686,7 +686,7 @@ def get_penalty_statistics():
     })
 
 def get_user_penalty_summary():
-    """Get penalty summary by user"""
+    """Get penalty summary by user - simplified approach"""
     return execute_query("""
         SELECT 
             u.first_name || ' ' || u.last_name as user_name,
@@ -696,14 +696,11 @@ def get_user_penalty_summary():
             COALESCE(SUM(CASE WHEN p.description LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as equipment_costs,
             COALESCE(SUM(CASE WHEN p.description NOT LIKE '%Поломка оборудования%' THEN p.amount ELSE 0 END), 0) as traffic_fines,
             COALESCE(SUM(p.amount), 0) as total_amount
-        FROM users u
-        LEFT JOIN teams t ON u.team_id = t.id
-        LEFT JOIN vehicle_assignments va ON va.driver_id = u.id
-        LEFT JOIN penalties p ON p.team_id = t.id 
-            AND va.start_date <= p.date 
-            AND (va.end_date IS NULL OR va.end_date >= p.date)
-        WHERE u.organization_id = :organization_id
-        AND t.id IS NOT NULL
+        FROM penalties p
+        JOIN teams t ON p.team_id = t.id
+        LEFT JOIN users u ON u.team_id = t.id
+        WHERE p.organization_id = :organization_id
+        AND u.id IS NOT NULL
         GROUP BY u.id, u.first_name, u.last_name, u.role, t.name
         HAVING COUNT(p.id) > 0
         ORDER BY total_amount DESC
@@ -754,6 +751,23 @@ def show_user_statistics():
     
     if not user_stats:
         st.info("📝 Нет данных по пользователям с штрафами")
+        
+        # Show debug info to understand the issue
+        with st.expander("🔍 Отладочная информация"):
+            st.write("**Проверяем данные в системе:**")
+            
+            # Check if there are penalties
+            penalties = execute_query("SELECT COUNT(*) as count FROM penalties WHERE organization_id = :org_id", 
+                                    {'org_id': st.session_state.get('organization_id')})
+            if penalties:
+                st.write(f"Штрафов в системе: {penalties[0][0]}")
+            
+            # Check if there are users in teams
+            users_in_teams = execute_query("SELECT COUNT(*) as count FROM users WHERE organization_id = :org_id AND team_id IS NOT NULL", 
+                                         {'org_id': st.session_state.get('organization_id')})
+            if users_in_teams:
+                st.write(f"Пользователей в бригадах: {users_in_teams[0][0]}")
+                
         return
     
     # Create DataFrame for better display
