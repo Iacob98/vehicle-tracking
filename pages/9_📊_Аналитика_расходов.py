@@ -361,7 +361,7 @@ def show_team_analytics():
     if isinstance(team_stats, list) and len(team_stats) > 0:
         # Summary metrics
         total_teams = len(team_stats)
-        total_spent = sum(t[8] for t in team_stats)
+        total_spent = sum(float(t[8]) if t[8] is not None else 0 for t in team_stats)
         most_expensive = team_stats[0]
         
         col1, col2, col3 = st.columns(3)
@@ -393,8 +393,8 @@ def show_team_analytics():
         # Expense breakdown: penalties vs materials
         st.subheader("📈 Структура расходов: штрафы vs материалы")
         
-        total_penalties = sum(t[3] for t in team_stats)
-        total_materials = sum(t[5] for t in team_stats)
+        total_penalties = sum(float(t[3]) if t[3] is not None else 0 for t in team_stats)
+        total_materials = sum(float(t[5]) if t[5] is not None else 0 for t in team_stats)
         
         col1, col2 = st.columns(2)
         
@@ -582,7 +582,7 @@ def show_comparative_analytics():
         ORDER BY expense_date
     """)
     
-    if daily_expenses and len(daily_expenses) > 0:
+    if daily_expenses and isinstance(daily_expenses, list) and len(daily_expenses) > 0:
         df_daily = pd.DataFrame(daily_expenses, columns=['Date', 'Vehicle_Expenses', 'Team_Expenses'])
         df_daily['Total'] = df_daily['Vehicle_Expenses'] + df_daily['Team_Expenses']
         

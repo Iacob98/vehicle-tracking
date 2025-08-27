@@ -50,8 +50,8 @@ try:
     car_expenses, team_expenses = get_expenses_summary()
     
     # Summary metrics
-    total_car = sum(e[2] for e in car_expenses) if car_expenses else 0
-    total_team = sum(e[2] for e in team_expenses) if team_expenses else 0
+    total_car = sum(float(e[2]) if e[2] is not None else 0 for e in car_expenses) if car_expenses else 0
+    total_team = sum(float(e[2]) if e[2] is not None else 0 for e in team_expenses) if team_expenses else 0
     total_all = total_car + total_team
     
     col1, col2, col3 = st.columns(3)
