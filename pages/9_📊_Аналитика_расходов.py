@@ -153,7 +153,7 @@ def show_vehicle_analytics():
             SUM(CASE WHEN ce.category = 'insurance' THEN ce.amount ELSE 0 END) as insurance_cost,
             SUM(CASE WHEN ce.category = 'other' THEN ce.amount ELSE 0 END) as other_cost
         FROM vehicles v
-        LEFT JOIN car_expenses ce ON v.id = ce.car_id 
+        LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id 
             AND ce.date BETWEEN :date_from AND :date_to
         GROUP BY v.id, v.name, v.license_plate, v.photo_url
         HAVING COALESCE(SUM(ce.amount), 0) > 0
@@ -164,7 +164,7 @@ def show_vehicle_analytics():
     if vehicle_stats:
         # Summary metrics
         total_vehicles = len(vehicle_stats)
-        total_spent = sum(v[4] for v in vehicle_stats)
+        total_spent = sum(float(v[5]) if v[5] is not None else 0 for v in vehicle_stats)
         most_expensive = vehicle_stats[0]
         
         col1, col2, col3 = st.columns(3)
@@ -173,7 +173,7 @@ def show_vehicle_analytics():
         with col2:
             st.metric("Общие расходы", format_currency(total_spent))
         with col3:
-            st.metric("Самый дорогой автомобиль", f"{most_expensive[1]} ({format_currency(most_expensive[4])})")
+            st.metric("Самый дорогой автомобиль", f"{most_expensive[1]} ({format_currency(most_expensive[5])})")
         
         st.divider()
         
@@ -183,10 +183,10 @@ def show_vehicle_analytics():
             
             fig = px.bar(
                 x=[f"{v[1]}\n({v[2]})" for v in top_10],
-                y=[v[4] for v in top_10],
+                y=[v[5] for v in top_10],
                 title="🏆 ТОП-10 самых дорогих автомобилей",
                 labels={'x': 'Автомобили', 'y': 'Общие расходы (€)'},
-                color=[v[4] for v in top_10],
+                color=[v[5] for v in top_10],
                 color_continuous_scale='Reds'
             )
             fig.update_layout(height=400, showlegend=False)

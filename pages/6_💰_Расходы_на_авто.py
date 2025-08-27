@@ -48,7 +48,7 @@ def show_expenses_list():
         
         if expenses:
             # Statistics
-            total_amount = sum(float(e[4]) for e in expenses)
+            total_amount = sum(float(e[4]) if e[4] is not None else 0 for e in expenses)
             
             st.metric("Общие расходы/Gesamtausgaben", format_currency(total_amount))
             st.divider()
