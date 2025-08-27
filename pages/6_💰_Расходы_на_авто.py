@@ -178,10 +178,10 @@ def show_edit_expense_form(expense_id):
     try:
         # Get current expense data
         expense_data = execute_query("""
-            SELECT ce.car_id, ce.date, ce.category, ce.amount, ce.description, ce.file_url,
+            SELECT ce.vehicle_id, ce.date, ce.category, ce.amount, ce.description, ce.receipt_url,
                    v.name as vehicle_name
             FROM car_expenses ce
-            JOIN vehicles v ON ce.car_id = v.id
+            JOIN vehicles v ON ce.vehicle_id = v.id
             WHERE ce.id = :id
         """, {'id': expense_id})
         
