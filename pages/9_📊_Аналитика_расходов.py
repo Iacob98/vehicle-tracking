@@ -234,7 +234,7 @@ def show_vehicle_analytics():
         
         # Display table with formatting
         for idx, vehicle in enumerate(vehicle_stats):
-            with st.expander(f"🚗 {vehicle[1]} ({vehicle[2]}) - {format_currency(vehicle[4])}", expanded=idx < 3):
+            with st.expander(f"🚗 {vehicle[1]} ({vehicle[2]}) - {format_currency(vehicle[5])}", expanded=idx < 3):
                 col1, col2, col3 = st.columns([1, 2, 2])
                 
                 with col1:
@@ -248,17 +248,17 @@ def show_vehicle_analytics():
                         st.write("🚗 Без фото")
                 
                 with col2:
-                    st.write(f"**Общие расходы:** {format_currency(vehicle[4])}")
-                    st.write(f"**Количество операций:** {vehicle[5]}")
+                    st.write(f"**Общие расходы:** {format_currency(vehicle[5])}")
+                    st.write(f"**Количество операций:** {int(vehicle[4])}")
                     st.write(f"**Средний расход:** {format_currency(vehicle[6])}")
                 
                 with col3:
                     st.write("**По категориям:**")
-                    if vehicle[7] > 0: st.write(f"• Топливо: {format_currency(vehicle[7])}")
-                    if vehicle[8] > 0: st.write(f"• Ремонт: {format_currency(vehicle[8])}")
-                    if vehicle[9] > 0: st.write(f"• Обслуживание: {format_currency(vehicle[9])}")
-                    if vehicle[10] > 0: st.write(f"• Страховка: {format_currency(vehicle[10])}")
-                    if vehicle[11] > 0: st.write(f"• Прочее: {format_currency(vehicle[11])}")
+                    if float(vehicle[7]) > 0: st.write(f"• Топливо: {format_currency(vehicle[7])}")
+                    if float(vehicle[8]) > 0: st.write(f"• Ремонт: {format_currency(vehicle[8])}")
+                    if float(vehicle[9]) > 0: st.write(f"• Обслуживание: {format_currency(vehicle[9])}")
+                    if float(vehicle[10]) > 0: st.write(f"• Страховка: {format_currency(vehicle[10])}")
+                    if float(vehicle[11]) > 0: st.write(f"• Прочее: {format_currency(vehicle[11])}")
     else:
         st.info("📊 Нет данных о расходах автомобилей за выбранный период")
         st.write("Убедитесь что:")
