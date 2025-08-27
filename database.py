@@ -57,7 +57,14 @@ def execute_query(query, params=None):
 def init_db():
     """Initialize database with simple approach"""
     try:
-        # Use autocommit for individual DDL statements
+        # Check if database is already initialized
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'organizations'"))
+            if result.scalar() > 0:
+                print("Database already initialized")
+                return True
+        
+        # Use autocommit for individual DDL statements  
         with engine.connect() as conn:
             # Set autocommit mode
             trans = conn.begin()
@@ -82,15 +89,20 @@ def init_db():
                         pass  # Type already exists
                 
                 # Create organizations table first
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS organizations (
-                        id UUID PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        subscription_status VARCHAR(50) DEFAULT 'active',
-                        subscription_expires_at TIMESTAMP
-                    )
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS organizations (
+                            id UUID PRIMARY KEY,
+                            name VARCHAR(255) NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            subscription_status VARCHAR(50) DEFAULT 'active',
+                            subscription_expires_at TIMESTAMP
+                        )
+                    """))
+                    print("Organizations table created successfully")
+                except Exception as e:
+                    print(f"Error creating organizations table: {e}")
+                    raise
                 
                 # Create tables without foreign key dependencies first
                 table_statements = [
@@ -218,8 +230,13 @@ def init_db():
                 )"""
             ]
             
-                for stmt in table_statements:
-                    conn.execute(text(stmt))
+                for i, stmt in enumerate(table_statements):
+                    try:
+                        conn.execute(text(stmt))
+                        print(f"Table {i+1} created successfully")
+                    except Exception as e:
+                        print(f"Error creating table {i+1}: {e}")
+                        raise
                 
                 # Add foreign key constraints after all tables are created
                 constraint_statements = [
