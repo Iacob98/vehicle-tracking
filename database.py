@@ -81,10 +81,22 @@ def init_db():
                     except Exception:
                         pass  # Type already exists
                 
-                # Create tables
+                # Create organizations table first
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS organizations (
+                        id UUID PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        subscription_status VARCHAR(50) DEFAULT 'active',
+                        subscription_expires_at TIMESTAMP
+                    )
+                """))
+                
+                # Create tables without foreign key dependencies first
                 table_statements = [
                 """CREATE TABLE IF NOT EXISTS teams (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     name TEXT NOT NULL,
                     lead_id UUID,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -92,20 +104,28 @@ def init_db():
                 
                 """CREATE TABLE IF NOT EXISTS users (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
                     first_name TEXT NOT NULL,
                     last_name TEXT NOT NULL,
                     phone TEXT,
                     role user_role NOT NULL,
-                    team_id UUID REFERENCES teams(id)
+                    team_id UUID REFERENCES teams(id),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
                 
                 """CREATE TABLE IF NOT EXISTS vehicles (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     name TEXT NOT NULL,
-                    license_plate TEXT UNIQUE,
-                    vin TEXT UNIQUE,
+                    license_plate TEXT,
+                    vin TEXT,
                     status vehicle_status DEFAULT 'active',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    photo_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(organization_id, license_plate),
+                    UNIQUE(organization_id, vin)
                 )""",
                 
                 """CREATE TABLE IF NOT EXISTS vehicle_assignments (
@@ -118,11 +138,14 @@ def init_db():
                 
                 """CREATE TABLE IF NOT EXISTS penalties (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     user_id UUID REFERENCES users(id),
+                    team_id UUID REFERENCES teams(id),
                     date DATE NOT NULL,
                     amount NUMERIC(10,2) NOT NULL,
                     photo_url TEXT,
+                    description TEXT,
                     status penalty_status DEFAULT 'open'
                 )""",
                 
@@ -137,40 +160,70 @@ def init_db():
                 
                 """CREATE TABLE IF NOT EXISTS materials (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     name TEXT NOT NULL,
                     type material_type NOT NULL,
-                    status material_status DEFAULT 'active',
-                    photo_url TEXT,
+                    unit_price NUMERIC(10,2) DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
                 
                 """CREATE TABLE IF NOT EXISTS material_assignments (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
                     team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+                    quantity INTEGER DEFAULT 1,
+                    status material_status DEFAULT 'active',
                     event material_event NOT NULL,
                     date DATE NOT NULL,
                     notes TEXT
                 )""",
                 
-                """CREATE TABLE IF NOT EXISTS expenses (
+                """CREATE TABLE IF NOT EXISTS car_expenses (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                    vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
                     date DATE NOT NULL,
                     amount NUMERIC(10,2) NOT NULL,
+                    category VARCHAR(50) NOT NULL,
                     description TEXT,
-                    type expense_type NOT NULL,
+                    receipt_url TEXT,
+                    maintenance_id UUID
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS vehicle_documents (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                     vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
-                    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-                    receipt_url TEXT
+                    document_type VARCHAR(100) NOT NULL,
+                    document_number VARCHAR(100),
+                    issue_date DATE,
+                    expiry_date DATE,
+                    file_url TEXT,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                
+                """CREATE TABLE IF NOT EXISTS user_documents (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    document_type VARCHAR(100) NOT NULL,
+                    document_number VARCHAR(100),
+                    issue_date DATE,
+                    expiry_date DATE,
+                    file_url TEXT,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )"""
             ]
             
                 for stmt in table_statements:
                     conn.execute(text(stmt))
                 
-                # Add foreign key constraints
+                # Add foreign key constraints after all tables are created
                 constraint_statements = [
-                    "ALTER TABLE teams ADD CONSTRAINT IF NOT EXISTS fk_teams_lead_id FOREIGN KEY (lead_id) REFERENCES users(id)",
+                    "ALTER TABLE teams ADD CONSTRAINT IF NOT EXISTS fk_teams_lead_id FOREIGN KEY (lead_id) REFERENCES users(id)"
                 ]
                 
                 for stmt in constraint_statements:

@@ -1,14 +1,15 @@
 """
-Fleet Management System - Main Dashboard
+Fleet Management System - Main Dashboard with Authentication
 """
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime, timedelta
-from database import execute_query
+from database import execute_query, init_db
 from translations import get_text, LANGUAGES
 from utils import format_currency
+from auth import require_auth, show_org_header
 
 # Page configuration
 st.set_page_config(
@@ -22,6 +23,10 @@ st.set_page_config(
         'About': "Fleet Management System v2.0"
     }
 )
+
+# Initialize database and require authentication
+init_db()
+require_auth()
 
 # Initialize language in session state
 if 'language' not in st.session_state:
@@ -45,6 +50,9 @@ with st.sidebar:
     
     st.divider()
     st.info("Используйте меню слева для навигации")
+
+# Organization header
+show_org_header()
 
 # Dashboard
 st.title(f"📊 {get_text('dashboard', st.session_state.language)}")

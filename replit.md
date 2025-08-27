@@ -8,7 +8,22 @@ A comprehensive fleet management web application built with Streamlit that helps
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (August 14, 2025)
+## Recent Changes (August 27, 2025)
+
+### Multi-Tenant Authentication System (August 27, 2025)
+- Implemented complete user registration and authentication system with organization-based data separation
+- Added organizations table as the foundation for multi-tenancy architecture
+- Updated all existing tables to include organization_id for data isolation between organizations
+- Created secure password hashing system with salt for user authentication
+- Built registration system allowing new organizations to sign up with admin user creation
+- Added login/logout functionality with session management using Streamlit session state
+- Implemented organization header display showing current organization and user role
+- Created utility functions for organization-based query filtering and data access control
+- Enhanced database schema with proper foreign key relationships and cascade deletion
+- Added mandatory receipt photo upload system for penalty payments with form validation
+- Prepared system for production deployment with isolated data per organization
+
+### Equipment Return Tracking System (August 14, 2025)
 
 ### Equipment Return Tracking System (August 14, 2025)
 - Created dedicated equipment return page (🔄 Возврат оборудования) for tracking equipment lifecycle
@@ -115,36 +130,48 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: Streamlit web application framework
-- **UI Pattern**: Multi-page application with tabbed interfaces
+- **Framework**: Streamlit web application framework with integrated authentication
+- **UI Pattern**: Multi-page application with tabbed interfaces and organization-based access control
+- **Authentication**: Session-based authentication with login/registration pages and secure logout
 - **Language Support**: Built-in internationalization system supporting Russian and German
-- **Navigation**: Sidebar-based navigation with icon-based menu system
-- **State Management**: Streamlit session state for language preferences and user interactions
+- **Navigation**: Sidebar-based navigation with icon-based menu system and organization header
+- **State Management**: Streamlit session state for authentication, language preferences, and user interactions
+- **Multi-Tenancy**: Organization-based data isolation with automatic filtering across all pages
 
 ### Backend Architecture
-- **Database ORM**: SQLAlchemy with declarative base models
+- **Database ORM**: SQLAlchemy with declarative base models and multi-tenant architecture
 - **Database Connection**: PostgreSQL with connection pooling via SQLAlchemy engine
+- **Authentication System**: Custom authentication with password hashing and organization management
+- **Multi-Tenancy**: Organization-based data isolation with automatic filtering on all database operations
 - **Data Models**: Comprehensive entity relationship model covering:
-  - Vehicles with status tracking (active, repair, unavailable)
-  - Teams with hierarchical leadership structure
-  - Users with role-based access (admin, manager, team_lead)
+  - Organizations as the top-level tenant container
+  - Users with email authentication and role-based access (admin, manager, team_lead, worker)
+  - Vehicles with status tracking (active, repair, unavailable) per organization
+  - Teams with hierarchical leadership structure within organizations
   - Vehicle assignments to teams with date ranges
-  - Penalties tracking with payment status
+  - Penalties tracking with payment status and mandatory receipt uploads
   - Maintenance records (inspection, repair)
-  - Materials and equipment management
-  - Expense tracking by vehicle and team
+  - Materials and equipment management with organization isolation
+  - Expense tracking by vehicle and team within organization boundaries
   - Material assignment history with event logging
+  - Document management for both vehicles and users with expiry tracking
 
 ### Data Storage Solutions
-- **Primary Database**: PostgreSQL with custom enum types for status fields
-- **Schema Design**: Normalized relational database with foreign key constraints
-- **Data Types**: UUID primary keys, PostgreSQL-specific enums, timestamp tracking
-- **Query Execution**: Direct SQL execution via SQLAlchemy engine for complex reporting
+- **Primary Database**: PostgreSQL with custom enum types for status fields and multi-tenant architecture
+- **Schema Design**: Normalized relational database with foreign key constraints and organization-based data isolation
+- **Multi-Tenancy**: Every data table includes organization_id for complete data separation between tenants
+- **Data Types**: UUID primary keys, PostgreSQL-specific enums, timestamp tracking, secure password hashing
+- **Query Execution**: Organization-filtered SQL execution via SQLAlchemy engine with automatic access control
+- **Security**: Cascading deletion on organization removal, unique constraints within organization scope
 
 ### Authentication and Authorization
-- **Role-Based Access**: Three-tier user role system (admin, manager, team_lead)
-- **Team Hierarchy**: Team leaders have specific privileges within their teams
-- **Session Management**: Streamlit built-in session handling
+- **Organization Registration**: Self-service organization creation with admin user setup
+- **Secure Authentication**: Email/password authentication with salted SHA-256 password hashing
+- **Role-Based Access**: Four-tier user role system (admin, manager, team_lead, worker)
+- **Multi-Tenant Security**: Complete data isolation between organizations with automatic filtering
+- **Session Management**: Streamlit session state with secure authentication tracking
+- **Team Hierarchy**: Team leaders have specific privileges within their teams and organization
+- **Organization Management**: Admin users can manage their organization's users and settings
 
 ### Key Features
 - **Dashboard Analytics**: Real-time metrics with Plotly visualizations
