@@ -36,6 +36,26 @@ def get_active_assignments():
         ORDER BY ma.date DESC
     """)
 
+@st.cache_data(ttl=300)  
+def get_pending_returns():
+    """Get equipment pending return confirmation"""
+    return execute_query("""
+        SELECT 
+            ma.id::text,
+            m.name as material_name,
+            m.type,
+            m.unit,
+            t.name as team_name,
+            ma.quantity,
+            ma.date as assigned_date,
+            ma.status
+        FROM material_assignments ma
+        JOIN materials m ON ma.material_id = m.id
+        JOIN teams t ON ma.team_id = t.id
+        WHERE ma.status = 'pending_return' AND m.type = 'equipment'
+        ORDER BY ma.date DESC
+    """)
+
 @st.cache_data(ttl=300)
 def get_return_history():
     """Get equipment return history"""
@@ -58,8 +78,51 @@ def get_return_history():
         LIMIT 100
     """)
 
-def return_equipment(assignment_id, return_status, notes=None):
-    """Return equipment and update inventory"""
+def mark_for_return(assignment_id):
+    """Mark equipment for return (first step)"""
+    try:
+        # Get assignment details
+        assignment_data = execute_query("""
+            SELECT 
+                ma.material_id::text,
+                ma.team_id::text,
+                ma.quantity,
+                m.name,
+                t.name as team_name
+            FROM material_assignments ma
+            JOIN materials m ON ma.material_id = m.id
+            JOIN teams t ON ma.team_id = t.id
+            WHERE ma.id = :assignment_id AND ma.status = 'active'
+        """, {'assignment_id': assignment_id})
+        
+        if not assignment_data:
+            st.error("Назначение оборудования не найдено или уже обработано")
+            return False
+            
+        material_id, team_id, quantity, material_name, team_name = assignment_data[0]
+        
+        # Update assignment to pending_return status
+        execute_query("""
+            UPDATE material_assignments 
+            SET status = 'pending_return', notes = 'Ожидает подтверждения возврата'
+            WHERE id = :assignment_id
+        """, {'assignment_id': assignment_id})
+        
+        st.info(f"🔄 Оборудование '{material_name}' ({quantity} ед.) отмечено для возврата от бригады '{team_name}'")
+        st.warning("⏳ Ожидает подтверждения возврата")
+        
+        # Clear caches
+        get_active_assignments.clear()
+        get_pending_returns.clear()
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Ошибка при отметке возврата: {str(e)}")
+        return False
+
+def confirm_return(assignment_id, return_status):
+    """Confirm return of equipment (second step)"""
     try:
         # Get assignment details
         assignment_data = execute_query("""
@@ -73,27 +136,26 @@ def return_equipment(assignment_id, return_status, notes=None):
             FROM material_assignments ma
             JOIN materials m ON ma.material_id = m.id
             JOIN teams t ON ma.team_id = t.id
-            WHERE ma.id = :assignment_id AND ma.status = 'active'
+            WHERE ma.id = :assignment_id AND ma.status = 'pending_return'
         """, {'assignment_id': assignment_id})
         
         if not assignment_data:
-            st.error("Назначение оборудования не найдено или уже обработано")
+            st.error("Назначение не найдено или не ожидает подтверждения")
             return False
             
         material_id, team_id, quantity, material_name, unit_price, team_name = assignment_data[0]
         
-        # Update assignment status
+        # Update assignment status to final status
         execute_query("""
             UPDATE material_assignments 
-            SET status = :status, event = :event, end_date = :return_date
+            SET status = :status, event = :event, notes = :notes
             WHERE id = :assignment_id
         """, {
             'assignment_id': assignment_id,
             'status': return_status,
             'event': return_status,
-            'return_date': datetime.now()
+            'notes': f'Возврат подтвержден: {return_status}'
         })
-        
         if return_status == 'returned':
             # Equipment returned in good condition - decrease assigned quantity
             execute_query("""
@@ -102,7 +164,7 @@ def return_equipment(assignment_id, return_status, notes=None):
                 WHERE id = :material_id
             """, {'material_id': material_id, 'quantity': quantity})
             
-            st.success(f"✅ Оборудование '{material_name}' ({quantity} ед.) успешно возвращено от бригады '{team_name}'")
+            st.success(f"✅ Возврат подтвержден! Оборудование '{material_name}' ({quantity} ед.) успешно возвращено от бригады '{team_name}'")
             
         elif return_status == 'broken':
             # Equipment returned broken - decrease assigned quantity and create penalty
@@ -130,11 +192,12 @@ def return_equipment(assignment_id, return_status, notes=None):
                 'description': penalty_description
             })
             
-            st.warning(f"⚠️ Оборудование '{material_name}' ({quantity} ед.) возвращено сломанным")
+            st.error(f"💔 Подтверждена поломка оборудования '{material_name}' ({quantity} ед.)")
             st.info(f"💰 Создан штраф на сумму {format_currency(penalty_amount)} для бригады '{team_name}'")
             
         # Clear caches
         get_active_assignments.clear()
+        get_pending_returns.clear()
         get_return_history.clear()
         
         return True
@@ -144,7 +207,7 @@ def return_equipment(assignment_id, return_status, notes=None):
         return False
 
 def show_active_assignments():
-    """Show active equipment assignments"""
+    """Show active equipment assignments with mark for return buttons"""
     st.subheader("📋 Оборудование в использовании / Equipment in Use")
     
     assignments = get_active_assignments()
@@ -158,7 +221,7 @@ def show_active_assignments():
         assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status = assignment
         
         with st.container():
-            col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+            col1, col2, col3 = st.columns([4, 2, 2])
             
             with col1:
                 st.write(f"**🔧 {material_name}**")
@@ -170,13 +233,47 @@ def show_active_assignments():
                 st.write(f"📅 {assigned_date_str}")
             
             with col3:
-                if st.button(f"✅ Вернуть", key=f"return_{assignment_id}", use_container_width=True):
-                    if return_equipment(assignment_id, 'returned'):
+                if st.button(f"🔄 Отметить к возврату", key=f"mark_return_{assignment_id}", use_container_width=True):
+                    if mark_for_return(assignment_id):
+                        st.rerun()
+            
+            st.divider()
+
+def show_pending_returns():
+    """Show equipment pending return confirmation"""
+    st.subheader("⏳ Ожидают подтверждения возврата / Pending Return Confirmation")
+    
+    pending = get_pending_returns()
+    
+    if not pending:
+        st.info("Нет оборудования, ожидающего подтверждения / No equipment pending confirmation")
+        return
+    
+    # Display pending returns
+    for assignment in pending:
+        assignment_id, material_name, material_type, unit, team_name, quantity, assigned_date, status = assignment
+        
+        with st.container():
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+            
+            with col1:
+                st.write(f"**🔧 {material_name}**")
+                st.write(f"👥 {team_name}")
+                st.warning("⏳ Ожидает подтверждения")
+            
+            with col2:
+                st.write(f"**{quantity} {unit}**")
+                assigned_date_str = assigned_date.strftime('%d.%m.%Y') if assigned_date else ''
+                st.write(f"📅 {assigned_date_str}")
+            
+            with col3:
+                if st.button(f"✅ Подтвердить возврат", key=f"confirm_return_{assignment_id}", use_container_width=True):
+                    if confirm_return(assignment_id, 'returned'):
                         st.rerun()
             
             with col4:
-                if st.button(f"❌ Сломано", key=f"broken_{assignment_id}", use_container_width=True):
-                    if return_equipment(assignment_id, 'broken'):
+                if st.button(f"💔 Подтвердить поломку", key=f"confirm_broken_{assignment_id}", use_container_width=True):
+                    if confirm_return(assignment_id, 'broken'):
                         st.rerun()
             
             st.divider()
@@ -231,20 +328,24 @@ def show_return_history():
 st.title("🔄 Возврат оборудования / Equipment Return")
 
 st.info("""
-**🎯 Система возврата оборудования**
+**🎯 Двухэтапная система возврата оборудования**
 
 На этой странице вы можете:
-- **📋 Просмотреть** все оборудование, находящееся в использовании у бригад
-- **✅ Зарегистрировать возврат** оборудования в исправном состоянии
-- **❌ Отметить поломку** и автоматически создать штраф за поломку
-- **📜 Просмотреть историю** всех возвратов оборудования
+- **📋 В использовании:** Просмотреть активное оборудование и отметить к возврату
+- **⏳ Ожидают подтверждения:** Подтвердить окончательный возврат или отметить поломку  
+- **📜 История:** Просмотреть все завершенные возвраты
+
+**Процесс возврата:**
+1. **Отметить к возврату** - оборудование остается в списке ожидания
+2. **Подтвердить возврат** - окончательное подтверждение после проверки
 
 **Важно:** Только возвратное оборудование (не расходники) отображается на этой странице.
 """)
 
 # Tabs for different views
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "📋 В использовании",
+    "⏳ Ожидают подтверждения", 
     "📜 История возвратов"
 ])
 
@@ -252,4 +353,7 @@ with tab1:
     show_active_assignments()
 
 with tab2:
+    show_pending_returns()
+
+with tab3:
     show_return_history()
