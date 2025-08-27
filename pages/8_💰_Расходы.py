@@ -19,10 +19,6 @@ language = st.session_state.get('language', 'ru')
 @st.cache_data(ttl=60)
 def get_expenses_summary():
     """Get expenses summary with caching"""
-    user_info = st.session_state.get('user_info')
-    if not user_info:
-        return [], []
-        
     # Car expenses
     car_expenses = execute_query("""
         SELECT 
@@ -31,9 +27,8 @@ def get_expenses_summary():
             SUM(ce.amount) as total,
             COUNT(*) as count
         FROM car_expenses ce
-        WHERE ce.organization_id = %s
         GROUP BY ce.category
-    """, (user_info['organization_id'],))
+    """)
     
     # Team expenses (penalties for broken materials)
     team_expenses = execute_query("""
@@ -44,8 +39,7 @@ def get_expenses_summary():
             COUNT(*) as count
         FROM penalties p
         WHERE p.description LIKE '%Поломка материала%'
-          AND p.organization_id = %s
-    """, (user_info['organization_id'],))
+    """)
     
     return car_expenses, team_expenses
 
@@ -104,124 +98,114 @@ try:
     st.subheader("📈 Динамика расходов / Ausgabentrend")
     
     six_months_ago = datetime.now() - timedelta(days=180)
-    user_info = st.session_state.get('user_info')
-    if not user_info:
-        st.error("Не авторизован")
-    else:
-        monthly_trend = execute_query("""
+    monthly_trend = execute_query("""
+        SELECT 
+            month,
+            SUM(total_amount) as total
+        FROM (
             SELECT 
-                month,
-                SUM(total_amount) as total
-            FROM (
-                SELECT 
-                    DATE_TRUNC('month', date) as month,
-                    SUM(amount) as total_amount
-                FROM car_expenses 
-                WHERE date >= :six_months_ago
-                  AND organization_id = :organization_id
-                GROUP BY DATE_TRUNC('month', date)
-                
-                UNION ALL
-                
-                SELECT 
-                    DATE_TRUNC('month', date) as month,
-                    SUM(amount) as total_amount
-                FROM penalties 
-                WHERE date >= :six_months_ago
-                  AND description LIKE '%Поломка материала%'
-                  AND organization_id = :organization_id
-                GROUP BY DATE_TRUNC('month', date)
-            ) combined
-            GROUP BY month
-            ORDER BY month
-        """, {'six_months_ago': six_months_ago.date(), 'organization_id': user_info['organization_id']})
-        
-        if monthly_trend:
-            df_trend = pd.DataFrame(monthly_trend, columns=['Month', 'Total'])
-            df_trend['Month'] = pd.to_datetime(df_trend['Month'])
-            df_trend['Month_Str'] = df_trend['Month'].dt.strftime('%Y-%m')
+                DATE_TRUNC('month', date) as month,
+                SUM(amount) as total_amount
+            FROM car_expenses 
+            WHERE date >= :six_months_ago
+            GROUP BY DATE_TRUNC('month', date)
             
-            fig_trend = px.bar(
-                df_trend,
-                x='Month_Str',
-                y='Total',
-                title="Месячные расходы / Monatliche Ausgaben"
-            )
-            st.plotly_chart(fig_trend, use_container_width=True)
-        else:
-            st.info("Нет данных для отображения тренда")
-        
-        st.divider()
-        
-        # Recent expenses
-        st.subheader("📋 Последние расходы / Letzte Ausgaben")
-        
-        recent_expenses = execute_query("""
-            SELECT * FROM (
-                SELECT 
-                    ce.date,
-                    v.name as entity_name,
-                    ce.category::text as category,
-                    ce.amount,
-                    ce.description,
-                    'car' as expense_type
-                FROM car_expenses ce
-                JOIN vehicles v ON ce.car_id = v.id
-                WHERE ce.organization_id = :organization_id
-                ORDER BY ce.date DESC
-                LIMIT 10
-            ) car
             UNION ALL
-            SELECT * FROM (
-                SELECT 
-                    p.date,
-                    t.name as entity_name,
-                    'broken_material' as category,
-                    p.amount,
-                    CASE 
-                        WHEN p.description LIKE '%Поломка материала%' THEN p.description
-                        WHEN p.description LIKE '%Поломка оборудования%' THEN p.description
-                        ELSE 'Поломка материала / Defektes Material'
-                    END as description,
-                    'team' as expense_type
-                FROM penalties p
-                JOIN teams t ON p.team_id = t.id
-                WHERE (p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%')
-                  AND p.organization_id = :organization_id
-                ORDER BY p.date DESC
-                LIMIT 10
-            ) team
-            ORDER BY date DESC
-            LIMIT 20
-        """, {'organization_id': user_info['organization_id']})
+            
+            SELECT 
+                DATE_TRUNC('month', date) as month,
+                SUM(amount) as total_amount
+            FROM penalties 
+            WHERE date >= :six_months_ago
+            AND description LIKE '%Поломка материала%'
+            GROUP BY DATE_TRUNC('month', date)
+        ) combined
+        GROUP BY month
+        ORDER BY month
+    """, {'six_months_ago': six_months_ago.date()})
+    
+    if monthly_trend:
+        df_trend = pd.DataFrame(monthly_trend, columns=['Month', 'Total'])
+        df_trend['Month'] = pd.to_datetime(df_trend['Month'])
+        df_trend['Month_Str'] = df_trend['Month'].dt.strftime('%Y-%m')
         
-        if recent_expenses:
-            for expense in recent_expenses:
-                with st.container():
-                    col1, col2, col3 = st.columns([3, 2, 2])
-                    
-                    with col1:
-                        icon = '🚗' if expense[5] == 'car' else '👥'
-                        st.write(f"**{icon} {expense[1]}**")
-                        expense_date = expense[0].strftime('%d.%m.%Y') if expense[0] else ''
-                        st.write(f"📅 {expense_date}")
-                    
-                    with col2:
-                        # Format category properly
-                        if expense[2] == 'broken_material':
-                            category_text = "Поломка материала / Defektes Material"
-                        else:
-                            category_text = get_text(expense[2], language)
-                        st.write(f"📁 {category_text}")
-                        st.write(f"💰 {format_currency(expense[3])}")
-                    
-                    with col3:
-                        if expense[4]:
-                            st.write(f"📝 {expense[4][:50]}...")
-                    
-                    st.divider()
-        else:
-            st.info(get_text('no_data', language))
+        fig_trend = px.bar(
+            df_trend,
+            x='Month_Str',
+            y='Total',
+            title="Месячные расходы / Monatliche Ausgaben"
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+    
+    st.divider()
+    
+    # Recent expenses
+    st.subheader("📋 Последние расходы / Letzte Ausgaben")
+    
+    recent_expenses = execute_query("""
+        SELECT * FROM (
+            SELECT 
+                ce.date,
+                v.name as entity_name,
+                ce.category::text as category,
+                ce.amount,
+                ce.description,
+                'car' as expense_type
+            FROM car_expenses ce
+            JOIN vehicles v ON ce.car_id = v.id
+            ORDER BY ce.date DESC
+            LIMIT 10
+        ) car
+        UNION ALL
+        SELECT * FROM (
+            SELECT 
+                p.date,
+                t.name as entity_name,
+                'broken_material' as category,
+                p.amount,
+                CASE 
+                    WHEN p.description LIKE '%Поломка материала%' THEN p.description
+                    WHEN p.description LIKE '%Поломка оборудования%' THEN p.description
+                    ELSE 'Поломка материала / Defektes Material'
+                END as description,
+                'team' as expense_type
+            FROM penalties p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.description LIKE '%Поломка материала%' OR p.description LIKE '%Поломка оборудования%'
+            ORDER BY p.date DESC
+            LIMIT 10
+        ) team
+        ORDER BY date DESC
+        LIMIT 20
+    """)
+    
+    if recent_expenses:
+        for expense in recent_expenses:
+            with st.container():
+                col1, col2, col3 = st.columns([3, 2, 2])
+                
+                with col1:
+                    icon = '🚗' if expense[5] == 'car' else '👥'
+                    st.write(f"**{icon} {expense[1]}**")
+                    expense_date = expense[0].strftime('%d.%m.%Y') if expense[0] else ''
+                    st.write(f"📅 {expense_date}")
+                
+                with col2:
+                    # Format category properly
+                    if expense[2] == 'broken_material':
+                        category_text = "Поломка материала / Defektes Material"
+                    else:
+                        category_text = get_text(expense[2], language)
+                    st.write(f"📁 {category_text}")
+                    st.write(f"💰 {format_currency(expense[3])}")
+                
+                with col3:
+                    if expense[4]:
+                        st.write(f"📝 {expense[4][:50]}...")
+                
+                st.divider()
+    else:
+        st.info(get_text('no_data', language))
         
 except Exception as e:
     st.error(f"Error loading expenses: {str(e)}")

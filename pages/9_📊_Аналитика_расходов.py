@@ -22,16 +22,12 @@ language = st.session_state.get('language', 'ru')
 def get_vehicle_expense_statistics(date_from=None, date_to=None):
     """Get vehicle expense statistics"""
     try:
-        user_info = st.session_state.get('user_info')
-        if not user_info:
-            return []
-            
-        where_clause = "WHERE v.organization_id = :organization_id"
-        params = {'organization_id': user_info['organization_id']}
+        where_clause = ""
+        params = {}
         
         if date_from and date_to:
-            where_clause += " AND ce.date BETWEEN :date_from AND :date_to"
-            params.update({'date_from': date_from, 'date_to': date_to})
+            where_clause = "WHERE ce.date BETWEEN :date_from AND :date_to"
+            params = {'date_from': date_from, 'date_to': date_to}
         
         query = f"""
             SELECT 
@@ -51,7 +47,7 @@ def get_vehicle_expense_statistics(date_from=None, date_to=None):
                 SUM(CASE WHEN ce.expense_category = 'repair' THEN ce.amount ELSE 0 END) as repair_total,
                 SUM(CASE WHEN ce.expense_category = 'maintenance' THEN ce.amount ELSE 0 END) as maintenance_total
             FROM vehicles v
-            LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id AND ce.organization_id = v.organization_id
+            LEFT JOIN car_expenses ce ON v.id = ce.vehicle_id
             {where_clause}
             GROUP BY v.id, v.name, v.license_plate, ce.expense_category
             HAVING SUM(ce.amount) > 0
@@ -142,11 +138,6 @@ def show_vehicle_analytics():
         )
     
     # Get vehicle statistics
-    user_info = st.session_state.get('user_info')
-    if not user_info:
-        st.error("Не авторизован")
-        return
-        
     vehicle_stats = execute_query("""
         SELECT 
             v.id,
@@ -164,13 +155,11 @@ def show_vehicle_analytics():
         FROM vehicles v
         LEFT JOIN car_expenses ce ON v.id = ce.car_id 
             AND ce.date BETWEEN :date_from AND :date_to
-            AND ce.organization_id = :organization_id
-        WHERE v.organization_id = :organization_id
         GROUP BY v.id, v.name, v.license_plate, v.photo_url
         HAVING COALESCE(SUM(ce.amount), 0) > 0
         ORDER BY total_amount DESC
         LIMIT 20
-    """, {'date_from': date_from, 'date_to': date_to, 'organization_id': user_info['organization_id']})
+    """, {'date_from': date_from, 'date_to': date_to})
     
     if vehicle_stats:
         # Summary metrics
@@ -301,11 +290,6 @@ def show_team_analytics():
     # Get team statistics with simplified query
     try:
         # First get team penalties
-        user_info = st.session_state.get('user_info')
-        if not user_info:
-            st.error("Не авторизован")
-            return
-            
         penalties_data = execute_query("""
             SELECT 
                 t.id,
@@ -315,10 +299,8 @@ def show_team_analytics():
             FROM teams t
             LEFT JOIN penalties p ON t.id = p.team_id 
                 AND p.date BETWEEN :date_from AND :date_to
-                AND p.organization_id = :organization_id
-            WHERE t.organization_id = :organization_id
             GROUP BY t.id, t.name
-        """, {'date_from': date_from, 'date_to': date_to, 'organization_id': user_info['organization_id']})
+        """, {'date_from': date_from, 'date_to': date_to})
         
         # Then get team materials
         materials_data = execute_query("""
@@ -332,11 +314,9 @@ def show_team_analytics():
             FROM teams t
             LEFT JOIN material_assignments ma ON t.id = ma.team_id 
                 AND ma.date BETWEEN :date_from AND :date_to
-                AND ma.organization_id = :organization_id
-            LEFT JOIN materials m ON ma.material_id = m.id AND m.organization_id = :organization_id
-            WHERE t.organization_id = :organization_id
+            LEFT JOIN materials m ON ma.material_id = m.id
             GROUP BY t.id, t.name
-        """, {'date_from': date_from, 'date_to': date_to, 'organization_id': user_info['organization_id']})
+        """, {'date_from': date_from, 'date_to': date_to})
         
         # Combine the data
         team_stats = []
@@ -504,17 +484,11 @@ def show_comparative_analytics():
         )
     
     # Vehicle expenses summary
-    user_info = st.session_state.get('user_info')
-    if not user_info:
-        st.error("Не авторизован")
-        return
-        
     vehicle_summary = execute_query("""
         SELECT COALESCE(SUM(amount), 0) as total_vehicle_expenses
         FROM car_expenses 
         WHERE date BETWEEN :date_from AND :date_to
-          AND organization_id = :organization_id
-    """, {'date_from': date_from, 'date_to': date_to, 'organization_id': user_info['organization_id']})
+    """, {'date_from': date_from, 'date_to': date_to})
     
     # Team expenses summary  
     team_summary = execute_query("""
@@ -522,11 +496,11 @@ def show_comparative_analytics():
             COALESCE(SUM(p.amount), 0) + 
             COALESCE(SUM(m.unit_price * ma.quantity), 0) as total_team_expenses
         FROM penalties p
-        FULL OUTER JOIN material_assignments ma ON p.organization_id = ma.organization_id
-        FULL OUTER JOIN materials m ON ma.material_id = m.id AND m.organization_id = ma.organization_id
-        WHERE ((p.date BETWEEN :date_from AND :date_to) OR (ma.date BETWEEN :date_from AND :date_to))
-          AND (p.organization_id = :organization_id OR ma.organization_id = :organization_id)
-    """, {'date_from': date_from, 'date_to': date_to, 'organization_id': user_info['organization_id']})
+        FULL OUTER JOIN material_assignments ma ON 1=1
+        FULL OUTER JOIN materials m ON ma.material_id = m.id
+        WHERE (p.date BETWEEN :date_from AND :date_to) 
+           OR (ma.date BETWEEN :date_from AND :date_to)
+    """, {'date_from': date_from, 'date_to': date_to})
     
     vehicle_total = float(vehicle_summary[0][0]) if vehicle_summary else 0.0
     team_total = float(team_summary[0][0]) if team_summary else 0.0
@@ -582,11 +556,6 @@ def show_comparative_analytics():
     st.subheader("📈 Тренды расходов по времени")
     
     # Get daily expenses for the last 30 days
-    user_info = st.session_state.get('user_info')
-    if not user_info:
-        st.error("Не авторизован")
-        return
-        
     daily_expenses = execute_query("""
         WITH vehicle_daily AS (
             SELECT 
@@ -594,7 +563,6 @@ def show_comparative_analytics():
                 SUM(amount) as vehicle_amount
             FROM car_expenses
             WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-              AND organization_id = %s
             GROUP BY date
         ),
         team_daily AS (
@@ -603,7 +571,6 @@ def show_comparative_analytics():
                 SUM(amount) as penalty_amount
             FROM penalties
             WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-              AND organization_id = %s
             GROUP BY date
         )
         SELECT 
@@ -613,9 +580,9 @@ def show_comparative_analytics():
         FROM vehicle_daily vd
         FULL OUTER JOIN team_daily td ON vd.date = td.date
         ORDER BY expense_date
-    """, (user_info['organization_id'], user_info['organization_id']))
+    """)
     
-    if daily_expenses and isinstance(daily_expenses, (list, tuple)) and len(daily_expenses) > 0:
+    if daily_expenses and len(daily_expenses) > 0:
         df_daily = pd.DataFrame(daily_expenses, columns=['Date', 'Vehicle_Expenses', 'Team_Expenses'])
         df_daily['Total'] = df_daily['Vehicle_Expenses'] + df_daily['Team_Expenses']
         
