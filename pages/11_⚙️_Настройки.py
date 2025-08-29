@@ -34,8 +34,8 @@ st.title("⚙️ Настройки организации")
 # Get current organization settings
 try:
     org_data = execute_query(
-        "SELECT name, telegram_chat_id FROM organizations WHERE id = %s",
-        [st.session_state.get('organization_id')]
+        "SELECT name, telegram_chat_id FROM organizations WHERE id = :org_id",
+        {'org_id': st.session_state.get('organization_id')}
     )
     
     if org_data:
@@ -104,8 +104,11 @@ with st.form("telegram_settings_form"):
         try:
             # Update organization settings
             execute_query(
-                "UPDATE organizations SET telegram_chat_id = %s WHERE id = %s",
-                [new_chat_id if new_chat_id.strip() else None, st.session_state.get('organization_id')]
+                "UPDATE organizations SET telegram_chat_id = :chat_id WHERE id = :org_id",
+                {
+                    'chat_id': new_chat_id if new_chat_id.strip() else None,
+                    'org_id': st.session_state.get('organization_id')
+                }
             )
             
             st.success("✅ Настройки успешно сохранены!")

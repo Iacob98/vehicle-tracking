@@ -64,27 +64,6 @@ with st.form("bug_report_form", clear_on_submit=True):
             help="Детальное описание проблемы (обязательно)"
         )
         
-        # Priority level
-        priority = st.selectbox(
-            "Приоритет",
-            options=["Низкий", "Средний", "Высокий", "Критический"],
-            index=1,
-            help="Выберите приоритет проблемы"
-        )
-        
-        # Category
-        category = st.selectbox(
-            "Категория",
-            options=[
-                "Ошибка интерфейса",
-                "Ошибка базы данных", 
-                "Проблема с производительностью",
-                "Ошибка расчетов",
-                "Проблема с авторизацией",
-                "Другое"
-            ],
-            help="Выберите категорию проблемы"
-        )
     
     with col2:
         # Screenshot upload
@@ -102,8 +81,8 @@ with st.form("bug_report_form", clear_on_submit=True):
         try:
             from database import execute_query
             org_data = execute_query(
-                "SELECT telegram_chat_id FROM organizations WHERE id = %s",
-                [st.session_state.get('organization_id')]
+                "SELECT telegram_chat_id FROM organizations WHERE id = :org_id",
+                {'org_id': st.session_state.get('organization_id')}
             )
             saved_chat_id = org_data[0][0] if org_data and len(org_data) > 0 and org_data[0][0] else None
             
@@ -176,24 +155,14 @@ with st.form("bug_report_form", clear_on_submit=True):
             # Prepare user info
             user_info = {
                 'user_name': st.session_state.get('user_name', 'Неизвестен'),
-                'organization_name': st.session_state.get('organization_name', 'Неизвестна'),
+                'organization_name': st.session_state.get('organization_name', 'Неизвестна'), 
                 'user_role': st.session_state.get('user_role', 'Неизвестна'),
                 'user_id': str(st.session_state.get('user_id', 'Неизвестен')),
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'priority': priority,
-                'category': category
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             
             # Enhanced bug description with metadata
-            enhanced_description = f"""
-{bug_description}
-
-═══════════════════════════
-📋 ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ:
-• Приоритет: {priority}
-• Категория: {category}
-═══════════════════════════
-            """.strip()
+            enhanced_description = bug_description
             
             # Send bug report
             with st.spinner("Отправляем багрепорт..."):
