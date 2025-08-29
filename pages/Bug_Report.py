@@ -98,15 +98,36 @@ with st.form("bug_report_form", clear_on_submit=True):
         if uploaded_file:
             st.image(uploaded_file, caption="Загруженный скриншот", use_container_width=True)
         
-        # Chat ID input
-        st.markdown("**💬 Telegram Chat ID**")
-        chat_id = st.text_input(
-            "Chat ID для отправки",
-            placeholder="-1001234567890",
-            help="ID чата или канала Telegram для отправки багрепорта"
-        )
-        
-        st.info("💡 Чтобы получить Chat ID:\n1. Добавьте бота в чат/канал\n2. Отправьте любое сообщение\n3. Используйте @userinfobot")
+        # Get Chat ID from organization settings
+        try:
+            from database import execute_query
+            org_data = execute_query(
+                "SELECT telegram_chat_id FROM organizations WHERE id = %s",
+                (st.session_state.get('organization_id'),)
+            )
+            saved_chat_id = org_data[0][0] if org_data and org_data[0][0] else None
+            
+            if saved_chat_id:
+                st.success(f"✅ Chat ID настроен: {saved_chat_id}")
+                chat_id = saved_chat_id
+            else:
+                st.warning("⚠️ Chat ID не настроен в организации")
+                # Chat ID input
+                st.markdown("**💬 Telegram Chat ID**")
+                chat_id = st.text_input(
+                    "Chat ID для отправки",
+                    placeholder="-1001234567890",
+                    help="ID чата или канала Telegram для отправки багрепорта"
+                )
+                
+                st.info("💡 Чтобы получить Chat ID:\n1. Добавьте бота в чат/канал\n2. Отправьте любое сообщение\n3. Используйте @userinfobot")
+        except Exception as e:
+            st.error(f"Ошибка получения настроек: {str(e)}")
+            chat_id = st.text_input(
+                "Chat ID для отправки",
+                placeholder="-1001234567890",
+                help="ID чата или канала Telegram для отправки багрепорта"
+            )
     
     # Submit button
     submitted = st.form_submit_button(

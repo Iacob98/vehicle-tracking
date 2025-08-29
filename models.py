@@ -174,6 +174,16 @@ class MaterialHistory(Base):
     material = relationship("Material", back_populates="material_history")
     team = relationship("Team")
 
+class Organization(Base):
+    __tablename__ = "organizations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    subscription_status = Column(String, default='active')
+    subscription_expires_at = Column(DateTime)
+    telegram_chat_id = Column(String, nullable=True)
+
 class Expense(Base):
     __tablename__ = "expenses"
     
