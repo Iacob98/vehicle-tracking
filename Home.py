@@ -50,6 +50,10 @@ with st.sidebar:
     
     st.divider()
     st.info("Используйте меню слева для навигации")
+    
+    # Bug Report quick access
+    if st.button("🐛 Сообщить о проблеме", use_container_width=True, type="secondary"):
+        st.switch_page("pages/Bug_Report.py")
 
 # Organization header
 show_org_header()

@@ -4,6 +4,7 @@ from datetime import datetime, date
 from database import execute_query
 from translations import get_text
 import uuid
+import os
 
 def format_currency(amount, currency='€'):
     """Format currency amount"""
@@ -296,3 +297,8 @@ def show_pagination(current_page, total_pages, language='ru'):
         if st.button("➡️", disabled=current_page >= total_pages):
             st.session_state.page_number = current_page + 1
             st.rerun()
+
+def ensure_directory_exists(directory_path):
+    """Ensure directory exists, create if not"""
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
