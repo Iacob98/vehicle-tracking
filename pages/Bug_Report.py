@@ -103,12 +103,19 @@ with st.form("bug_report_form", clear_on_submit=True):
             from database import execute_query
             org_data = execute_query(
                 "SELECT telegram_chat_id FROM organizations WHERE id = %s",
-                (st.session_state.get('organization_id'),)
+                [st.session_state.get('organization_id')]
             )
-            saved_chat_id = org_data[0][0] if org_data and org_data[0][0] else None
+            saved_chat_id = org_data[0][0] if org_data and len(org_data) > 0 and org_data[0][0] else None
             
             if saved_chat_id:
                 st.success(f"✅ Chat ID настроен: {saved_chat_id}")
+                # Show the saved chat ID but make it disabled
+                st.text_input(
+                    "Chat ID для отправки",
+                    value=saved_chat_id,
+                    disabled=True,
+                    help="Chat ID берется из настроек организации"
+                )
                 chat_id = saved_chat_id
             else:
                 st.warning("⚠️ Chat ID не настроен в организации")
@@ -123,9 +130,11 @@ with st.form("bug_report_form", clear_on_submit=True):
                 st.info("💡 Чтобы получить Chat ID:\n1. Добавьте бота в чат/канал\n2. Отправьте любое сообщение\n3. Используйте @userinfobot")
         except Exception as e:
             st.error(f"Ошибка получения настроек: {str(e)}")
+            # Chat ID input
+            st.markdown("**💬 Telegram Chat ID**")
             chat_id = st.text_input(
                 "Chat ID для отправки",
-                placeholder="-1001234567890",
+                placeholder="-1001234567890", 
                 help="ID чата или канала Telegram для отправки багрепорта"
             )
     

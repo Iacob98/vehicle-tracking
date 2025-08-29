@@ -35,7 +35,7 @@ st.title("⚙️ Настройки организации")
 try:
     org_data = execute_query(
         "SELECT name, telegram_chat_id FROM organizations WHERE id = %s",
-        (st.session_state.get('organization_id'),)
+        [st.session_state.get('organization_id')]
     )
     
     if org_data:
@@ -105,7 +105,7 @@ with st.form("telegram_settings_form"):
             # Update organization settings
             execute_query(
                 "UPDATE organizations SET telegram_chat_id = %s WHERE id = %s",
-                (new_chat_id if new_chat_id.strip() else None, st.session_state.get('organization_id'))
+                [new_chat_id if new_chat_id.strip() else None, st.session_state.get('organization_id')]
             )
             
             st.success("✅ Настройки успешно сохранены!")
