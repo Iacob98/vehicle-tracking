@@ -385,7 +385,99 @@ def show_team_member_documents():
     """Show team member documents management"""
     st.subheader("📄 Документы участников")
     
+    # Check if viewing a document
+    view_doc_id = None
+    for key in st.session_state:
+        if key.startswith("view_tm_doc_") and st.session_state[key]:
+            view_doc_id = key.replace("view_tm_doc_", "")
+            break
+    
     with SessionLocal() as session:
+        # If viewing a document, show viewer
+        if view_doc_id:
+            doc = session.query(TeamMemberDocument).filter_by(id=view_doc_id).first()
+            if doc:
+                member = session.query(TeamMember).filter_by(id=doc.team_member_id).first()
+                member_name = f"{member.first_name} {member.last_name}" if member else "Неизвестный"
+                
+                st.header(f"📎 {doc.title}")
+                st.write(f"**Участник:** {member_name}")
+                
+                if st.button("⬅️ Назад к списку", use_container_width=True):
+                    if f"view_tm_doc_{view_doc_id}" in st.session_state:
+                        del st.session_state[f"view_tm_doc_{view_doc_id}"]
+                    st.rerun()
+                
+                if doc.file_url:
+                    # Display the document
+                    file_name = doc.file_url.split('/')[-1]
+                    file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                    
+                    col_main, col_sidebar = st.columns([3, 1])
+                    
+                    with col_main:
+                        st.info(f"📁 **Файл:** {file_name}")
+                        
+                        if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+                            try:
+                                import os
+                                if doc.file_url.startswith('/'):
+                                    file_path = doc.file_url.lstrip('/')
+                                    if os.path.exists(file_path):
+                                        st.image(file_path, caption=doc.title, use_container_width=True)
+                                    else:
+                                        st.error("🚫 Файл изображения не найден")
+                                else:
+                                    st.image(doc.file_url, caption=doc.title, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"❌ Ошибка загрузки изображения: {str(e)}")
+                        elif file_extension == 'pdf':
+                            st.success("📄 **PDF документ готов к просмотру**")
+                            st.write("💡 Используйте кнопку 'Скачать' справа для просмотра PDF файла")
+                        else:
+                            st.warning(f"📎 **Файл типа .{file_extension}**")
+                            st.info("💡 Используйте кнопку скачивания справа")
+                    
+                    with col_sidebar:
+                        st.markdown("### Действия")
+                        
+                        try:
+                            import os
+                            if doc.file_url.startswith('/'):
+                                file_path = doc.file_url.lstrip('/')
+                                if os.path.exists(file_path):
+                                    with open(file_path, "rb") as f:
+                                        file_data = f.read()
+                                    
+                                    st.download_button(
+                                        label="⬇️ **Скачать**",
+                                        data=file_data,
+                                        file_name=file_name,
+                                        use_container_width=True
+                                    )
+                                else:
+                                    st.error("❌ Файл не найден")
+                            else:
+                                st.markdown(f"🔗 [Скачать файл]({doc.file_url})")
+                        except Exception as e:
+                            st.error("❌ Ошибка доступа")
+                        
+                        if st.button("🗑️ Удалить документ", use_container_width=True):
+                            try:
+                                session.delete(doc)
+                                session.commit()
+                                st.success("Документ удален")
+                                if f"view_tm_doc_{view_doc_id}" in st.session_state:
+                                    del st.session_state[f"view_tm_doc_{view_doc_id}"]
+                                st.rerun()
+                            except Exception as e:
+                                session.rollback()
+                                st.error(f"Ошибка удаления: {str(e)}")
+                else:
+                    st.warning("Файл не найден")
+                return
+        
+        # Normal document management view
         members = session.query(TeamMember).filter_by(organization_id=user_org_id).all()
         
         if not members:
@@ -400,7 +492,7 @@ def show_team_member_documents():
         selected_member = st.selectbox("👤 Выберите участника:", list(member_options.keys()))
         selected_member_id = member_options[selected_member]
         
-        # Get documents for selected member
+        # Get documents for selected member  
         documents = session.query(TeamMemberDocument).filter_by(team_member_id=selected_member_id).all()
         
         doc_tab1, doc_tab2 = st.tabs(["📋 Список документов", "➕ Добавить документ"])
@@ -409,7 +501,7 @@ def show_team_member_documents():
             if documents:
                 for doc in documents:
                     with st.container():
-                        col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                        col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 1, 1])
                         
                         with col1:
                             st.write(f"📄 **{doc.title}**")
@@ -432,10 +524,20 @@ def show_team_member_documents():
                         
                         with col4:
                             if st.button("👁️", key=f"view_tm_doc_{doc.id}", help="Просмотр"):
-                                # Show file viewer
                                 if doc.file_url:
                                     st.session_state[f"view_tm_doc_{doc.id}"] = True
                                     st.rerun()
+                        
+                        with col5:
+                            if st.button("🗑️", key=f"del_tm_doc_{doc.id}", help="Удалить"):
+                                try:
+                                    session.delete(doc)
+                                    session.commit()
+                                    st.success("Документ удален")
+                                    st.rerun()
+                                except Exception as e:
+                                    session.rollback()
+                                    st.error(f"Ошибка: {str(e)}")
                         
                         st.divider()
             else:

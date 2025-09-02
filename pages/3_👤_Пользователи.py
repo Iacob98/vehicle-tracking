@@ -715,10 +715,9 @@ def show_user_documents():
 # Main page - simplified structure
 st.title(f"👤 {get_text('users', language)}")
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2 = st.tabs([
     "Список / Liste",
-    "Добавить / Hinzufügen",
-    "Документы / Dokumente"
+    "Добавить / Hinzufügen"
 ])
 
 with tab1:
@@ -726,6 +725,3 @@ with tab1:
 
 with tab2:
     show_add_user_form()
-
-# Убираем вкладку документов из пользователей
-# Документы теперь переехали к участникам команды в Бригады
