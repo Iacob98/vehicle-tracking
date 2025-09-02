@@ -181,17 +181,26 @@ def show_org_header():
         st.divider()
 
 def is_admin():
-    """Check if current user has admin rights (owner or manager)"""
+    """Check if current user has admin rights (owner or admin)"""
     user_role = st.session_state.get('user_role')
-    return user_role in ['owner', 'manager']
+    return user_role in ['owner', 'admin']
+
+def is_manager():
+    """Check if current user is manager or higher"""
+    user_role = st.session_state.get('user_role')
+    return user_role in ['owner', 'admin', 'manager']
 
 def is_owner():
     """Check if current user is owner"""
     return st.session_state.get('user_role') == 'owner'
 
 def can_manage_users():
-    """Check if user can add/edit/delete users"""
+    """Check if user can add/edit/delete platform users (only admins)"""
     return is_admin()
+
+def can_manage_team_members():
+    """Check if user can manage team members (managers and admins)"""
+    return is_manager()
 
 def can_delete_account():
     """Check if user can delete account - only owner"""

@@ -1,5 +1,5 @@
 import streamlit as st
-from auth import require_auth, is_admin, is_manager
+from auth import require_auth, is_admin, is_manager, can_manage_team_members
 from models import TeamMember, TeamMemberDocument, Team, Organization, WorkerCategory
 from database import Session
 from utils import upload_multiple_files, display_file
@@ -14,7 +14,7 @@ if not user:
 st.title("👥 Участники бригады / Teammitglieder")
 
 # Only managers and admins can manage team members
-if not (is_manager(user) or is_admin(user)):
+if not can_manage_team_members():
     st.error("❌ Доступ запрещен. Только админы и менеджеры могут управлять участниками бригады.")
     st.error("❌ Zugriff verweigert. Nur Admins und Manager können Teammitglieder verwalten.")
     st.stop()
