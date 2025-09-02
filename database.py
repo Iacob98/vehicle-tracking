@@ -54,9 +54,32 @@ def execute_query(query, params=None):
             import time
             time.sleep(1)
 
+def migrate_user_role_enum():
+    """Ensure user_role enum has 'owner' value - safe to run multiple times"""
+    try:
+        with engine.connect() as conn:
+            # Check if owner role exists
+            result = conn.execute(text("""
+                SELECT COUNT(*) FROM pg_enum 
+                WHERE enumtypid = 'user_role'::regtype AND enumlabel = 'owner'
+            """))
+            
+            if result.scalar() == 0:
+                conn.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
+                conn.commit()
+                print("✅ Added 'owner' role to user_role enum")
+            
+    except Exception as e:
+        print(f"⚠️ Could not migrate user_role enum: {e}")
+        # Don't fail the app startup
+        pass
+
 def init_db():
     """Initialize database with simple approach"""
     try:
+        # Always run enum migration first
+        migrate_user_role_enum()
+        
         # Check if database is already initialized
         with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'organizations'"))
@@ -87,6 +110,19 @@ def init_db():
                         conn.execute(text(stmt))
                     except Exception:
                         pass  # Type already exists
+                
+                # Migration: Add 'owner' to user_role enum if it doesn't exist
+                try:
+                    result = conn.execute(text("""
+                        SELECT COUNT(*) FROM pg_enum 
+                        WHERE enumtypid = 'user_role'::regtype AND enumlabel = 'owner'
+                    """))
+                    if result.scalar() == 0:
+                        conn.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
+                        print("Added 'owner' role to user_role enum")
+                except Exception as e:
+                    print(f"Could not add 'owner' to enum: {e}")
+                    pass
                 
                 # Create organizations table first
                 try:
