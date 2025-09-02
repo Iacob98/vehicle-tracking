@@ -207,6 +207,10 @@ TRANSLATIONS = {
     },
     
     # Role values
+    'owner': {
+        'ru': 'Владелец аккаунта',
+        'de': 'Kontoinhaber'
+    },
     'admin': {
         'ru': 'Администратор',
         'de': 'Administrator'
@@ -218,10 +222,6 @@ TRANSLATIONS = {
     'team_lead': {
         'ru': 'Бригадир',
         'de': 'Teamleiter'
-    },
-    'worker': {
-        'ru': 'Рабочий',
-        'de': 'Arbeiter'
     },
     'worker': {
         'ru': 'Рабочий',

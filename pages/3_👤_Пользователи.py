@@ -58,7 +58,8 @@ def show_users_list():
                     
                     with col2:
                         role_icons = {
-                            'admin': '👑',
+                            'owner': '👑',
+                            'admin': '🔧',
                             'manager': '💼',
                             'team_lead': '👨‍💼',
                             'worker': '👷'
@@ -138,13 +139,23 @@ def show_edit_user_form(user_id):
                 )
             
             with col2:
-                roles = ['admin', 'manager', 'team_lead', 'worker']
+                roles = ['owner', 'admin', 'manager', 'team_lead', 'worker']
                 current_role_index = roles.index(current_user[3]) if current_user[3] in roles else 0
+                
+                # Role selection - owners can edit any role, others can't change roles of owners
+                available_roles = roles.copy()
+                if st.session_state.get('user_role') != 'owner' and current_user[3] == 'owner':
+                    # Non-owners can't edit owner accounts
+                    st.error("❌ Только владелец аккаунта может редактировать роли других пользователей")
+                    available_roles = [current_user[3]]  # Keep current role only
+                elif st.session_state.get('user_role') != 'owner':
+                    # Non-owners can't assign owner role
+                    available_roles = ['admin', 'manager', 'team_lead', 'worker']
                 
                 role = st.selectbox(
                     "Роль / Rolle",
-                    options=roles,
-                    index=current_role_index,
+                    options=available_roles,
+                    index=available_roles.index(current_user[3]) if current_user[3] in available_roles else 0,
                     format_func=lambda x: get_text(x, language)
                 )
                 
@@ -203,13 +214,38 @@ def show_edit_user_form(user_id):
             st.rerun()
 
 def show_add_user_form():
-    """Show form to add new user"""
-    st.subheader("➕ Добавить пользователя / Benutzer hinzufügen")
+    """Show form to add new user - only for account owners"""
+    # Check if current user has permission to add users
+    if st.session_state.get('user_role') != 'owner':
+        st.error("❌ Только владелец аккаунта может добавлять пользователей")
+        st.info("💡 Обратитесь к владельцу аккаунта для добавления новых пользователей")
+        return
+    
+    st.subheader("➕ Добавить пользователя в аккаунт / Benutzer zum Konto hinzufügen")
+    st.info("🔐 Добавленные пользователи получат полный доступ к данным вашей организации")
     
     with st.form("add_user"):
         col1, col2 = st.columns(2)
         
         with col1:
+            email = st.text_input(
+                "📧 Email",
+                placeholder="user@example.com",
+                help="Обязательно для входа в систему"
+            )
+            password = st.text_input(
+                "🔒 Пароль / Password",
+                type="password",
+                placeholder="Минимум 6 символов",
+                help="Пользователь сможет изменить пароль после входа"
+            )
+            password_confirm = st.text_input(
+                "🔒 Подтвердите пароль / Password bestätigen",
+                type="password",
+                placeholder="Повторите пароль"
+            )
+        
+        with col2:
             first_name = st.text_input(
                 "Имя / Vorname",
                 placeholder="Иван"
@@ -223,30 +259,41 @@ def show_add_user_form():
                 placeholder="+7 900 123-45-67"
             )
         
-        with col2:
-            role = st.selectbox(
-                "Роль / Rolle",
-                options=['admin', 'manager', 'team_lead', 'worker'],
-                format_func=lambda x: get_text(x, language)
-            )
-            
-            # Get teams for assignment
-            teams = execute_query("SELECT id, name FROM teams ORDER BY name")
-            team_id = None
-            if teams:
-                team_id = st.selectbox(
-                    "Бригада / Team",
-                    options=[None] + [t[0] for t in teams],
-                    format_func=lambda x: "Не назначена" if x is None else next((t[1] for t in teams if t[0] == x), x)
-                )
+        # Role selection (no owner role for added users)
+        role = st.selectbox(
+            "Роль / Rolle",
+            options=['admin', 'manager', 'team_lead', 'worker'],
+            format_func=lambda x: get_text(x, language),
+            help="Все роли имеют полный доступ к функциям системы, кроме удаления аккаунта"
+        )
         
-        if st.form_submit_button("💾 " + get_text('save', language)):
-            if first_name and last_name:
+        # Get teams for assignment
+        teams = execute_query("SELECT id, name FROM teams ORDER BY name")
+        team_id = None
+        if teams:
+            team_id = st.selectbox(
+                "Бригада / Team",
+                options=[None] + [t[0] for t in teams],
+                format_func=lambda x: "Не назначена" if x is None else next((t[1] for t in teams if t[0] == x), x)
+            )
+        
+        if st.form_submit_button("👥 Добавить в аккаунт / Zum Konto hinzufügen"):
+            if not all([email, password, first_name, last_name]):
+                st.error("❌ Заполните все обязательные поля: Email, пароль, имя и фамилия")
+            elif len(password) < 6:
+                st.error("❌ Пароль должен содержать минимум 6 символов")
+            elif password != password_confirm:
+                st.error("❌ Пароли не совпадают")
+            else:
                 try:
+                    # Check if email already exists
+                    existing = execute_query("SELECT id FROM users WHERE email = :email", {'email': email})
+                    if existing:
+                        st.error("❌ Пользователь с таким email уже существует")
+                        return
+                    
                     user_id = str(uuid.uuid4())
-                    # Generate default password hash (users should change this)
-                    default_password = "password123"  # Default password
-                    password_hash = hashlib.sha256(default_password.encode()).hexdigest()
+                    password_hash = hashlib.sha256((password + "fleet_management_salt_2025").encode()).hexdigest()
                     
                     execute_query("""
                         INSERT INTO users (id, organization_id, email, password_hash, first_name, last_name, phone, role, team_id, created_at)
@@ -254,7 +301,7 @@ def show_add_user_form():
                     """, {
                         'id': user_id,
                         'organization_id': st.session_state.get('organization_id'),
-                        'email': f"{first_name.lower()}.{last_name.lower()}@organization.local",
+                        'email': email,
                         'password_hash': password_hash,
                         'first_name': first_name,
                         'last_name': last_name,
@@ -263,22 +310,40 @@ def show_add_user_form():
                         'team_id': team_id,
                         'created_at': datetime.now()
                     })
-                    st.success("✅ Пользователь создан! Email: " + f"{first_name.lower()}.{last_name.lower()}@organization.local" + " | Пароль: password123")
-                    st.info("⚠️ Пользователь должен сменить пароль при первом входе")
+                    st.success(f"✅ Пользователь {first_name} {last_name} добавлен в аккаунт!")
+                    st.info(f"📧 Email для входа: {email}")
+                    st.info("🔐 Пользователь может войти в систему с указанными данными")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
-            else:
-                st.error("Имя и фамилия обязательны")
+                    st.error(f"❌ Ошибка добавления пользователя: {str(e)}")
 
 def delete_user(user_id):
-    """Delete user"""
+    """Delete user - with permission checks"""
     try:
-        execute_query("DELETE FROM users WHERE id = :id", {'id': user_id})
-        st.success("Пользователь удален")
+        # Check if current user has permission to delete users
+        if st.session_state.get('user_role') != 'owner':
+            st.error("❌ Только владелец аккаунта может удалять пользователей")
+            return
+        
+        # Check if trying to delete another owner
+        user_to_delete = execute_query("SELECT role FROM users WHERE id = :id", {'id': user_id})
+        if user_to_delete and user_to_delete[0][0] == 'owner':
+            st.error("❌ Нельзя удалить владельца аккаунта")
+            return
+        
+        # Check if trying to delete self  
+        if user_id == st.session_state.get('user_id'):
+            st.error("❌ Нельзя удалить самого себя")
+            return
+            
+        execute_query("DELETE FROM users WHERE id = :id AND organization_id = :org_id", {
+            'id': user_id,
+            'org_id': st.session_state.get('organization_id')
+        })
+        st.success("✅ Пользователь удален из аккаунта")
         st.rerun()
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"❌ Ошибка удаления: {str(e)}")
 
 @st.cache_data(ttl=300)
 def get_user_documents_cached():

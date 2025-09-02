@@ -16,6 +16,7 @@ class VehicleStatus(enum.Enum):
     rented = "rented"
 
 class UserRole(enum.Enum):
+    owner = "owner"
     admin = "admin"
     manager = "manager"
     team_lead = "team_lead"
@@ -67,13 +68,18 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    password_hash = Column(String, nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     phone = Column(String)
     role = Column(SQLEnum(UserRole), nullable=False)
     team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
+    organization = relationship("Organization")
     team = relationship("Team", back_populates="users", foreign_keys=[team_id])
     penalties = relationship("Penalty", back_populates="user")
 

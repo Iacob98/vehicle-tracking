@@ -44,10 +44,10 @@ def create_organization(org_name, admin_email, admin_password, admin_first_name,
             'created_at': datetime.now()
         })
         
-        # Create admin user
+        # Create owner user (not admin, but owner)
         execute_query("""
             INSERT INTO users (id, organization_id, email, password_hash, first_name, last_name, role, created_at)
-            VALUES (:id, :org_id, :email, :password_hash, :first_name, :last_name, 'admin', :created_at)
+            VALUES (:id, :org_id, :email, :password_hash, :first_name, :last_name, 'owner', :created_at)
         """, {
             'id': user_id,
             'org_id': org_id,
