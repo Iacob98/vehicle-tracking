@@ -120,35 +120,57 @@ def upload_file(file, upload_type='receipt'):
     return None
 
 def upload_multiple_files(files, upload_type='documents'):
-    """Handle multiple files upload and return list of file paths"""
+    """Handle multiple files upload and return list of file paths with improved error handling"""
     if not files:
         return []
         
     import os
     uploaded_paths = []
     
-    for file in files:
+    st.info(f"🔄 Начинаем загрузку {len(files)} файлов...")
+    
+    for i, file in enumerate(files, 1):
         if file is not None:
-            # Create uploads directory if it doesn't exist
-            upload_dir = f"uploads/{upload_type}"
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            # Generate unique filename with safer handling
-            file_id = str(uuid.uuid4())
-            # Clean filename to avoid issues with special characters
-            clean_name = "".join(c for c in file.name if c.isalnum() or c in '._-')
-            file_extension = clean_name.split('.')[-1] if '.' in clean_name else 'bin'
-            unique_filename = f"{file_id}.{file_extension}"
-            file_path = os.path.join(upload_dir, unique_filename)
-            
-            # Save file
             try:
+                # Create uploads directory if it doesn't exist
+                upload_dir = f"uploads/{upload_type}"
+                os.makedirs(upload_dir, exist_ok=True)
+                
+                # Generate unique filename with safer handling
+                file_id = str(uuid.uuid4())
+                # Clean filename to avoid issues with special characters
+                clean_name = "".join(c for c in file.name if c.isalnum() or c in '._-')
+                file_extension = clean_name.split('.')[-1] if '.' in clean_name else 'bin'
+                unique_filename = f"{file_id}.{file_extension}"
+                file_path = os.path.join(upload_dir, unique_filename)
+                
+                # Get file data with error checking
+                file_data = file.getvalue()
+                if not file_data:
+                    st.warning(f"⚠️ Файл {file.name} пустой, пропускаем")
+                    continue
+                
+                # Save file
                 with open(file_path, "wb") as f:
-                    f.write(file.getbuffer())
-                uploaded_paths.append(file_path)
+                    f.write(file_data)
+                
+                # Verify file was saved correctly
+                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                    uploaded_paths.append(file_path)
+                    st.success(f"✅ Файл {i}/{len(files)}: {file.name} → {os.path.basename(file_path)} ({len(file_data)} байт)")
+                else:
+                    st.error(f"❌ Файл {file.name} не сохранился правильно")
+                    
             except Exception as e:
-                st.error(f"Ошибка сохранения файла {file.name}: {str(e)}")
+                st.error(f"❌ Ошибка сохранения файла {file.name}: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
                 continue
+    
+    if uploaded_paths:
+        st.success(f"🎉 Успешно загружено {len(uploaded_paths)} из {len(files)} файлов")
+    else:
+        st.error("❌ Ни один файл не был загружен")
     
     return uploaded_paths
 
@@ -304,41 +326,72 @@ def display_file(file_path, file_title="Файл"):
         return False
 
 def _display_pdf_inline(file_path, title):
-    """Display PDF inline using pdf2image conversion"""
+    """Display PDF inline using pdf2image conversion with improved error handling"""
     try:
         from pdf2image import convert_from_path
         from PIL import Image
         import tempfile
         import os
+        import subprocess
+        
+        # Check if poppler is available
+        try:
+            result = subprocess.run(['pdftoppm', '-v'], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise FileNotFoundError("pdftoppm not found")
+        except FileNotFoundError:
+            st.warning("⚠️ PDF просмотр недоступен - poppler не установлен")
+            st.warning("⚠️ PDF-Ansicht nicht verfügbar - poppler nicht installiert") 
+            st.info("💡 Используйте кнопку скачивания для просмотра PDF")
+            st.info("💡 Nutzen Sie den Download-Button für die PDF-Ansicht")
+            return
         
         # Convert PDF to images
         with st.spinner("🔄 Конвертация PDF для просмотра..."):
-            # Convert only first 5 pages to avoid memory issues
-            pages = convert_from_path(file_path, first_page=1, last_page=5, dpi=150)
-            
-            st.info(f"📄 Показаны первые {len(pages)} страниц из PDF")
-            st.info(f"📄 Erste {len(pages)} Seiten der PDF werden angezeigt")
-            
-            # Display each page as image
-            for i, page in enumerate(pages, 1):
-                st.markdown(f"**Страница {i} / Seite {i}**")
+            try:
+                # Convert only first 5 pages to avoid memory issues
+                pages = convert_from_path(file_path, first_page=1, last_page=5, dpi=150, thread_count=1)
                 
-                # Convert PIL image to format Streamlit can display
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-                    page.save(tmp_file.name, 'PNG')
-                    st.image(tmp_file.name, use_container_width=True)
-                    os.unlink(tmp_file.name)  # Clean up temp file
+                if not pages:
+                    st.error("❌ Не удалось конвертировать PDF страницы")
+                    return
                 
-                if i < len(pages):
-                    st.divider()
+                st.info(f"📄 Показаны первые {len(pages)} страниц из PDF")
+                st.info(f"📄 Erste {len(pages)} Seiten der PDF werden angezeigt")
+                
+                # Display each page as image
+                for i, page in enumerate(pages, 1):
+                    st.markdown(f"**Страница {i} / Seite {i}**")
+                    
+                    # Convert PIL image to format Streamlit can display
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+                        try:
+                            page.save(tmp_file.name, 'PNG')
+                            st.image(tmp_file.name, use_container_width=True)
+                        finally:
+                            # Clean up temp file
+                            try:
+                                os.unlink(tmp_file.name)
+                            except:
+                                pass  # Ignore cleanup errors
+                    
+                    if i < len(pages):
+                        st.divider()
+                        
+            except Exception as convert_error:
+                st.error(f"❌ Ошибка при конвертации PDF: {str(convert_error)}")
+                st.info("💡 Попробуйте скачать файл для просмотра")
+                st.info("💡 Versuchen Sie die Datei herunterzuladen")
     
-    except ImportError:
-        st.warning("⚠️ PDF просмотр недоступен - используйте кнопку скачивания")
-        st.warning("⚠️ PDF-Ansicht nicht verfügbar - nutzen Sie den Download-Button")
+    except ImportError as import_error:
+        st.warning("⚠️ PDF просмотр недоступен - отсутствуют необходимые библиотеки")
+        st.warning("⚠️ PDF-Ansicht nicht verfügbar - erforderliche Bibliotheken fehlen")
+        st.info("💡 Используйте кнопку скачивания")
+        st.info("💡 Nutzen Sie den Download-Button")
     except Exception as e:
-        st.error(f"Ошибка конвертации PDF: {str(e)}")
-        st.error("💡 Попробуйте скачать файл для просмотра")
-        st.error("💡 Versuchen Sie die Datei herunterzuladen")
+        st.error(f"❌ Общая ошибка PDF просмотра: {str(e)}")
+        st.info("💡 Попробуйте скачать файл для просмотра")
+        st.info("💡 Versuchen Sie die Datei herunterzuladen")
 
 def _add_download_button(file_path, file_name, mime_type=None):
     """Add download button for file"""
