@@ -283,44 +283,73 @@ def show_add_vehicle_form():
         if st.form_submit_button(get_text('save', language)):
             if name and license_plate:
                 try:
+                    # Debug info - check organization_id
+                    org_id = st.session_state.get('organization_id')
+                    if not org_id:
+                        st.error("❌ Ошибка: не установлен organization_id")
+                        st.error("❌ Fehler: organization_id nicht gesetzt")
+                        return
+                    
+                    st.info(f"🔄 Сохранение автомобиля для организации: {org_id}")
+                    
                     # Handle photo upload
                     photo_urls = []
                     if photo_files:
+                        st.info(f"📷 Загрузка {len(photo_files)} фотографий...")
                         photo_urls = upload_multiple_files(photo_files, 'vehicles')
+                        if photo_urls:
+                            st.success(f"✅ Загружено {len(photo_urls)} фотографий")
+                        else:
+                            st.warning("⚠️ Не удалось загрузить фотографии")
                     
                     # Join multiple photo URLs with semicolon separator
                     photo_url = ';'.join(photo_urls) if photo_urls else None
                     
                     vehicle_id = str(uuid.uuid4())
-                    execute_query("""
-                        INSERT INTO vehicles (id, organization_id, name, license_plate, vin, status, model, year, photo_url, 
-                                            is_rental, rental_start_date, rental_end_date, rental_monthly_price)
-                        VALUES (:id, :organization_id, :name, :license_plate, :vin, :status, :model, :year, :photo_url, 
-                               :is_rental, :rental_start_date, :rental_end_date, :rental_monthly_price)
-                    """, {
+                    st.info(f"🆔 Создан ID автомобиля: {vehicle_id}")
+                    
+                    # Prepare parameters for debugging
+                    params = {
                         'id': vehicle_id,
-                        'organization_id': st.session_state.get('organization_id'),
+                        'organization_id': org_id,
                         'name': name,
                         'license_plate': license_plate,
-                        'vin': vin,
+                        'vin': vin or None,  # Handle empty string
                         'status': status,
-                        'model': model,
+                        'model': model or None,  # Handle empty string
                         'year': year,
                         'photo_url': photo_url,
                         'is_rental': is_rental,
                         'rental_start_date': rental_start_date,
                         'rental_end_date': rental_end_date,
-                        'rental_monthly_price': rental_monthly_price
-                    })
-                    st.success(get_text('success_save', language))
+                        'rental_monthly_price': rental_monthly_price if rental_monthly_price and rental_monthly_price > 0 else None
+                    }
+                    
+                    st.info("💾 Выполнение SQL запроса...")
+                    execute_query("""
+                        INSERT INTO vehicles (id, organization_id, name, license_plate, vin, status, model, year, photo_url, 
+                                            is_rental, rental_start_date, rental_end_date, rental_monthly_price)
+                        VALUES (:id, :organization_id, :name, :license_plate, :vin, :status, :model, :year, :photo_url, 
+                               :is_rental, :rental_start_date, :rental_end_date, :rental_monthly_price)
+                    """, params)
+                    
+                    st.success(f"✅ {get_text('success_save', language)}")
+                    st.success("✅ Fahrzeug erfolgreich gespeichert")
+                    
                     # Clear file uploader by resetting session state
                     if 'photo_file' in st.session_state:
                         del st.session_state['photo_file']
                     st.rerun()
+                    
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                    st.error(f"❌ Ошибка добавления автомобиля: {str(e)}")
+                    st.error(f"❌ Fehler beim Hinzufügen des Fahrzeugs: {str(e)}")
+                    import traceback
+                    st.error("📋 Подробности ошибки:")
+                    st.code(traceback.format_exc())
             else:
-                st.error("Название и гос.номер обязательны")
+                st.error("❌ Название и гос.номер обязательны")
+                st.error("❌ Name und Kennzeichen sind erforderlich")
 
 def show_edit_vehicle_form(vehicle_id):
     """Show form to edit existing vehicle"""
