@@ -5,6 +5,7 @@ from translations import get_text
 from utils import format_currency
 import pandas as pd
 import plotly.express as px
+from auth import require_auth, show_org_header
 
 # Page config
 st.set_page_config(
@@ -12,6 +13,10 @@ st.set_page_config(
     page_icon="💰",
     layout="wide"
 )
+
+# Require authentication
+require_auth()
+show_org_header()
 
 # Language from session state
 language = st.session_state.get('language', 'ru')

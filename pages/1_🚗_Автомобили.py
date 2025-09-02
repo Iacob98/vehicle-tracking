@@ -6,6 +6,7 @@ from utils import export_to_csv, upload_file, display_file, get_document_types, 
 from pagination import paginate_data
 from datetime import datetime
 import uuid
+from auth import require_auth, show_org_header
 
 # Page config
 st.set_page_config(
@@ -13,6 +14,10 @@ st.set_page_config(
     page_icon="🚗",
     layout="wide"
 )
+
+# Require authentication
+require_auth()
+show_org_header()
 
 # Language from session state
 language = st.session_state.get('language', 'ru')
