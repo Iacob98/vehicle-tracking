@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from database import execute_query
 from translations import get_text
-from utils import format_currency, upload_file
+from utils import format_currency, upload_file, upload_multiple_files
 from auth import require_auth, show_org_header
 
 # Page config
@@ -139,10 +139,15 @@ def show_add_expense_form():
             )
             
             # File upload
-            uploaded_file = st.file_uploader(
-                "Чек/документ / Beleg/Dokument",
-                type=['pdf', 'jpg', 'jpeg', 'png']
+            uploaded_files = st.file_uploader(
+                "Чеки/документы / Belege/Dokumente",
+                type=['pdf', 'jpg', 'jpeg', 'png'],
+                accept_multiple_files=True,
+                help="Можно загрузить несколько чеков одновременно"
             )
+            
+            if uploaded_files:
+                st.info(f"Выбрано {len(uploaded_files)} файл(ов): {', '.join([f.name for f in uploaded_files])}")
         
         description = st.text_area(
             "Описание/Beschreibung"
@@ -151,9 +156,12 @@ def show_add_expense_form():
         if st.form_submit_button(get_text('save', language)):
             if amount > 0:
                 try:
-                    file_url = None
-                    if uploaded_file:
-                        file_url = upload_file(uploaded_file, 'expenses')
+                    file_urls = []
+                    if uploaded_files:
+                        file_urls = upload_multiple_files(uploaded_files, 'expenses')
+                    
+                    # Join multiple file URLs with semicolon separator
+                    file_url = ';'.join(file_urls) if file_urls else None
                     
                     expense_id = str(uuid.uuid4())
                     execute_query("""
@@ -257,10 +265,15 @@ def show_edit_expense_form(expense_id):
                 if current_expense[5]:
                     st.info(f"Текущий файл: {current_expense[5].split('/')[-1]}")
                 
-                uploaded_file = st.file_uploader(
-                    "Новый чек/документ / Neuer Beleg",
-                    type=['pdf', 'jpg', 'jpeg', 'png']
+                uploaded_files = st.file_uploader(
+                    "Новые чеки/документы / Neue Belege",
+                    type=['pdf', 'jpg', 'jpeg', 'png'],
+                    accept_multiple_files=True,
+                    help="Можно добавить несколько новых чеков одновременно"
                 )
+                
+                if uploaded_files:
+                    st.info(f"Выбрано {len(uploaded_files)} новых файл(ов): {', '.join([f.name for f in uploaded_files])}")
             
             description = st.text_area(
                 "Описание/Beschreibung",
@@ -272,9 +285,20 @@ def show_edit_expense_form(expense_id):
                 if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
                     if amount > 0:
                         try:
-                            file_url = current_expense[5]  # Keep existing file
-                            if uploaded_file:
-                                file_url = upload_file(uploaded_file, 'expenses')
+                            # Handle file updates
+                            existing_file_url = current_expense[5]  # Keep existing file
+                            file_url = existing_file_url
+                            
+                            if uploaded_files:
+                                # Upload new files
+                                new_file_urls = upload_multiple_files(uploaded_files, 'expenses')
+                                
+                                if new_file_urls:
+                                    # Combine existing and new files
+                                    existing_files = existing_file_url.split(';') if existing_file_url and ';' in existing_file_url else ([existing_file_url] if existing_file_url else [])
+                                    all_files = existing_files + new_file_urls
+                                    # Remove empty entries and join with semicolon
+                                    file_url = ';'.join([f for f in all_files if f.strip()])
                             
                             execute_query("""
                                 UPDATE car_expenses 

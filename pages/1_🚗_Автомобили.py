@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import execute_query
 from translations import get_text
-from utils import export_to_csv, upload_file, display_file, get_document_types, get_documents_with_sort, delete_document
+from utils import export_to_csv, upload_file, upload_multiple_files, display_file, get_document_types, get_documents_with_sort, delete_document
 from pagination import paginate_data
 from datetime import datetime
 import uuid
@@ -269,20 +269,27 @@ def show_add_vehicle_form():
                 )
 
         # Photo upload section
-        st.write("📷 **Фото автомобиля / Fahrzeugfoto**")
-        photo_file = st.file_uploader(
-            "Выберите фото / Foto auswählen",
+        st.write("📷 **Фотографии автомобиля / Fahrzeugfotos**")
+        photo_files = st.file_uploader(
+            "Выберите фото / Fotos auswählen",
             type=['jpg', 'jpeg', 'png', 'gif'],
-            help="Загрузите фото автомобиля для отображения в списке"
+            accept_multiple_files=True,
+            help="Загрузите одну или несколько фотографий автомобиля"
         )
+        
+        if photo_files:
+            st.info(f"Выбрано {len(photo_files)} фото: {', '.join([f.name for f in photo_files])}")
         
         if st.form_submit_button(get_text('save', language)):
             if name and license_plate:
                 try:
                     # Handle photo upload
-                    photo_url = None
-                    if photo_file:
-                        photo_url = upload_file(photo_file, 'vehicles')
+                    photo_urls = []
+                    if photo_files:
+                        photo_urls = upload_multiple_files(photo_files, 'vehicles')
+                    
+                    # Join multiple photo URLs with semicolon separator
+                    photo_url = ';'.join(photo_urls) if photo_urls else None
                     
                     vehicle_id = str(uuid.uuid4())
                     execute_query("""
@@ -451,13 +458,17 @@ def show_edit_vehicle_form(vehicle_id):
                 replace_photo = True
             
             # Photo upload
-            photo_file = None
+            photo_files = None
             if current_photo_url is None or replace_photo:
-                photo_file = st.file_uploader(
-                    "Выберите новое фото / Neues Foto auswählen" if current_photo_url else "Выберите фото / Foto auswählen",
+                photo_files = st.file_uploader(
+                    "Выберите новые фото / Neue Fotos auswählen" if current_photo_url else "Выберите фото / Fotos auswählen",
                     type=['jpg', 'jpeg', 'png', 'gif'],
-                    help="Загрузите фото автомобиля для отображения в списке"
+                    accept_multiple_files=True,
+                    help="Загрузите одну или несколько фотографий автомобиля"
                 )
+                
+                if photo_files:
+                    st.info(f"Выбрано {len(photo_files)} новых фото: {', '.join([f.name for f in photo_files])}")
             
             col_save, col_cancel = st.columns(2)
             with col_save:
@@ -465,12 +476,19 @@ def show_edit_vehicle_form(vehicle_id):
                     if name and license_plate:
                         try:
                             # Handle photo upload
-                            photo_url_to_save = current_photo_url  # Keep current photo by default
-                            if photo_file:
-                                # Upload new photo
-                                new_photo_url = upload_file(photo_file, 'vehicles')
-                                if new_photo_url:
-                                    photo_url_to_save = new_photo_url
+                            existing_photo_url = current_photo_url  # Keep current photo by default
+                            photo_url_to_save = existing_photo_url
+                            
+                            if photo_files:
+                                # Upload new photos
+                                new_photo_urls = upload_multiple_files(photo_files, 'vehicles')
+                                
+                                if new_photo_urls:
+                                    # Combine existing and new photos
+                                    existing_photos = existing_photo_url.split(';') if existing_photo_url and ';' in existing_photo_url else ([existing_photo_url] if existing_photo_url else [])
+                                    all_photos = existing_photos + new_photo_urls
+                                    # Remove empty entries and join with semicolon
+                                    photo_url_to_save = ';'.join([p for p in all_photos if p.strip()])
                             elif replace_photo and current_photo_url:
                                 # User wants to remove current photo
                                 photo_url_to_save = None
@@ -755,20 +773,27 @@ def show_add_vehicle_document_form(vehicle_id):
             )
         
         # File upload
-        st.write("📎 **Файл документа**")
-        uploaded_file = st.file_uploader(
-            "Выберите файл",
+        st.write("📎 **Файлы документа**")
+        uploaded_files = st.file_uploader(
+            "Выберите файлы",
             type=['pdf', 'jpg', 'jpeg', 'png', 'gif'],
-            help="Загрузите скан или фото документа"
+            accept_multiple_files=True,
+            help="Загрузите сканы или фото документов"
         )
+        
+        if uploaded_files:
+            st.info(f"Выбрано {len(uploaded_files)} файл(ов): {', '.join([f.name for f in uploaded_files])}")
         
         if st.form_submit_button("💾 Сохранить документ", type="primary"):
             if title and document_type:
                 try:
                     # Upload file if provided
-                    file_url = None
-                    if uploaded_file:
-                        file_url = upload_file(uploaded_file, 'documents')
+                    file_urls = []
+                    if uploaded_files:
+                        file_urls = upload_multiple_files(uploaded_files, 'documents')
+                    
+                    # Join multiple file URLs with semicolon separator
+                    file_url = ';'.join(file_urls) if file_urls else None
                     
                     # Insert document
                     doc_id = str(uuid.uuid4())
@@ -954,13 +979,16 @@ def show_edit_document_form(document_id):
                 replace_file = True
             
             # File upload
-            uploaded_file = None
             if doc[4] is None or replace_file:
-                uploaded_file = st.file_uploader(
-                    "Новый файл документа" if doc[4] else "Файл документа",
+                uploaded_files = st.file_uploader(
+                    "Новые файлы документа" if doc[4] else "Файлы документа",
                     type=['pdf', 'jpg', 'jpeg', 'png', 'gif'],
-                    help="Загрузите скан или фото документа"
+                    accept_multiple_files=True,
+                    help="Загрузите сканы или фото документов"
                 )
+                
+                if uploaded_files:
+                    st.info(f"Выбрано {len(uploaded_files)} новых файл(ов): {', '.join([f.name for f in uploaded_files])}")
             
             col_save, col_cancel = st.columns(2)
             
@@ -969,11 +997,19 @@ def show_edit_document_form(document_id):
                     if title and document_type:
                         try:
                             # Handle file upload
-                            file_url_to_save = doc[4]  # Keep current file by default
-                            if uploaded_file:
-                                new_file_url = upload_file(uploaded_file, 'documents')
-                                if new_file_url:
-                                    file_url_to_save = new_file_url
+                            existing_file_url = doc[4]  # Keep current file by default
+                            file_url_to_save = existing_file_url
+                            
+                            if uploaded_files:
+                                # Upload new files
+                                new_file_urls = upload_multiple_files(uploaded_files, 'documents')
+                                
+                                if new_file_urls:
+                                    # Combine existing and new files
+                                    existing_files = existing_file_url.split(';') if existing_file_url and ';' in existing_file_url else ([existing_file_url] if existing_file_url else [])
+                                    all_files = existing_files + new_file_urls
+                                    # Remove empty entries and join with semicolon
+                                    file_url_to_save = ';'.join([f for f in all_files if f.strip()])
                             elif replace_file and doc[4]:
                                 file_url_to_save = None  # Remove current file
                             

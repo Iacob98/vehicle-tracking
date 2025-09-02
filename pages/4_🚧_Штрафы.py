@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from database import execute_query
 from translations import get_text
-from utils import format_currency, upload_file
+from utils import format_currency, upload_file, upload_multiple_files
 from auth import require_auth, show_org_header
 
 # Page config
@@ -53,6 +53,12 @@ def show_penalty_photo_viewer(penalty_id, photo_url, title):
         st.warning("Фото не найдено / Foto nicht gefunden")
         return
     
+    # Split multiple photo URLs if they exist (semicolon separated)
+    photo_urls = photo_url.split(';') if ';' in photo_url else [photo_url]
+    
+    if len(photo_urls) > 1:
+        st.info(f"Всего фотографий: {len(photo_urls)} / Insgesamt Fotos: {len(photo_urls)}")
+    
     # File info
     file_name = photo_url.split('/')[-1]
     file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
@@ -61,25 +67,37 @@ def show_penalty_photo_viewer(penalty_id, photo_url, title):
     col_main, col_sidebar = st.columns([3, 1])
     
     with col_main:
-        st.info(f"📁 **Файл:** {file_name}")
-        
-        # Display image
-        if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
-            try:
-                import os
-                if photo_url.startswith('/'):
-                    file_path = photo_url.lstrip('/')
-                    if os.path.exists(file_path):
-                        st.image(file_path, caption=title, use_container_width=True)
-                    else:
-                        st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+        # Display all images
+        for i, single_photo_url in enumerate(photo_urls, 1):
+            if single_photo_url.strip():  # Check if URL is not empty
+                file_name = single_photo_url.split('/')[-1]
+                file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                
+                if len(photo_urls) > 1:
+                    st.subheader(f"Фото {i}")
+                
+                st.info(f"📁 **Файл:** {file_name}")
+                
+                # Display image
+                if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+                    try:
+                        import os
+                        if single_photo_url.startswith('/'):
+                            file_path = single_photo_url.lstrip('/')
+                            if os.path.exists(file_path):
+                                st.image(file_path, caption=f"{title} - Фото {i}" if len(photo_urls) > 1 else title, use_container_width=True)
+                            else:
+                                st.error("🚫 Файл изображения не найден/Bilddatei nicht gefunden")
+                        else:
+                            st.image(single_photo_url, caption=f"{title} - Фото {i}" if len(photo_urls) > 1 else title, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
                 else:
-                    st.image(photo_url, caption=title, use_container_width=True)
-            except Exception as e:
-                st.error(f"❌ Ошибка загрузки изображения/Fehler beim Laden des Bildes: {str(e)}")
-        else:
-            st.warning(f"📎 **Неподдерживаемый формат файла: .{file_extension}**")
-            st.info("💡 Поддерживаются только изображения: JPG, PNG, GIF")
+                    st.warning(f"📎 **Неподдерживаемый формат файла: .{file_extension}**")
+                    st.info("💡 Поддерживаются только изображения: JPG, PNG, GIF")
+                
+                if i < len(photo_urls):  # Add separator except for last image
+                    st.divider()
     
     with col_sidebar:
         st.markdown("### Действия / Aktionen")
@@ -279,10 +297,15 @@ def show_add_penalty_form():
             )
             
             # File upload
-            uploaded_file = st.file_uploader(
-                "Фото/Foto",
-                type=['jpg', 'jpeg', 'png']
+            uploaded_files = st.file_uploader(
+                "Фото/Fotos",
+                type=['jpg', 'jpeg', 'png'],
+                accept_multiple_files=True,
+                help="Можно загрузить несколько фотографий одновременно"
             )
+            
+            if uploaded_files:
+                st.info(f"Выбрано {len(uploaded_files)} файл(ов): {', '.join([f.name for f in uploaded_files])}")
         
         description = st.text_area(
             "Описание/Beschreibung"
@@ -290,9 +313,12 @@ def show_add_penalty_form():
         
         if st.form_submit_button(get_text('save', language)):
             try:
-                photo_url = None
-                if uploaded_file:
-                    photo_url = upload_file(uploaded_file, 'penalties')
+                photo_urls = []
+                if uploaded_files:
+                    photo_urls = upload_multiple_files(uploaded_files, 'penalties')
+                
+                # Join multiple photo URLs with semicolon separator
+                photo_url = ';'.join(photo_urls) if photo_urls else None
                 
                 penalty_id = str(uuid.uuid4())
                 execute_query("""
@@ -527,10 +553,15 @@ def show_edit_penalty_form(penalty_id):
                 if current_penalty[6]:  # photo_url is at index 6
                     st.info(f"Текущее фото: {current_penalty[6].split('/')[-1]}")
                 
-                uploaded_file = st.file_uploader(
-                    "Новое фото/Neues Foto",
-                    type=['jpg', 'jpeg', 'png']
+                uploaded_files = st.file_uploader(
+                    "Новые фото/Neue Fotos",
+                    type=['jpg', 'jpeg', 'png'],
+                    accept_multiple_files=True,
+                    help="Можно добавить несколько новых фотографий одновременно / Mehrere neue Fotos gleichzeitig hinzufügen"
                 )
+                
+                if uploaded_files:
+                    st.info(f"Выбрано {len(uploaded_files)} новых файл(ов): {', '.join([f.name for f in uploaded_files])}")
             
             description = st.text_area(
                 "Описание/Beschreibung",
@@ -541,9 +572,20 @@ def show_edit_penalty_form(penalty_id):
             with col_save:
                 if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
                     try:
-                        photo_url = current_penalty[6]  # Keep existing photo (photo_url is at index 6)
-                        if uploaded_file:
-                            photo_url = upload_file(uploaded_file, 'penalties')
+                        # Handle photo updates
+                        existing_photo_url = current_penalty[6]  # Keep existing photo (photo_url is at index 6)
+                        photo_url = existing_photo_url
+                        
+                        if uploaded_files:
+                            # Upload new files
+                            new_photo_urls = upload_multiple_files(uploaded_files, 'penalties')
+                            
+                            if new_photo_urls:
+                                # Combine existing and new photos
+                                existing_photos = existing_photo_url.split(';') if existing_photo_url and ';' in existing_photo_url else ([existing_photo_url] if existing_photo_url else [])
+                                all_photos = existing_photos + new_photo_urls
+                                # Remove empty entries and join with semicolon
+                                photo_url = ';'.join([p for p in all_photos if p.strip()])
                         
                         execute_query("""
                             UPDATE penalties 

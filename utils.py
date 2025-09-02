@@ -119,6 +119,39 @@ def upload_file(file, upload_type='receipt'):
             return None
     return None
 
+def upload_multiple_files(files, upload_type='documents'):
+    """Handle multiple files upload and return list of file paths"""
+    if not files:
+        return []
+        
+    import os
+    uploaded_paths = []
+    
+    for file in files:
+        if file is not None:
+            # Create uploads directory if it doesn't exist
+            upload_dir = f"uploads/{upload_type}"
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Generate unique filename with safer handling
+            file_id = str(uuid.uuid4())
+            # Clean filename to avoid issues with special characters
+            clean_name = "".join(c for c in file.name if c.isalnum() or c in '._-')
+            file_extension = clean_name.split('.')[-1] if '.' in clean_name else 'bin'
+            unique_filename = f"{file_id}.{file_extension}"
+            file_path = os.path.join(upload_dir, unique_filename)
+            
+            # Save file
+            try:
+                with open(file_path, "wb") as f:
+                    f.write(file.getbuffer())
+                uploaded_paths.append(file_path)
+            except Exception as e:
+                st.error(f"Ошибка сохранения файла {file.name}: {str(e)}")
+                continue
+    
+    return uploaded_paths
+
 def display_file(file_path, file_title="Файл"):
     """Display file content in Streamlit"""
     if not file_path:
