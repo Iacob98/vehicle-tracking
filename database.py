@@ -83,7 +83,8 @@ def init_db():
         # Check if database is already initialized
         with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'organizations'"))
-            if result.scalar() > 0:
+            count = result.scalar()
+            if count and count > 0:
                 print("Database already initialized")
                 return True
         
