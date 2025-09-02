@@ -46,7 +46,7 @@ with tab1:
                     
                     member_data.append({
                         'ID': member.id,
-                        'Имя': member.name,
+                        'Имя': f"{member.first_name} {member.last_name}",
                         'Телефон': member.phone or "Не указан",
                         'Категория': member.category.value if member.category else "Не указана",
                         'Бригада': team_name,
@@ -81,7 +81,8 @@ with tab2:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    member_name = st.text_input("Имя участника*", placeholder="Введите имя")
+                    member_first_name = st.text_input("Имя*", placeholder="Введите имя")
+                    member_last_name = st.text_input("Фамилия*", placeholder="Введите фамилию")
                     member_phone = st.text_input("Телефон", placeholder="+7 xxx xxx xx xx")
                 
                 with col2:
@@ -97,27 +98,28 @@ with tab2:
                     
                     selected_team = st.selectbox("Бригада", list(team_options.keys()))
                 
-                notes = st.text_area("Заметки", placeholder="Дополнительная информация")
+                # Убираем поле notes так как его нет в модели
+                # notes = st.text_area("Заметки", placeholder="Дополнительная информация")
                 
                 if st.form_submit_button("💾 Добавить участника"):
-                    if not member_name:
-                        st.error("❌ Необходимо указать имя участника")
+                    if not member_first_name or not member_last_name:
+                        st.error("❌ Необходимо указать имя и фамилию участника")
                     else:
                         try:
                             # Создаем нового участника
                             new_member = TeamMember(
-                                name=member_name,
+                                first_name=member_first_name,
+                                last_name=member_last_name,
                                 phone=member_phone if member_phone else None,
                                 category=WorkerCategory(selected_category) if selected_category != "Не указана" else None,
                                 team_id=team_options[selected_team],
-                                notes=notes if notes else None,
                                 organization_id=user_org_id
                             )
                             
                             session.add(new_member)
                             session.commit()
                             
-                            st.success(f"✅ Участник {member_name} успешно добавлен!")
+                            st.success(f"✅ Участник {member_first_name} {member_last_name} успешно добавлен!")
                             st.rerun()
                             
                         except Exception as e:
