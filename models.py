@@ -59,11 +59,13 @@ class Team(Base):
     __tablename__ = "teams"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name = Column(String, nullable=False)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
+    organization = relationship("Organization")
     users = relationship("User", back_populates="team", foreign_keys="User.team_id")
     lead = relationship("User", foreign_keys=[lead_id])
     team_members = relationship("TeamMember", back_populates="team")
