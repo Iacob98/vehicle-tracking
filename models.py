@@ -48,6 +48,12 @@ class MaterialEvent(enum.Enum):
     returned = "returned"
     broken = "broken"
 
+class WorkerCategory(enum.Enum):
+    driver = "driver"
+    mechanic = "mechanic"
+    specialist = "specialist"
+    general = "general"
+
 # Models
 class Team(Base):
     __tablename__ = "teams"
@@ -60,6 +66,7 @@ class Team(Base):
     # Relationships
     users = relationship("User", back_populates="team", foreign_keys="User.team_id")
     lead = relationship("User", foreign_keys=[lead_id])
+    team_members = relationship("TeamMember", back_populates="team")
     vehicle_assignments = relationship("VehicleAssignment", back_populates="team")
     material_assignments = relationship("MaterialAssignment", back_populates="team")
     expenses = relationship("Expense", back_populates="team")
@@ -82,6 +89,36 @@ class User(Base):
     organization = relationship("Organization")
     team = relationship("Team", back_populates="users", foreign_keys=[team_id])
     penalties = relationship("Penalty", back_populates="user")
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"), nullable=False)
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    phone = Column(String)
+    category = Column(SQLEnum(WorkerCategory), default=WorkerCategory.general)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    organization = relationship("Organization")
+    team = relationship("Team", back_populates="team_members")
+    documents = relationship("TeamMemberDocument", back_populates="team_member")
+
+class TeamMemberDocument(Base):
+    __tablename__ = "team_member_documents"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    team_member_id = Column(UUID(as_uuid=True), ForeignKey("team_members.id"), nullable=False)
+    title = Column(String, nullable=False)
+    file_url = Column(String, nullable=False)
+    expiry_date = Column(Date, nullable=True)
+    upload_date = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    team_member = relationship("TeamMember", back_populates="documents")
 
 class Vehicle(Base):
     __tablename__ = "vehicles"

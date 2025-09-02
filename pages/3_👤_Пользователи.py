@@ -9,20 +9,39 @@ from auth import require_auth, show_org_header, is_admin, can_manage_users, is_o
 
 # Page config
 st.set_page_config(
-    page_title="Пользователи",
+    page_title="Пользователи платформы",
     page_icon="👤",
     layout="wide"
 )
 
 # Require authentication
-require_auth()
+user = require_auth()
+if not user:
+    st.stop()
+
 show_org_header()
 
 # Language from session state
 language = st.session_state.get('language', 'ru')
 
+# Only admins can manage platform users
+if not is_admin(user):
+    st.error("❌ Доступ запрещен. Только администраторы могут управлять пользователями платформы.")
+    st.error("❌ Zugriff verweigert. Nur Administratoren können Plattformbenutzer verwalten.")
+    st.info("💡 Для управления участниками бригады используйте страницу 'Участники бригады'")
+    st.info("💡 Verwenden Sie die Seite 'Teammitglieder' zur Verwaltung von Teammitgliedern")
+    st.stop()
+
+st.title("👤 Пользователи платформы / Plattform-Benutzer")
+
+st.info("ℹ️ Эта страница для управления пользователями с аккаунтами в системе (с логинами и паролями)")
+st.info("ℹ️ Diese Seite dient der Verwaltung von Benutzern mit Systemkonten (mit Anmeldedaten)")
+
+st.info("👥 Для управления работниками/участниками бригады используйте страницу 'Участники бригады'")
+st.info("👥 Verwenden Sie die Seite 'Teammitglieder' zur Verwaltung von Arbeitern/Teammitgliedern")
+
 def show_users_list():
-    """Show list of users with inline editing"""
+    """Show list of platform users with inline editing"""
     try:
         # Check if we're editing a user
         edit_user_id = st.session_state.get('edit_user_id', None)
@@ -38,11 +57,13 @@ def show_users_list():
                 u.last_name,
                 u.role,
                 u.phone,
+                u.email,
                 t.name as team_name
             FROM users u
             LEFT JOIN teams t ON u.team_id = t.id
+            WHERE u.organization_id = :org_id
             ORDER BY u.first_name, u.last_name
-        """)
+        """, {'org_id': str(user.organization_id)})
         
         if users:            
             for user in users:
