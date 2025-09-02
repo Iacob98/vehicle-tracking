@@ -6,7 +6,7 @@ from translations import get_text
 from utils import export_to_csv
 from datetime import datetime
 from auth import require_auth, show_org_header
-from models import TeamMember, Team, WorkerCategory
+from models import TeamMember, Team, WorkerCategory, TeamMemberDocument
 
 # Page config
 st.set_page_config(
@@ -406,3 +406,147 @@ with tab4:
 
 with tab5:
     show_team_management()
+
+def show_team_member_documents():
+    """Show team member documents management"""
+    st.subheader("📄 Документы участников")
+    
+    with SessionLocal() as session:
+        members = session.query(TeamMember).filter_by(organization_id=user_org_id).all()
+        
+        if not members:
+            st.info("📝 Нет участников для управления документами")
+            return
+        
+        # Member selection
+        member_options = {}
+        for member in members:
+            member_options[f"{member.first_name} {member.last_name}"] = member.id
+        
+        selected_member = st.selectbox("👤 Выберите участника:", list(member_options.keys()))
+        selected_member_id = member_options[selected_member]
+        
+        # Get documents for selected member
+        documents = session.query(TeamMemberDocument).filter_by(team_member_id=selected_member_id).all()
+        
+        doc_tab1, doc_tab2 = st.tabs(["📋 Список документов", "➕ Добавить документ"])
+        
+        with doc_tab1:
+            if documents:
+                for doc in documents:
+                    with st.container():
+                        col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"📄 **{doc.title}**")
+                        
+                        with col2:
+                            if doc.upload_date:
+                                st.write(f"📅 Загружен: {doc.upload_date.strftime('%d.%m.%Y')}")
+                        
+                        with col3:
+                            if doc.expiry_date:
+                                from datetime import date
+                                days_left = (doc.expiry_date - date.today()).days
+                                if days_left <= 0:
+                                    st.error("⚠️ Просрочен")
+                                elif days_left <= 30:
+                                    st.warning(f"⚠️ Истекает через {days_left} дней")
+                                else:
+                                    st.success(f"✅ До {doc.expiry_date.strftime('%d.%m.%Y')}")
+                            else:
+                                st.info("Срок не указан")
+                        
+                        with col4:
+                            if st.button("👁️", key=f"view_tm_doc_{doc.id}", help="Просмотр"):
+                                # Show file viewer
+                                if doc.file_url:
+                                    st.session_state[f"view_tm_doc_{doc.id}"] = True
+                                    st.rerun()
+                        
+                        st.divider()
+            else:
+                st.info(f"У участника {selected_member} нет документов")
+        
+        with doc_tab2:
+            st.write("### Добавить документ")
+            
+            with st.form("add_team_member_document"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    doc_title = st.text_input("📋 Название документа*", placeholder="Например: Паспорт")
+                    uploaded_file = st.file_uploader(
+                        "📎 Выберите файл",
+                        type=['pdf', 'jpg', 'jpeg', 'png'],
+                        help="Форматы: PDF, JPG, PNG"
+                    )
+                
+                with col2:
+                    expiry_date = st.date_input(
+                        "📅 Дата окончания срока действия",
+                        value=None,
+                        help="Оставьте пустым если срок не ограничен"
+                    )
+                
+                if st.form_submit_button("💾 Сохранить документ"):
+                    if not doc_title:
+                        st.error("❌ Необходимо указать название документа")
+                    elif not uploaded_file:
+                        st.error("❌ Необходимо выбрать файл")
+                    else:
+                        try:
+                            from utils import upload_file
+                            from datetime import datetime
+                            
+                            # Upload file
+                            file_url = upload_file(uploaded_file, 'team_member_documents')
+                            
+                            # Create document record
+                            new_doc = TeamMemberDocument(
+                                team_member_id=selected_member_id,
+                                title=doc_title,
+                                file_url=file_url,
+                                expiry_date=expiry_date,
+                                upload_date=datetime.now()
+                            )
+                            
+                            session.add(new_doc)
+                            session.commit()
+                            
+                            st.success(f"✅ Документ '{doc_title}' добавлен для {selected_member}")
+                            st.rerun()
+                            
+                        except Exception as e:
+                            session.rollback()
+                            st.error(f"❌ Ошибка сохранения документа: {str(e)}")
+
+# Update main page
+st.title("👥 Бригады")
+
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📋 Список бригад",
+    "➕ Добавить бригаду", 
+    "👷 Участники команды",
+    "➕ Добавить участника",
+    "🔄 Управление составом",
+    "📄 Документы участников"
+])
+
+with tab1:
+    show_teams_list()
+
+with tab2:
+    show_add_team_form()
+
+with tab3:
+    show_team_members()
+
+with tab4:
+    show_add_team_member()
+
+with tab5:
+    show_team_management()
+
+with tab6:
+    show_team_member_documents()
