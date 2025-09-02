@@ -146,8 +146,6 @@ def upload_multiple_files(files, upload_type='documents'):
                 with open(file_path, "wb") as f:
                     f.write(file.getbuffer())
                 uploaded_paths.append(file_path)
-                # Debug info
-                st.success(f"✅ Сохранен файл: {file_path} (размер: {len(file.getvalue())} байт)")
             except Exception as e:
                 st.error(f"Ошибка сохранения файла {file.name}: {str(e)}")
                 continue
@@ -155,12 +153,13 @@ def upload_multiple_files(files, upload_type='documents'):
     return uploaded_paths
 
 def display_file(file_path, file_title="Файл"):
-    """Display file content in Streamlit"""
+    """Enhanced display file content in Streamlit with multiple format support"""
     if not file_path:
         st.error("Путь к файлу не указан")
         return False
     
     import os
+    import base64
     
     # Clean and normalize file path
     clean_path = file_path.strip()
@@ -171,41 +170,191 @@ def display_file(file_path, file_title="Файл"):
     # Check if file exists
     if not os.path.exists(clean_path):
         st.error(f"Файл не найден: {clean_path}")
+        st.error(f"🚫 Datei nicht gefunden: {clean_path}")
         return False
     
-    # Get file extension
+    # Get file extension and info
     file_ext = clean_path.split('.')[-1].lower() if '.' in clean_path else ''
+    file_size = os.path.getsize(clean_path)
+    file_name = os.path.basename(clean_path)
+    
+    # File size formatting
+    if file_size < 1024:
+        size_str = f"{file_size} байт"
+    elif file_size < 1024*1024:
+        size_str = f"{file_size//1024} КБ"
+    else:
+        size_str = f"{file_size//(1024*1024)} МБ"
     
     try:
-        if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']:
-            # Display image directly from file path
+        # Images
+        if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'ico']:
+            st.success(f"🖼️ **{file_name}** ({size_str})")
             st.image(clean_path, caption=file_title, use_container_width=True)
+            _add_download_button(clean_path, file_name)
             return True
+        
+        # PDF files - Enhanced viewer
         elif file_ext == 'pdf':
-            # For PDF, provide download link and info
-            st.info("📄 PDF документ")
-            with open(clean_path, "rb") as pdf_file:
-                st.download_button(
-                    label="📥 Скачать PDF",
-                    data=pdf_file.read(),
-                    file_name=os.path.basename(clean_path),
-                    mime="application/pdf"
-                )
+            st.success(f"📄 **PDF документ:** {file_name} ({size_str})")
+            
+            # Create tabs for different viewing options
+            tab1, tab2 = st.tabs(["📖 Просмотр / Ansicht", "⬇️ Скачать / Download"])
+            
+            with tab1:
+                _display_pdf_inline(clean_path, file_title)
+            
+            with tab2:
+                _add_download_button(clean_path, file_name, "application/pdf")
             return True
+        
+        # Text files
+        elif file_ext in ['txt', 'md', 'log', 'csv', 'json', 'xml', 'html', 'css', 'js', 'py', 'java', 'cpp', 'c']:
+            st.success(f"📝 **Текстовый файл:** {file_name} ({size_str})")
+            
+            # Try to read as text with encoding detection
+            try:
+                with open(clean_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    with open(clean_path, 'r', encoding='cp1251') as f:
+                        content = f.read()
+                except UnicodeDecodeError:
+                    with open(clean_path, 'r', encoding='latin1') as f:
+                        content = f.read()
+            
+            # Display with appropriate formatting
+            if file_ext == 'csv':
+                try:
+                    import pandas as pd
+                    df = pd.read_csv(clean_path)
+                    st.dataframe(df, use_container_width=True)
+                except Exception:
+                    st.code(content, language='csv')
+            elif file_ext == 'json':
+                st.json(content)
+            elif file_ext in ['py', 'java', 'cpp', 'c', 'js', 'html', 'css', 'xml']:
+                st.code(content, language=file_ext)
+            elif file_ext == 'md':
+                st.markdown(content)
+            else:
+                st.text_area("Содержимое файла:", content, height=400)
+            
+            _add_download_button(clean_path, file_name)
+            return True
+        
+        # Video files
+        elif file_ext in ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']:
+            st.success(f"🎥 **Видео:** {file_name} ({size_str})")
+            
+            # Create video player
+            if file_ext in ['mp4', 'webm']:
+                st.video(clean_path)
+            else:
+                st.info("💡 Используйте кнопку скачивания для просмотра видео")
+                st.info("💡 Nutzen Sie den Download-Button zum Ansehen des Videos")
+            
+            _add_download_button(clean_path, file_name)
+            return True
+        
+        # Audio files
+        elif file_ext in ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a']:
+            st.success(f"🎵 **Аудио:** {file_name} ({size_str})")
+            st.audio(clean_path)
+            _add_download_button(clean_path, file_name)
+            return True
+        
+        # Office documents
+        elif file_ext in ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt']:
+            format_name = {
+                'docx': 'Word документ', 'doc': 'Word документ',
+                'xlsx': 'Excel таблица', 'xls': 'Excel таблица', 
+                'pptx': 'PowerPoint презентация', 'ppt': 'PowerPoint презентация'
+            }.get(file_ext, 'Office документ')
+            
+            st.success(f"📊 **{format_name}:** {file_name} ({size_str})")
+            st.info("💡 Используйте кнопку скачивания для открытия в соответствующем приложении")
+            st.info("💡 Nutzen Sie den Download-Button zum Öffnen in der entsprechenden App")
+            _add_download_button(clean_path, file_name)
+            return True
+        
+        # Archive files  
+        elif file_ext in ['zip', 'rar', '7z', 'tar', 'gz']:
+            st.success(f"📦 **Архив:** {file_name} ({size_str})")
+            st.info("💡 Используйте кнопку скачивания для извлечения файлов")
+            st.info("💡 Nutzen Sie den Download-Button zum Extrahieren der Dateien")
+            _add_download_button(clean_path, file_name)
+            return True
+        
+        # Unknown format
         else:
-            # For other files, provide download
-            st.info(f"📎 Файл: {os.path.basename(clean_path)}")
-            with open(clean_path, "rb") as file:
-                st.download_button(
-                    label="📥 Скачать файл",
-                    data=file.read(),
-                    file_name=os.path.basename(clean_path)
-                )
+            st.warning(f"📎 **Неизвестный формат:** {file_name} ({size_str})")
+            st.info("💡 Файл можно скачать для просмотра в подходящем приложении")
+            st.info("💡 Datei kann heruntergeladen werden zur Ansicht in geeigneter App")
+            _add_download_button(clean_path, file_name)
             return True
+            
     except Exception as e:
         st.error(f"Ошибка отображения файла: {str(e)}")
+        st.error(f"Dateianzeigefehler: {str(e)}")
         st.write(f"Путь: {clean_path}")
+        # Fallback download button
+        _add_download_button(clean_path, file_name)
         return False
+
+def _display_pdf_inline(file_path, title):
+    """Display PDF inline using pdf2image conversion"""
+    try:
+        from pdf2image import convert_from_path
+        from PIL import Image
+        import tempfile
+        import os
+        
+        # Convert PDF to images
+        with st.spinner("🔄 Конвертация PDF для просмотра..."):
+            # Convert only first 5 pages to avoid memory issues
+            pages = convert_from_path(file_path, first_page=1, last_page=5, dpi=150)
+            
+            st.info(f"📄 Показаны первые {len(pages)} страниц из PDF")
+            st.info(f"📄 Erste {len(pages)} Seiten der PDF werden angezeigt")
+            
+            # Display each page as image
+            for i, page in enumerate(pages, 1):
+                st.markdown(f"**Страница {i} / Seite {i}**")
+                
+                # Convert PIL image to format Streamlit can display
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+                    page.save(tmp_file.name, 'PNG')
+                    st.image(tmp_file.name, use_container_width=True)
+                    os.unlink(tmp_file.name)  # Clean up temp file
+                
+                if i < len(pages):
+                    st.divider()
+    
+    except ImportError:
+        st.warning("⚠️ PDF просмотр недоступен - используйте кнопку скачивания")
+        st.warning("⚠️ PDF-Ansicht nicht verfügbar - nutzen Sie den Download-Button")
+    except Exception as e:
+        st.error(f"Ошибка конвертации PDF: {str(e)}")
+        st.error("💡 Попробуйте скачать файл для просмотра")
+        st.error("💡 Versuchen Sie die Datei herunterzuladen")
+
+def _add_download_button(file_path, file_name, mime_type=None):
+    """Add download button for file"""
+    try:
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+        
+        st.download_button(
+            label=f"⬇️ **Скачать файл**\n**Datei herunterladen**",
+            data=file_data,
+            file_name=file_name,
+            mime=mime_type,
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Ошибка подготовки скачивания: {str(e)}")
 
 def get_document_types():
     """Get document types mapping based on database enum"""
