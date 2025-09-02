@@ -279,14 +279,117 @@ def show_edit_team_form(team_id):
             st.session_state.edit_team_id = None
             st.rerun()
 
+def show_team_management():
+    """Show team member management - assign/reassign members to teams"""
+    st.subheader("🔄 Управление составом бригад")
+    
+    with SessionLocal() as session:
+        # Получаем всех участников
+        members = session.query(TeamMember).filter_by(organization_id=user_org_id).all()
+        teams = session.query(Team).filter_by(organization_id=user_org_id).all()
+        
+        if not members:
+            st.info("📝 Нет участников для распределения по бригадам")
+            return
+            
+        if not teams:
+            st.warning("⚠️ Нет бригад для назначения участников")
+            return
+        
+        st.write("### Текущее распределение участников:")
+        
+        # Группируем участников по бригадам
+        team_dict = {team.id: team.name for team in teams}
+        team_dict[None] = "Не назначена"
+        
+        for team in teams:
+            team_members = [m for m in members if m.team_id == team.id]
+            with st.expander(f"🏢 {team.name} ({len(team_members)} участников)", expanded=False):
+                if team_members:
+                    for member in team_members:
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            st.write(f"👤 {member.first_name} {member.last_name}")
+                        with col2:
+                            st.write(f"📞 {member.phone or 'Не указан'}")
+                        with col3:
+                            if st.button("🔄", key=f"reassign_{member.id}", help="Переназначить"):
+                                st.session_state[f"reassign_member_{member.id}"] = True
+                                st.rerun()
+                else:
+                    st.write("Нет участников в этой бригаде")
+        
+        # Участники без бригады
+        unassigned_members = [m for m in members if m.team_id is None]
+        if unassigned_members:
+            with st.expander(f"❓ Не назначены ({len(unassigned_members)} участников)", expanded=True):
+                for member in unassigned_members:
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    with col1:
+                        st.write(f"👤 {member.first_name} {member.last_name}")
+                    with col2:
+                        st.write(f"📞 {member.phone or 'Не указан'}")
+                    with col3:
+                        if st.button("➕", key=f"assign_{member.id}", help="Назначить в бригаду"):
+                            st.session_state[f"reassign_member_{member.id}"] = True
+                            st.rerun()
+        
+        st.write("---")
+        
+        # Форма переназначения участников
+        for member in members:
+            if st.session_state.get(f"reassign_member_{member.id}", False):
+                st.write(f"### Переназначение: {member.first_name} {member.last_name}")
+                
+                current_team = "Не назначена"
+                if member.team_id:
+                    current_team = team_dict.get(member.team_id, "Неизвестная бригада")
+                
+                st.write(f"**Текущая бригада:** {current_team}")
+                
+                with st.form(f"reassign_form_{member.id}"):
+                    team_options = {"Не назначать": None}
+                    for team in teams:
+                        team_options[team.name] = team.id
+                    
+                    new_team = st.selectbox("Новая бригада:", list(team_options.keys()))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("✅ Переназначить"):
+                            try:
+                                member.team_id = team_options[new_team]
+                                session.commit()
+                                
+                                new_team_name = new_team if new_team != "Не назначать" else "Не назначена"
+                                st.success(f"✅ {member.first_name} {member.last_name} переназначен в '{new_team_name}'")
+                                
+                                # Очищаем состояние
+                                if f"reassign_member_{member.id}" in st.session_state:
+                                    del st.session_state[f"reassign_member_{member.id}"]
+                                st.rerun()
+                                
+                            except Exception as e:
+                                session.rollback()
+                                st.error(f"❌ Ошибка переназначения: {str(e)}")
+                    
+                    with col2:
+                        if st.form_submit_button("❌ Отмена"):
+                            if f"reassign_member_{member.id}" in st.session_state:
+                                del st.session_state[f"reassign_member_{member.id}"]
+                            st.rerun()
+                
+                break  # Показываем только одну форму за раз
+
 # Main page
 st.title("👥 Бригады")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Список бригад",
     "➕ Добавить бригаду", 
     "👷 Участники команды",
-    "➕ Добавить участника"
+    "➕ Добавить участника",
+    "🔄 Управление составом"
 ])
 
 with tab1:
@@ -300,3 +403,6 @@ with tab3:
 
 with tab4:
     show_add_team_member()
+
+with tab5:
+    show_team_management()
