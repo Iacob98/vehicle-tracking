@@ -6,14 +6,18 @@ from datetime import date
 import pandas as pd
 
 # Требуем авторизацию
-user = require_auth()
-if not user:
-    st.stop()
+require_auth()
 
 st.title("👷 Команда")
 
 # Проверяем права доступа
 user_role = st.session_state.get('user_role', '')
+user_org_id = st.session_state.get('organization_id')
+
+if not user_org_id:
+    st.error("❌ Не найдена организация. Попробуйте войти заново.")
+    st.stop()
+
 if user_role not in ['admin', 'owner', 'manager']:
     st.error("❌ Нет доступа. Только админы и менеджеры могут управлять командой.")
     st.stop()
@@ -28,7 +32,7 @@ with tab1:
         with SessionLocal() as session:
             # Получаем участников команды для текущей организации
             members = session.query(TeamMember).filter_by(
-                organization_id=user.organization_id
+                organization_id=user_org_id
             ).all()
             
             if members:
@@ -66,7 +70,7 @@ with tab2:
         with SessionLocal() as session:
             # Получаем список бригад
             teams = session.query(Team).filter_by(
-                organization_id=user.organization_id
+                organization_id=user_org_id
             ).all()
             
             team_options = {"Не выбрана": None}
@@ -107,7 +111,7 @@ with tab2:
                                 category=WorkerCategory(selected_category) if selected_category != "Не указана" else None,
                                 team_id=team_options[selected_team],
                                 notes=notes if notes else None,
-                                organization_id=user.organization_id
+                                organization_id=user_org_id
                             )
                             
                             session.add(new_member)
