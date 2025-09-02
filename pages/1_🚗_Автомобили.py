@@ -867,37 +867,52 @@ def show_document_viewer(document_id):
         
         st.divider()
         
-        # Display file using new system
-        file_path = file_url.lstrip('/') if file_url.startswith('/') else file_url
-        success = display_file(file_path, doc[0])
+        # Handle multiple files (separated by semicolon)
+        file_urls = file_url.split(';') if ';' in file_url else [file_url]
         
-        if not success:
-            st.error("❌ Не удалось отобразить файл")
-            st.write(f"Путь к файлу: {file_path}")
-            
-            # Try alternative display methods
-            import os
-            if os.path.exists(file_path):
-                st.info("✅ Файл существует на диске")
-                try:
-                    file_size = os.path.getsize(file_path)
-                    st.write(f"Размер файла: {file_size} байт")
-                except Exception as e:
-                    st.write(f"Ошибка получения размера: {str(e)}")
-            else:
-                st.error("❌ Файл не найден на диске")
+        if len(file_urls) > 1:
+            st.info(f"📁 Всего файлов: {len(file_urls)}")
+        
+        # Display each file
+        for i, single_file_url in enumerate(file_urls, 1):
+            if single_file_url.strip():  # Check if URL is not empty
+                if len(file_urls) > 1:
+                    st.subheader(f"Файл {i}")
                 
-            # Fallback download button
-            try:
-                if os.path.exists(file_path):
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            label="📥 Скачать файл",
-                            data=f.read(),
-                            file_name=os.path.basename(file_path)
-                        )
-            except Exception as e:
-                st.error(f"Ошибка скачивания: {str(e)}")
+                file_path = single_file_url.strip().lstrip('/') if single_file_url.strip().startswith('/') else single_file_url.strip()
+                success = display_file(file_path, f"{doc[0]} - Файл {i}" if len(file_urls) > 1 else doc[0])
+                
+                if not success:
+                    st.error(f"❌ Не удалось отобразить файл {i if len(file_urls) > 1 else ''}")
+                    st.write(f"Путь к файлу: {file_path}")
+                    
+                    # Try alternative display methods
+                    import os
+                    if os.path.exists(file_path):
+                        st.info("✅ Файл существует на диске")
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            st.write(f"Размер файла: {file_size} байт")
+                        except Exception as e:
+                            st.write(f"Ошибка получения размера: {str(e)}")
+                    else:
+                        st.error("❌ Файл не найден на диске")
+                        
+                    # Fallback download button
+                    try:
+                        if os.path.exists(file_path):
+                            with open(file_path, "rb") as f:
+                                st.download_button(
+                                    label=f"📥 Скачать файл {i}" if len(file_urls) > 1 else "📥 Скачать файл",
+                                    data=f.read(),
+                                    file_name=os.path.basename(file_path),
+                                    key=f"download_doc_{document_id}_{i}"
+                                )
+                    except Exception as e:
+                        st.error(f"Ошибка скачивания: {str(e)}")
+                
+                if i < len(file_urls):  # Add separator except for last file
+                    st.divider()
             
     except Exception as e:
         st.error(f"Ошибка просмотра документа: {str(e)}")
