@@ -179,3 +179,20 @@ def show_org_header():
             if st.button("Выход / Logout"):
                 logout()
         st.divider()
+
+def is_admin():
+    """Check if current user has admin rights (owner or manager)"""
+    user_role = st.session_state.get('user_role')
+    return user_role in ['owner', 'manager']
+
+def is_owner():
+    """Check if current user is owner"""
+    return st.session_state.get('user_role') == 'owner'
+
+def can_manage_users():
+    """Check if user can add/edit/delete users"""
+    return is_admin()
+
+def can_delete_account():
+    """Check if user can delete account - only owner"""
+    return is_owner()

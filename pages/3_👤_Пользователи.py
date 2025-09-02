@@ -5,7 +5,7 @@ from translations import get_text
 from datetime import date, datetime
 import hashlib
 from utils import upload_file
-from auth import require_auth, show_org_header
+from auth import require_auth, show_org_header, is_admin, can_manage_users, is_owner
 
 # Page config
 st.set_page_config(
@@ -144,11 +144,11 @@ def show_edit_user_form(user_id):
                 
                 # Role selection - owners can edit any role, others can't change roles of owners
                 available_roles = roles.copy()
-                if st.session_state.get('user_role') != 'owner' and current_user[3] == 'owner':
+                if not is_owner() and current_user[3] == 'owner':
                     # Non-owners can't edit owner accounts
-                    st.error("❌ Только владелец аккаунта может редактировать роли других пользователей")
+                    st.error("❌ Только владелец аккаунта может редактировать роли владельцев")
                     available_roles = [current_user[3]]  # Keep current role only
-                elif st.session_state.get('user_role') != 'owner':
+                elif not is_owner():
                     # Non-owners can't assign owner role
                     available_roles = ['admin', 'manager', 'team_lead', 'worker']
                 
@@ -216,9 +216,9 @@ def show_edit_user_form(user_id):
 def show_add_user_form():
     """Show form to add new user - only for account owners"""
     # Check if current user has permission to add users
-    if st.session_state.get('user_role') != 'owner':
-        st.error("❌ Только владелец аккаунта может добавлять пользователей")
-        st.info("💡 Обратитесь к владельцу аккаунта для добавления новых пользователей")
+    if not can_manage_users():
+        st.error("❌ Только владелец аккаунта и менеджеры могут добавлять пользователей")
+        st.info("💡 Обратитесь к администратору для добавления новых пользователей")
         return
     
     st.subheader("➕ Добавить пользователя в аккаунт / Benutzer zum Konto hinzufügen")
@@ -321,8 +321,8 @@ def delete_user(user_id):
     """Delete user - with permission checks"""
     try:
         # Check if current user has permission to delete users
-        if st.session_state.get('user_role') != 'owner':
-            st.error("❌ Только владелец аккаунта может удалять пользователей")
+        if not can_manage_users():
+            st.error("❌ Только владелец аккаунта и менеджеры могут удалять пользователей")
             return
         
         # Check if trying to delete another owner

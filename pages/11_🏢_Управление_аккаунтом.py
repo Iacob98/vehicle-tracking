@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from database import execute_query
 from translations import get_text
-from auth import require_auth, show_org_header, hash_password
+from auth import require_auth, show_org_header, is_admin, can_delete_account, hash_password
 
 # Page config
 st.set_page_config(
@@ -24,9 +24,9 @@ def show_account_management():
     st.title("🏢 Управление аккаунтом / Account Management")
     
     # Check if current user is owner
-    if st.session_state.get('user_role') != 'owner':
+    if not is_admin():
         st.error("❌ Доступ запрещен / Access Denied")
-        st.info("💡 Только владелец аккаунта может управлять настройками аккаунта")
+        st.info("💡 Только владелец аккаунта и менеджеры могут управлять настройками аккаунта")
         return
     
     # Display organization info
@@ -329,11 +329,12 @@ def show_account_settings():
         
         st.divider()
         
-        # Danger zone
-        st.subheader("⚠️ Опасная зона / Danger Zone")
-        st.warning("**ВНИМАНИЕ:** Действия в этом разделе необратимы!")
-        
-        with st.expander("🗑️ Удалить аккаунт навсегда", expanded=False):
+        # Danger zone - only for owners
+        if can_delete_account():
+            st.subheader("⚠️ Опасная зона / Danger Zone")
+            st.warning("**ВНИМАНИЕ:** Действия в этом разделе необратимы!")
+            
+            with st.expander("🗑️ Удалить аккаунт навсегда", expanded=False):
             st.error("**ВНИМАНИЕ:** Удаление аккаунта приведет к:")
             st.write("• Удалению всех данных организации")
             st.write("• Удалению всех пользователей") 
@@ -345,11 +346,13 @@ def show_account_settings():
                 help="Это действие необратимо!"
             )
             
-            if st.button("🗑️ УДАЛИТЬ АККАУНТ НАВСЕГДА", type="secondary"):
-                if confirm_text == "УДАЛИТЬ":
-                    delete_account_permanently()
-                else:
-                    st.error('❌ Для подтверждения введите "УДАЛИТЬ"')
+                if st.button("🗑️ УДАЛИТЬ АККАУНТ НАВСЕГДА", type="secondary"):
+                    if confirm_text == "УДАЛИТЬ":
+                        delete_account_permanently()
+                    else:
+                        st.error('❌ Для подтверждения введите "УДАЛИТЬ"')
+        else:
+            st.info("💡 Только владелец аккаунта может удалить организацию")
 
 def delete_account_permanently():
     """Permanently delete the entire account"""
