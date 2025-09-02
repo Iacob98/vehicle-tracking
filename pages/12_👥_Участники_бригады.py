@@ -1,7 +1,7 @@
 import streamlit as st
 from auth import require_auth, is_admin, is_manager, can_manage_team_members
 from models import TeamMember, TeamMemberDocument, Team, Organization, WorkerCategory
-from database import Session
+from database import SessionLocal
 from utils import upload_multiple_files, display_file
 from datetime import date
 import pandas as pd
@@ -22,7 +22,7 @@ if not can_manage_team_members():
 # Create tabs
 tabs = st.tabs(["📋 Список / Liste", "➕ Добавить / Hinzufügen", "📄 Документы / Dokumente"])
 
-with Session() as session:
+with SessionLocal() as session:
     # Get current organization teams
     teams = session.query(Team).filter_by(organization_id=user.organization_id).all()
     team_options = {f"{team.name}": team for team in teams}
@@ -30,7 +30,7 @@ with Session() as session:
 with tabs[0]:  # List
     st.subheader("📋 Список участников бригады / Liste der Teammitglieder")
     
-    with Session() as session:
+    with SessionLocal() as session:
         # Filter by team if selected
         selected_team_name = st.selectbox(
             "🔍 Фильтр по бригаде / Filter nach Team:",
@@ -99,7 +99,7 @@ with tabs[0]:  # List
                             st.warning("⚠️ Нажмите еще раз для подтверждения / Nochmals klicken zur Bestätigung")
                         else:
                             # Delete member and documents
-                            with Session() as session:
+                            with SessionLocal() as session:
                                 member_to_delete = session.get(TeamMember, selected_member.id)
                                 if member_to_delete:
                                     # Delete documents first
@@ -156,7 +156,7 @@ with tabs[0]:  # List
                         
                         with col1:
                             if st.form_submit_button("💾 Сохранить / Speichern"):
-                                with Session() as session:
+                                with SessionLocal() as session:
                                     member_to_update = session.get(TeamMember, selected_member.id)
                                     if member_to_update:
                                         member_to_update.first_name = new_first_name
@@ -211,7 +211,7 @@ with tabs[1]:  # Add new
         
         if st.form_submit_button("➕ Добавить участника / Teammitglied hinzufügen"):
             if first_name and last_name and team_name:
-                with Session() as session:
+                with SessionLocal() as session:
                     new_member = TeamMember(
                         organization_id=user.organization_id,
                         team_id=team_options[team_name].id,
@@ -234,7 +234,7 @@ with tabs[1]:  # Add new
 with tabs[2]:  # Documents
     st.subheader("📄 Документы участников / Dokumente der Teammitglieder")
     
-    with Session() as session:
+    with SessionLocal() as session:
         # Get all team members for document management
         team_members = session.query(TeamMember).filter_by(organization_id=user.organization_id).all()
         
@@ -269,7 +269,7 @@ with tabs[2]:  # Documents
                             
                             with col2:
                                 if st.button(f"🗑️ Удалить", key=f"delete_doc_{doc.id}"):
-                                    with Session() as session:
+                                    with SessionLocal() as session:
                                         doc_to_delete = session.get(TeamMemberDocument, doc.id)
                                         if doc_to_delete:
                                             session.delete(doc_to_delete)
@@ -297,7 +297,7 @@ with tabs[2]:  # Documents
                             uploaded_paths = upload_multiple_files(doc_files, 'team_member_documents')
                             
                             if uploaded_paths:
-                                with Session() as session:
+                                with SessionLocal() as session:
                                     for file_path in uploaded_paths:
                                         new_doc = TeamMemberDocument(
                                             team_member_id=selected_member.id,
