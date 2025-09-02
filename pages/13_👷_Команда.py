@@ -73,7 +73,11 @@ with tab2:
                 organization_id=user_org_id
             ).all()
             
-            team_options = {"Не выбрана": None}
+            if not teams:
+                st.warning("⚠️ Сначала создайте хотя бы одну бригаду")
+                st.stop()
+            
+            team_options = {}
             for team in teams:
                 team_options[team.name] = team.id
             
@@ -96,7 +100,7 @@ with tab2:
                     ]
                     selected_category = st.selectbox("Категория работника", category_options)
                     
-                    selected_team = st.selectbox("Бригада", list(team_options.keys()))
+                    selected_team = st.selectbox("Бригада*", list(team_options.keys()), help="Выберите бригаду для участника")
                 
                 # Убираем поле notes так как его нет в модели
                 # notes = st.text_area("Заметки", placeholder="Дополнительная информация")
@@ -104,6 +108,8 @@ with tab2:
                 if st.form_submit_button("💾 Добавить участника"):
                     if not member_first_name or not member_last_name:
                         st.error("❌ Необходимо указать имя и фамилию участника")
+                    elif selected_team not in team_options:
+                        st.error("❌ Необходимо выбрать бригаду")
                     else:
                         try:
                             # Создаем нового участника
