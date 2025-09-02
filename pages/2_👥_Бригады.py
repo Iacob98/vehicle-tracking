@@ -4,7 +4,7 @@ import pandas as pd
 from database import execute_query, SessionLocal
 from translations import get_text
 from utils import export_to_csv
-from datetime import datetime
+from datetime import datetime, date
 from auth import require_auth, show_org_header
 from models import TeamMember, Team, WorkerCategory, TeamMemberDocument
 
@@ -95,7 +95,7 @@ def show_add_team_form():
     """Show form to add new team"""
     st.subheader("Добавить новую бригаду")
     
-    with st.form("add_team"):
+    with st.form("add_team_form"):
         team_name = st.text_input("Название бригады*", placeholder="Введите название")
         
         # Get available users for team lead
@@ -193,7 +193,7 @@ def show_add_team_member():
         for team in teams:
             team_options[team.name] = team.id
         
-        with st.form("add_team_member"):
+        with st.form("add_team_member_form"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -238,46 +238,6 @@ def show_add_team_member():
                     except Exception as e:
                         session.rollback()
                         st.error(f"❌ Ошибка добавления участника: {str(e)}")
-
-def delete_team(team_id):
-    """Delete team"""
-    try:
-        execute_query("DELETE FROM teams WHERE id = :id", {'id': team_id})
-        st.success("Бригада удалена")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Ошибка удаления: {str(e)}")
-
-def show_edit_team_form(team_id):
-    """Show edit team form"""
-    st.subheader("Редактировать бригаду")
-    
-    team = execute_query("SELECT name, lead_id FROM teams WHERE id = :id", {'id': team_id})
-    if not team:
-        st.error("Бригада не найдена")
-        return
-    
-    current_name, current_lead_id = team[0]
-    
-    with st.form("edit_team"):
-        new_name = st.text_input("Название бригады", value=current_name)
-        
-        if st.form_submit_button("💾 Сохранить"):
-            try:
-                execute_query("""
-                    UPDATE teams 
-                    SET name = :name 
-                    WHERE id = :id
-                """, {'name': new_name, 'id': team_id})
-                st.success("Бригада обновлена")
-                st.session_state.edit_team_id = None
-                st.rerun()
-            except Exception as e:
-                st.error(f"Ошибка: {str(e)}")
-        
-        if st.form_submit_button("❌ Отмена"):
-            st.session_state.edit_team_id = None
-            st.rerun()
 
 def show_team_management():
     """Show team member management - assign/reassign members to teams"""
@@ -381,32 +341,6 @@ def show_team_management():
                 
                 break  # Показываем только одну форму за раз
 
-# Main page
-st.title("👥 Бригады")
-
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📋 Список бригад",
-    "➕ Добавить бригаду", 
-    "👷 Участники команды",
-    "➕ Добавить участника",
-    "🔄 Управление составом"
-])
-
-with tab1:
-    show_teams_list()
-
-with tab2:
-    show_add_team_form()
-
-with tab3:
-    show_team_members()
-
-with tab4:
-    show_add_team_member()
-
-with tab5:
-    show_team_management()
-
 def show_team_member_documents():
     """Show team member documents management"""
     st.subheader("📄 Документы участников")
@@ -446,7 +380,6 @@ def show_team_member_documents():
                         
                         with col3:
                             if doc.expiry_date:
-                                from datetime import date
                                 days_left = (doc.expiry_date - date.today()).days
                                 if days_left <= 0:
                                     st.error("⚠️ Просрочен")
@@ -471,7 +404,7 @@ def show_team_member_documents():
         with doc_tab2:
             st.write("### Добавить документ")
             
-            with st.form("add_team_member_document"):
+            with st.form("add_team_member_document_form"):
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -497,7 +430,6 @@ def show_team_member_documents():
                     else:
                         try:
                             from utils import upload_file
-                            from datetime import datetime
                             
                             # Upload file
                             file_url = upload_file(uploaded_file, 'team_member_documents')
@@ -521,7 +453,47 @@ def show_team_member_documents():
                             session.rollback()
                             st.error(f"❌ Ошибка сохранения документа: {str(e)}")
 
-# Update main page
+def delete_team(team_id):
+    """Delete team"""
+    try:
+        execute_query("DELETE FROM teams WHERE id = :id", {'id': team_id})
+        st.success("Бригада удалена")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка удаления: {str(e)}")
+
+def show_edit_team_form(team_id):
+    """Show edit team form"""
+    st.subheader("Редактировать бригаду")
+    
+    team = execute_query("SELECT name, lead_id FROM teams WHERE id = :id", {'id': team_id})
+    if not team:
+        st.error("Бригада не найдена")
+        return
+    
+    current_name, current_lead_id = team[0]
+    
+    with st.form(f"edit_team_form_{team_id}"):
+        new_name = st.text_input("Название бригады", value=current_name)
+        
+        if st.form_submit_button("💾 Сохранить"):
+            try:
+                execute_query("""
+                    UPDATE teams 
+                    SET name = :name 
+                    WHERE id = :id
+                """, {'name': new_name, 'id': team_id})
+                st.success("Бригада обновлена")
+                st.session_state.edit_team_id = None
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка: {str(e)}")
+        
+        if st.form_submit_button("❌ Отмена"):
+            st.session_state.edit_team_id = None
+            st.rerun()
+
+# Main page
 st.title("👥 Бригады")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
