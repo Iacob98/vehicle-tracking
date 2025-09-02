@@ -879,7 +879,10 @@ def show_document_viewer(document_id):
                 if len(file_urls) > 1:
                     st.subheader(f"Файл {i}")
                 
-                file_path = single_file_url.strip().lstrip('/') if single_file_url.strip().startswith('/') else single_file_url.strip()
+                # Clean up the file path properly
+                clean_file_url = single_file_url.strip()
+                # Remove leading slash to avoid double paths
+                file_path = clean_file_url[1:] if clean_file_url.startswith('/') else clean_file_url
                 success = display_file(file_path, f"{doc[0]} - Файл {i}" if len(file_urls) > 1 else doc[0])
                 
                 if not success:

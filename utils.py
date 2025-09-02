@@ -160,42 +160,49 @@ def display_file(file_path, file_title="Файл"):
     
     import os
     
+    # Clean and normalize file path
+    clean_path = file_path.strip()
+    # Remove leading slash if present to avoid double slashes
+    if clean_path.startswith('/'):
+        clean_path = clean_path[1:]
+    
     # Check if file exists
-    if not os.path.exists(file_path):
-        st.error("Файл не найден")
+    if not os.path.exists(clean_path):
+        st.error(f"Файл не найден: {clean_path}")
         return False
     
     # Get file extension
-    file_ext = file_path.split('.')[-1].lower() if '.' in file_path else ''
+    file_ext = clean_path.split('.')[-1].lower() if '.' in clean_path else ''
     
     try:
         if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']:
             # Display image directly from file path
-            st.image(file_path, caption=file_title, use_container_width=True)
+            st.image(clean_path, caption=file_title, use_container_width=True)
             return True
         elif file_ext == 'pdf':
             # For PDF, provide download link and info
             st.info("📄 PDF документ")
-            with open(file_path, "rb") as pdf_file:
+            with open(clean_path, "rb") as pdf_file:
                 st.download_button(
                     label="📥 Скачать PDF",
                     data=pdf_file.read(),
-                    file_name=os.path.basename(file_path),
+                    file_name=os.path.basename(clean_path),
                     mime="application/pdf"
                 )
             return True
         else:
             # For other files, provide download
-            st.info(f"📎 Файл: {os.path.basename(file_path)}")
-            with open(file_path, "rb") as file:
+            st.info(f"📎 Файл: {os.path.basename(clean_path)}")
+            with open(clean_path, "rb") as file:
                 st.download_button(
                     label="📥 Скачать файл",
                     data=file.read(),
-                    file_name=os.path.basename(file_path)
+                    file_name=os.path.basename(clean_path)
                 )
             return True
     except Exception as e:
         st.error(f"Ошибка отображения файла: {str(e)}")
+        st.write(f"Путь: {clean_path}")
         return False
 
 def get_document_types():
