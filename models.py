@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Numeric, Date, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, Numeric, Date, DateTime, ForeignKey, Enum as SQLEnum, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -13,6 +13,7 @@ class VehicleStatus(enum.Enum):
     active = "active"
     repair = "repair"
     unavailable = "unavailable"
+    rented = "rented"
 
 class UserRole(enum.Enum):
     admin = "admin"
@@ -86,11 +87,18 @@ class Vehicle(Base):
     status = Column(SQLEnum(VehicleStatus), default=VehicleStatus.active)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # Rental-related fields
+    is_rental = Column(Boolean, default=False)
+    rental_start_date = Column(Date, nullable=True)
+    rental_end_date = Column(Date, nullable=True)
+    rental_monthly_price = Column(Numeric(10, 2), nullable=True)
+    
     # Relationships
     vehicle_assignments = relationship("VehicleAssignment", back_populates="vehicle")
     penalties = relationship("Penalty", back_populates="vehicle")
     maintenances = relationship("Maintenance", back_populates="vehicle")
     expenses = relationship("Expense", back_populates="vehicle")
+    rental_contracts = relationship("RentalContract", back_populates="vehicle")
 
 class VehicleAssignment(Base):
     __tablename__ = "vehicle_assignments"
@@ -183,6 +191,28 @@ class Organization(Base):
     subscription_status = Column(String, default='active')
     subscription_expires_at = Column(DateTime)
     telegram_chat_id = Column(String, nullable=True)
+
+class RentalContract(Base):
+    __tablename__ = "rental_contracts"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    vehicle_id = Column(UUID(as_uuid=True), ForeignKey("vehicles.id"), nullable=False)
+    contract_number = Column(String(100))
+    rental_company_name = Column(String(255), nullable=False)
+    rental_company_contact = Column(String(255))
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    monthly_price = Column(Numeric(10, 2), nullable=False)
+    deposit_amount = Column(Numeric(10, 2))
+    contract_file_url = Column(String)
+    terms = Column(String)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    vehicle = relationship("Vehicle", back_populates="rental_contracts")
+    organization = relationship("Organization")
 
 class Expense(Base):
     __tablename__ = "expenses"

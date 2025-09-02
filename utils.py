@@ -173,6 +173,7 @@ def get_document_types():
         'tuv_certificate': 'TÜV/Техосмотр',
         'insurance': 'Versicherung/Страховка',
         'purchase_contract': 'Kaufvertrag/Договор покупки',
+        'rental_contract': 'Mietvertrag/Договор аренды',
         'vehicle_photo': 'Fahrzeugfoto/Фото автомобиля',
         'service_book': 'Serviceheft/Сервисная книжка',
         'expense_report': 'Kostennachweis/Отчет о расходах',

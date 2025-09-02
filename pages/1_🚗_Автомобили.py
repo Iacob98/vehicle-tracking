@@ -88,8 +88,8 @@ def show_vehicles_list():
         with col2:
             status_filter = st.selectbox(
                 get_text('status', language),
-                options=['all', 'active', 'repair', 'unavailable'],
-                format_func=lambda x: get_text(x, language) if x != 'all' else 'Все/Alle'
+                options=['all', 'active', 'repair', 'unavailable', 'rented'],
+                format_func=lambda x: get_text(x, language) if x not in ['all', 'rented'] else ('Все/Alle' if x == 'all' else 'Аренда/Miete')
             )
         
         with col3:
@@ -99,7 +99,7 @@ def show_vehicles_list():
         
         # Build query with filters
         query = """
-            SELECT id, name, license_plate, vin, status, model, year, photo_url
+            SELECT id, name, license_plate, vin, status, model, year, photo_url, is_rental, rental_start_date, rental_end_date, rental_monthly_price
             FROM vehicles
             WHERE 1=1
         """
@@ -157,10 +157,18 @@ def show_vehicles_list():
                     with col4:
                         status_icon = {
                             'active': '🟢',
-                            'repair': '🔧',
-                            'unavailable': '🔴'
+                            'repair': '🔧', 
+                            'unavailable': '🔴',
+                            'rented': '🏢'
                         }.get(vehicle[4], '⚫')
-                        st.write(f"{status_icon} {get_text(vehicle[4], language)}")
+                        
+                        # Special styling for rental vehicles
+                        if vehicle[8]:  # is_rental is True
+                            st.markdown(f"<div style='background-color: #E8F4FD; padding: 8px; border-radius: 5px; border-left: 4px solid #1E88E5;'>{status_icon} {get_text(vehicle[4], language) if vehicle[4] != 'rented' else 'Аренда/Miete'}</div>", unsafe_allow_html=True)
+                            if vehicle[11]:  # rental_monthly_price
+                                st.write(f"💰 {vehicle[11]}€/мес")
+                        else:
+                            st.write(f"{status_icon} {get_text(vehicle[4], language) if vehicle[4] != 'rented' else 'Аренда/Miete'}")
                     
                     with col5:
                         col_docs, col_edit, col_delete = st.columns(3)
@@ -215,10 +223,46 @@ def show_add_vehicle_form():
             )
             status = st.selectbox(
                 get_text('status', language),
-                options=['active', 'repair', 'unavailable'],
-                format_func=lambda x: get_text(x, language)
+                options=['active', 'repair', 'unavailable', 'rented'],
+                format_func=lambda x: get_text(x, language) if x != 'rented' else 'Аренда / Miete'
             )
         
+        # Rental information section
+        st.write("🏢 **Информация об аренде / Mietinformationen**")
+        
+        col_rental1, col_rental2 = st.columns(2)
+        
+        with col_rental1:
+            is_rental = st.checkbox(
+                "Арендованный автомобиль / Mietfahrzeug",
+                help="Отметьте, если это арендованный автомобиль"
+            )
+            
+            rental_start_date = None
+            rental_end_date = None
+            rental_monthly_price = None
+            
+            if is_rental:
+                rental_start_date = st.date_input(
+                    "Дата начала аренды / Mietbeginn",
+                    help="Дата начала аренды автомобиля"
+                )
+                
+        with col_rental2:
+            if is_rental:
+                rental_end_date = st.date_input(
+                    "Дата окончания аренды / Mietende",
+                    help="Дата окончания аренды автомобиля"
+                )
+                
+                rental_monthly_price = st.number_input(
+                    "Ежемесячная стоимость аренды (€) / Monatliche Miete (€)",
+                    min_value=0.0,
+                    step=50.0,
+                    format="%.2f",
+                    help="Стоимость аренды за месяц в евро"
+                )
+
         # Photo upload section
         st.write("📷 **Фото автомобиля / Fahrzeugfoto**")
         photo_file = st.file_uploader(
@@ -237,8 +281,10 @@ def show_add_vehicle_form():
                     
                     vehicle_id = str(uuid.uuid4())
                     execute_query("""
-                        INSERT INTO vehicles (id, organization_id, name, license_plate, vin, status, model, year, photo_url)
-                        VALUES (:id, :organization_id, :name, :license_plate, :vin, :status, :model, :year, :photo_url)
+                        INSERT INTO vehicles (id, organization_id, name, license_plate, vin, status, model, year, photo_url, 
+                                            is_rental, rental_start_date, rental_end_date, rental_monthly_price)
+                        VALUES (:id, :organization_id, :name, :license_plate, :vin, :status, :model, :year, :photo_url, 
+                               :is_rental, :rental_start_date, :rental_end_date, :rental_monthly_price)
                     """, {
                         'id': vehicle_id,
                         'organization_id': st.session_state.get('organization_id'),
@@ -248,7 +294,11 @@ def show_add_vehicle_form():
                         'status': status,
                         'model': model,
                         'year': year,
-                        'photo_url': photo_url
+                        'photo_url': photo_url,
+                        'is_rental': is_rental,
+                        'rental_start_date': rental_start_date,
+                        'rental_end_date': rental_end_date,
+                        'rental_monthly_price': rental_monthly_price
                     })
                     st.success(get_text('success_save', language))
                     # Clear file uploader by resetting session state
@@ -265,7 +315,8 @@ def show_edit_vehicle_form(vehicle_id):
     try:
         # Get current vehicle data
         vehicle_data = execute_query("""
-            SELECT name, license_plate, vin, status, model, year, photo_url 
+            SELECT name, license_plate, vin, status, model, year, photo_url, 
+                   is_rental, rental_start_date, rental_end_date, rental_monthly_price
             FROM vehicles 
             WHERE id = :id
         """, {'id': vehicle_id})
@@ -318,7 +369,7 @@ def show_edit_vehicle_form(vehicle_id):
                     value=current_vehicle[5] if current_vehicle[5] else 2020
                 )
                 
-                status_options = ['active', 'repair', 'unavailable']
+                status_options = ['active', 'repair', 'unavailable', 'rented']
                 current_status_index = 0
                 if current_vehicle[3] in status_options:
                     current_status_index = status_options.index(current_vehicle[3])
@@ -327,9 +378,49 @@ def show_edit_vehicle_form(vehicle_id):
                     get_text('status', language),
                     options=status_options,
                     index=current_status_index,
-                    format_func=lambda x: get_text(x, language)
+                    format_func=lambda x: get_text(x, language) if x != 'rented' else 'Аренда / Miete'
                 )
             
+            # Rental information section
+            st.write("🏢 **Информация об аренде / Mietinformationen**")
+            
+            col_rental1, col_rental2 = st.columns(2)
+            
+            with col_rental1:
+                is_rental = st.checkbox(
+                    "Арендованный автомобиль / Mietfahrzeug",
+                    value=current_vehicle[7] if len(current_vehicle) > 7 and current_vehicle[7] else False,
+                    help="Отметьте, если это арендованный автомобиль"
+                )
+                
+                rental_start_date = None
+                rental_end_date = None  
+                rental_monthly_price = None
+                
+                if is_rental:
+                    rental_start_date = st.date_input(
+                        "Дата начала аренды / Mietbeginn",
+                        value=current_vehicle[8] if len(current_vehicle) > 8 and current_vehicle[8] else None,
+                        help="Дата начала аренды автомобиля"
+                    )
+                    
+            with col_rental2:
+                if is_rental:
+                    rental_end_date = st.date_input(
+                        "Дата окончания аренды / Mietende",
+                        value=current_vehicle[9] if len(current_vehicle) > 9 and current_vehicle[9] else None,
+                        help="Дата окончания аренды автомобиля"
+                    )
+                    
+                    rental_monthly_price = st.number_input(
+                        "Ежемесячная стоимость аренды (€) / Monatliche Miete (€)",
+                        min_value=0.0,
+                        step=50.0,
+                        format="%.2f",
+                        value=float(current_vehicle[10]) if len(current_vehicle) > 10 and current_vehicle[10] else 0.0,
+                        help="Стоимость аренды за месяц в евро"
+                    )
+
             # Current photo section
             current_photo_url = current_vehicle[6] if len(current_vehicle) > 6 else None
             
@@ -382,7 +473,9 @@ def show_edit_vehicle_form(vehicle_id):
                             execute_query("""
                                 UPDATE vehicles 
                                 SET name = :name, license_plate = :license_plate, vin = :vin, 
-                                    status = :status, model = :model, year = :year, photo_url = :photo_url
+                                    status = :status, model = :model, year = :year, photo_url = :photo_url,
+                                    is_rental = :is_rental, rental_start_date = :rental_start_date,
+                                    rental_end_date = :rental_end_date, rental_monthly_price = :rental_monthly_price
                                 WHERE id = :id
                             """, {
                                 'id': vehicle_id,
@@ -392,7 +485,11 @@ def show_edit_vehicle_form(vehicle_id):
                                 'status': status,
                                 'model': model,
                                 'year': year,
-                                'photo_url': photo_url_to_save
+                                'photo_url': photo_url_to_save,
+                                'is_rental': is_rental,
+                                'rental_start_date': rental_start_date,
+                                'rental_end_date': rental_end_date,
+                                'rental_monthly_price': rental_monthly_price
                             })
                             st.success("Автомобиль обновлен / Fahrzeug aktualisiert")
                             del st.session_state.edit_vehicle_id
@@ -426,9 +523,9 @@ def delete_vehicle(vehicle_id):
 def show_vehicle_documents(vehicle_id):
     """Show documents for specific vehicle"""
     try:
-        # Get vehicle info
+        # Get vehicle info including rental information
         vehicle_info = execute_query("""
-            SELECT name, license_plate, photo_url 
+            SELECT name, license_plate, photo_url, is_rental, rental_start_date, rental_end_date, rental_monthly_price
             FROM vehicles 
             WHERE id = :id
         """, {'id': vehicle_id})
@@ -448,7 +545,10 @@ def show_vehicle_documents(vehicle_id):
                 st.rerun()
         
         with col_title:
-            st.subheader(f"📄 Документы: {vehicle[0]} ({vehicle[1]})")
+            title_text = f"📄 Документы: {vehicle[0]} ({vehicle[1]})"
+            if len(vehicle) > 3 and vehicle[3]:  # is_rental is True
+                title_text += " 🏢 (Аренда)"
+            st.subheader(title_text)
         
         with col_photo:
             if vehicle[2]:  # photo_url
@@ -463,6 +563,32 @@ def show_vehicle_documents(vehicle_id):
                     st.write("🚗")
             else:
                 st.write("🚗")
+        
+        # Rental information display
+        if len(vehicle) > 3 and vehicle[3]:  # is_rental is True
+            st.info("🏢 **Информация об аренде / Mietinformationen**")
+            col_rental_info1, col_rental_info2 = st.columns(2)
+            
+            with col_rental_info1:
+                if len(vehicle) > 4 and vehicle[4]:  # rental_start_date
+                    st.write(f"📅 **Начало аренды:** {vehicle[4].strftime('%d.%m.%Y')}")
+                if len(vehicle) > 5 and vehicle[5]:  # rental_end_date
+                    st.write(f"📅 **Конец аренды:** {vehicle[5].strftime('%d.%m.%Y')}")
+            
+            with col_rental_info2:
+                if len(vehicle) > 6 and vehicle[6]:  # rental_monthly_price
+                    st.write(f"💰 **Стоимость:** {vehicle[6]}€/мес")
+                
+                # Check if rental contract exists
+                rental_contract_exists = execute_query("""
+                    SELECT COUNT(*) FROM vehicle_documents 
+                    WHERE vehicle_id = :vehicle_id AND document_type = 'rental_contract' AND is_active = true
+                """, {'vehicle_id': vehicle_id})
+                
+                if rental_contract_exists and rental_contract_exists[0][0] > 0:
+                    st.write("✅ **Договор аренды загружен**")
+                else:
+                    st.warning("⚠️ **Договор аренды не загружен**")
         
         # Documents tabs
         tab1, tab2 = st.tabs(["📄 Документы", "➕ Добавить документ"])
