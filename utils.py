@@ -146,6 +146,8 @@ def upload_multiple_files(files, upload_type='documents'):
                 with open(file_path, "wb") as f:
                     f.write(file.getbuffer())
                 uploaded_paths.append(file_path)
+                # Debug info
+                st.success(f"✅ Сохранен файл: {file_path} (размер: {len(file.getvalue())} байт)")
             except Exception as e:
                 st.error(f"Ошибка сохранения файла {file.name}: {str(e)}")
                 continue

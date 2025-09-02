@@ -546,6 +546,17 @@ def delete_vehicle(vehicle_id):
 def show_vehicle_documents(vehicle_id):
     """Show documents for specific vehicle"""
     try:
+        # Check if any document is being viewed
+        view_document_id = None
+        for key in st.session_state.keys():
+            if key.startswith("view_document_") and st.session_state[key]:
+                view_document_id = key.replace("view_document_", "")
+                break
+        
+        if view_document_id:
+            show_document_viewer(view_document_id)
+            return
+        
         # Get vehicle info including rental information
         vehicle_info = execute_query("""
             SELECT name, license_plate, photo_url, is_rental, rental_start_date, rental_end_date, rental_monthly_price
