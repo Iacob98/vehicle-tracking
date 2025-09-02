@@ -120,79 +120,222 @@ def upload_file(file, upload_type='receipt'):
     return None
 
 def upload_multiple_files(files, upload_type='documents'):
-    """Handle multiple files upload and return list of file paths with improved error handling"""
+    """Handle multiple files upload with comprehensive diagnostics and verification"""
     if not files:
         return []
         
     import os
+    import time
     uploaded_paths = []
     
-    st.info(f"🔄 Начинаем загрузку {len(files)} файлов...")
+    st.info(f"🔄 **Начинаем загрузку {len(files)} файлов в `uploads/{upload_type}/`**")
+    st.info(f"🔄 **Dateien werden in `uploads/{upload_type}/` hochgeladen**")
+    
+    # Pre-upload diagnostics
+    upload_dir = f"uploads/{upload_type}"
+    st.write(f"📁 **Целевая директория:** `{upload_dir}`")
+    st.write(f"📁 **Рабочая директория:** `{os.getcwd()}`")
+    
+    try:
+        os.makedirs(upload_dir, exist_ok=True)
+        st.success(f"✅ Директория подготовлена: `{upload_dir}`")
+        
+        # Check directory permissions
+        test_file_path = os.path.join(upload_dir, "test_write_permissions.tmp")
+        try:
+            with open(test_file_path, "w") as test_file:
+                test_file.write("test")
+            os.remove(test_file_path)
+            st.success("✅ Права на запись проверены - OK")
+        except Exception as perm_error:
+            st.error(f"❌ Нет прав на запись в директорию: {str(perm_error)}")
+            return []
+            
+    except Exception as dir_error:
+        st.error(f"❌ Ошибка создания директории: {str(dir_error)}")
+        return []
+    
+    progress_bar = st.progress(0)
     
     for i, file in enumerate(files, 1):
+        progress_bar.progress(i / len(files))
+        
         if file is not None:
             try:
-                # Create uploads directory if it doesn't exist
-                upload_dir = f"uploads/{upload_type}"
-                os.makedirs(upload_dir, exist_ok=True)
+                st.write(f"**📤 Обработка файла {i}/{len(files)}:** `{file.name}`")
                 
                 # Generate unique filename with safer handling
                 file_id = str(uuid.uuid4())
-                # Clean filename to avoid issues with special characters
                 clean_name = "".join(c for c in file.name if c.isalnum() or c in '._-')
                 file_extension = clean_name.split('.')[-1] if '.' in clean_name else 'bin'
                 unique_filename = f"{file_id}.{file_extension}"
                 file_path = os.path.join(upload_dir, unique_filename)
                 
-                # Get file data with error checking
-                file_data = file.getvalue()
-                if not file_data:
-                    st.warning(f"⚠️ Файл {file.name} пустой, пропускаем")
+                st.write(f"  🎯 **Генерируем путь:** `{file_path}`")
+                
+                # Get file data with comprehensive checking
+                try:
+                    file_data = file.getvalue()
+                except Exception as data_error:
+                    st.error(f"  ❌ Ошибка чтения данных файла: {str(data_error)}")
                     continue
                 
-                # Save file
-                with open(file_path, "wb") as f:
-                    f.write(file_data)
+                if not file_data:
+                    st.warning(f"  ⚠️ Файл `{file.name}` пустой (0 байт), пропускаем")
+                    continue
                 
-                # Verify file was saved correctly
-                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                st.write(f"  📊 **Размер данных:** {len(file_data)} байт")
+                
+                # Save file with verification
+                try:
+                    with open(file_path, "wb") as f:
+                        bytes_written = f.write(file_data)
+                    st.write(f"  💾 **Записано байт:** {bytes_written}")
+                except Exception as write_error:
+                    st.error(f"  ❌ Ошибка записи файла: {str(write_error)}")
+                    continue
+                
+                # Immediate verification
+                verification_success = False
+                try:
+                    if os.path.exists(file_path):
+                        actual_size = os.path.getsize(file_path)
+                        if actual_size == len(file_data) and actual_size > 0:
+                            verification_success = True
+                            st.success(f"  ✅ **ВЕРИФИКАЦИЯ УСПЕШНА:** файл существует, размер совпадает ({actual_size} байт)")
+                        else:
+                            st.error(f"  ❌ Размер не совпадает: ожидали {len(file_data)}, получили {actual_size}")
+                    else:
+                        st.error(f"  ❌ Файл не найден после записи: `{file_path}`")
+                except Exception as verify_error:
+                    st.error(f"  ❌ Ошибка верификации: {str(verify_error)}")
+                
+                if verification_success:
                     uploaded_paths.append(file_path)
-                    st.success(f"✅ Файл {i}/{len(files)}: {file.name} → {os.path.basename(file_path)} ({len(file_data)} байт)")
+                    
+                    # Additional verification after small delay
+                    time.sleep(0.1)
+                    if os.path.exists(file_path):
+                        st.success(f"  🎉 **Файл успешно сохранен:** `{os.path.basename(file_path)}`")
+                    else:
+                        st.warning(f"  ⚠️ Файл исчез после сохранения!")
                 else:
-                    st.error(f"❌ Файл {file.name} не сохранился правильно")
+                    st.error(f"  ❌ **Файл НЕ сохранился:** `{file.name}`")
+                
+                st.write("---")
                     
             except Exception as e:
-                st.error(f"❌ Ошибка сохранения файла {file.name}: {str(e)}")
+                st.error(f"❌ **Критическая ошибка при обработке `{file.name}`:** {str(e)}")
                 import traceback
-                st.code(traceback.format_exc())
+                with st.expander("🔍 Подробности ошибки"):
+                    st.code(traceback.format_exc())
                 continue
     
+    progress_bar.progress(1.0)
+    
+    # Final summary
     if uploaded_paths:
-        st.success(f"🎉 Успешно загружено {len(uploaded_paths)} из {len(files)} файлов")
+        st.success(f"🎉 **ИТОГО: Успешно загружено {len(uploaded_paths)} из {len(files)} файлов**")
+        st.success(f"🎉 **GESAMT: {len(uploaded_paths)} von {len(files)} Dateien erfolgreich hochgeladen**")
+        
+        with st.expander("📋 Список загруженных файлов", expanded=False):
+            for i, path in enumerate(uploaded_paths, 1):
+                file_size = os.path.getsize(path) if os.path.exists(path) else 0
+                st.write(f"  {i}. `{os.path.basename(path)}` ({file_size} байт)")
     else:
-        st.error("❌ Ни один файл не был загружен")
+        st.error("❌ **Ни один файл не был загружен!**")
+        st.error("❌ **Keine Dateien wurden hochgeladen!**")
     
     return uploaded_paths
 
 def display_file(file_path, file_title="Файл"):
-    """Enhanced display file content in Streamlit with multiple format support"""
+    """Enhanced display file content with comprehensive diagnostic logging"""
     if not file_path:
-        st.error("Путь к файлу не указан")
+        st.error("❌ Путь к файлу не указан")
+        st.error("❌ Dateipfad nicht angegeben")
         return False
     
     import os
     import base64
     
-    # Clean and normalize file path
-    clean_path = file_path.strip()
-    # Remove leading slash if present to avoid double slashes
-    if clean_path.startswith('/'):
-        clean_path = clean_path[1:]
+    # === DIAGNOSTIC LOGGING START ===
+    st.info("🔍 **Диагностика файла / File Diagnostics**")
+    
+    with st.expander("🛠️ Техническая информация / Technical Info", expanded=False):
+        st.write(f"**Исходный путь:** `{file_path}`")
+        st.write(f"**Рабочая директория:** `{os.getcwd()}`")
+        
+        # Clean and normalize file path
+        clean_path = file_path.strip()
+        # Remove leading slash if present to avoid double slashes
+        if clean_path.startswith('/'):
+            clean_path = clean_path[1:]
+        
+        st.write(f"**Очищенный путь:** `{clean_path}`")
+        st.write(f"**Абсолютный путь:** `{os.path.abspath(clean_path)}`")
+        
+        # Directory analysis
+        dir_path = os.path.dirname(clean_path)
+        st.write(f"**Директория:** `{dir_path}`")
+        st.write(f"**Директория существует:** {os.path.exists(dir_path)}")
+        
+        if os.path.exists(dir_path):
+            try:
+                files_in_dir = os.listdir(dir_path)
+                st.write(f"**Файлов в директории:** {len(files_in_dir)}")
+                
+                # Show first few files for reference
+                if files_in_dir:
+                    st.write("**Примеры файлов в директории:**")
+                    for i, filename in enumerate(files_in_dir[:5]):
+                        file_size = os.path.getsize(os.path.join(dir_path, filename))
+                        st.write(f"  - `{filename}` ({file_size} байт)")
+                        if i >= 4:
+                            break
+                    if len(files_in_dir) > 5:
+                        st.write(f"  ... и еще {len(files_in_dir) - 5} файлов")
+            except Exception as e:
+                st.write(f"**Ошибка чтения директории:** {str(e)}")
+        
+        # File status check
+        st.write(f"**Файл существует:** {os.path.exists(clean_path)}")
+        
+        if os.path.exists(clean_path):
+            try:
+                file_stat = os.stat(clean_path)
+                st.write(f"**Размер файла:** {file_stat.st_size} байт")
+                st.write(f"**Права доступа:** {oct(file_stat.st_mode)[-3:]}")
+                st.write(f"**Можно читать:** {os.access(clean_path, os.R_OK)}")
+                st.write(f"**Время изменения:** {file_stat.st_mtime}")
+            except Exception as e:
+                st.write(f"**Ошибка получения информации о файле:** {str(e)}")
+    
+    # === DIAGNOSTIC LOGGING END ===
     
     # Check if file exists
     if not os.path.exists(clean_path):
-        st.error(f"Файл не найден: {clean_path}")
-        st.error(f"🚫 Datei nicht gefunden: {clean_path}")
+        st.error(f"❌ **Файл не найден на диске**")
+        st.error(f"❌ **Datei nicht auf Festplatte gefunden**")
+        
+        # Enhanced error information
+        st.error(f"🔍 **Искомый путь:** `{clean_path}`")
+        st.error(f"🔍 **Suchpfad:** `{clean_path}`")
+        
+        # Suggest similar files if directory exists
+        dir_path = os.path.dirname(clean_path)
+        if os.path.exists(dir_path):
+            try:
+                similar_files = [f for f in os.listdir(dir_path) 
+                               if f.lower().endswith(('.pdf', '.jpg', '.png', '.gif', '.doc', '.docx'))]
+                if similar_files:
+                    st.info(f"💡 **Найдены похожие файлы в директории ({len(similar_files)}):**")
+                    for similar_file in similar_files[:3]:
+                        st.write(f"  - `{similar_file}`")
+                    if len(similar_files) > 3:
+                        st.write(f"  ... и еще {len(similar_files) - 3} файлов")
+            except Exception as e:
+                st.warning(f"Не удалось проверить похожие файлы: {str(e)}")
+        
         return False
     
     # Get file extension and info
