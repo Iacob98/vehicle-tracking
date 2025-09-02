@@ -341,6 +341,46 @@ def show_team_management():
                 
                 break  # Показываем только одну форму за раз
 
+def delete_team(team_id):
+    """Delete team"""
+    try:
+        execute_query("DELETE FROM teams WHERE id = :id", {'id': team_id})
+        st.success("Бригада удалена")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка удаления: {str(e)}")
+
+def show_edit_team_form(team_id):
+    """Show edit team form"""
+    st.subheader("Редактировать бригаду")
+    
+    team = execute_query("SELECT name, lead_id FROM teams WHERE id = :id", {'id': team_id})
+    if not team:
+        st.error("Бригада не найдена")
+        return
+    
+    current_name, current_lead_id = team[0]
+    
+    with st.form(f"edit_team_form_{team_id}"):
+        new_name = st.text_input("Название бригады", value=current_name)
+        
+        if st.form_submit_button("💾 Сохранить"):
+            try:
+                execute_query("""
+                    UPDATE teams 
+                    SET name = :name 
+                    WHERE id = :id
+                """, {'name': new_name, 'id': team_id})
+                st.success("Бригада обновлена")
+                st.session_state.edit_team_id = None
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка: {str(e)}")
+        
+        if st.form_submit_button("❌ Отмена"):
+            st.session_state.edit_team_id = None
+            st.rerun()
+
 def show_team_member_documents():
     """Show team member documents management"""
     st.subheader("📄 Документы участников")
@@ -452,46 +492,6 @@ def show_team_member_documents():
                         except Exception as e:
                             session.rollback()
                             st.error(f"❌ Ошибка сохранения документа: {str(e)}")
-
-def delete_team(team_id):
-    """Delete team"""
-    try:
-        execute_query("DELETE FROM teams WHERE id = :id", {'id': team_id})
-        st.success("Бригада удалена")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Ошибка удаления: {str(e)}")
-
-def show_edit_team_form(team_id):
-    """Show edit team form"""
-    st.subheader("Редактировать бригаду")
-    
-    team = execute_query("SELECT name, lead_id FROM teams WHERE id = :id", {'id': team_id})
-    if not team:
-        st.error("Бригада не найдена")
-        return
-    
-    current_name, current_lead_id = team[0]
-    
-    with st.form(f"edit_team_form_{team_id}"):
-        new_name = st.text_input("Название бригады", value=current_name)
-        
-        if st.form_submit_button("💾 Сохранить"):
-            try:
-                execute_query("""
-                    UPDATE teams 
-                    SET name = :name 
-                    WHERE id = :id
-                """, {'name': new_name, 'id': team_id})
-                st.success("Бригада обновлена")
-                st.session_state.edit_team_id = None
-                st.rerun()
-            except Exception as e:
-                st.error(f"Ошибка: {str(e)}")
-        
-        if st.form_submit_button("❌ Отмена"):
-            st.session_state.edit_team_id = None
-            st.rerun()
 
 # Main page
 st.title("👥 Бригады")
