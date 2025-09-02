@@ -50,7 +50,7 @@ class TelegramBugReporter:
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        if not self.is_configured():
+        if not self.is_configured() or self.bot is None:
             logger.error("Telegram bot is not configured")
             return False
         
@@ -58,11 +58,14 @@ class TelegramBugReporter:
             # Format bug report message
             message = self._format_bug_report(title, description, user_info)
             
+            # Always use hardcoded chat_id 974628307
+            hardcoded_chat_id = "974628307"
+            
             # Send photo with caption if provided
             if photo_path and os.path.exists(photo_path):
                 with open(photo_path, 'rb') as photo:
                     await self.bot.send_photo(
-                        chat_id=chat_id,
+                        chat_id=hardcoded_chat_id,
                         photo=photo,
                         caption=message,
                         parse_mode='HTML'
@@ -70,12 +73,12 @@ class TelegramBugReporter:
             else:
                 # Send text message only
                 await self.bot.send_message(
-                    chat_id=chat_id,
+                    chat_id=hardcoded_chat_id,
                     text=message,
                     parse_mode='HTML'
                 )
             
-            logger.info(f"Bug report sent successfully to chat {chat_id}")
+            logger.info(f"Bug report sent successfully to chat 974628307")
             return True
             
         except TelegramError as e:
@@ -129,8 +132,9 @@ def send_bug_report_sync(chat_id: str,
         asyncio.set_event_loop(loop)
         
         reporter = TelegramBugReporter()
+        # Always use hardcoded chat_id 974628307
         result = loop.run_until_complete(
-            reporter.send_bug_report(chat_id, title, description, user_info, photo_path)
+            reporter.send_bug_report("974628307", title, description, user_info, photo_path)
         )
         
         loop.close()
