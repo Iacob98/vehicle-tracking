@@ -122,7 +122,8 @@ def show_vehicles_list():
             query += " AND status = :status"
             params['status'] = status_filter
         
-        query += " ORDER BY created_at DESC"
+        # Sort by name as number (for numeric names like 1, 2, 10, 11)
+        query += " ORDER BY CAST(NULLIF(regexp_replace(name, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST, name ASC"
         
         vehicles = execute_query(query, params)
         
@@ -1183,7 +1184,7 @@ def show_all_documents_list():
         
         with col1:
             # Vehicle filter
-            vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY created_at DESC")
+            vehicles = execute_query("SELECT id, name, license_plate FROM vehicles ORDER BY CAST(NULLIF(regexp_replace(name, '[^0-9]', '', 'g'), '') AS INTEGER) ASC NULLS LAST, name ASC")
             vehicle_options = ['all'] + [v[0] for v in vehicles] if vehicles else ['all']
             
             vehicle_filter = st.selectbox(
