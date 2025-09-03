@@ -105,6 +105,28 @@ def require_auth():
     if not st.session_state.authenticated:
         show_login_page()
         st.stop()
+    
+    # Return user object for authenticated user
+    from database import execute_query
+    user_data = execute_query("""
+        SELECT id, organization_id, first_name, last_name, role, email
+        FROM users
+        WHERE id = :user_id
+    """, {'user_id': st.session_state.get('user_id')})
+    
+    if user_data and len(user_data) > 0:
+        class User:
+            def __init__(self, data):
+                self.id = data[0]
+                self.organization_id = data[1]
+                self.first_name = data[2]
+                self.last_name = data[3]
+                self.role = data[4]
+                self.email = data[5]
+        
+        return User(user_data[0])
+    
+    return None
 
 def get_org_filter():
     """Get organization filter for SQL queries"""
