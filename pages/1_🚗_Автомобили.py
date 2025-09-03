@@ -290,6 +290,21 @@ def show_add_vehicle_form():
                         st.error("❌ Fehler: organization_id nicht gesetzt")
                         return
                     
+                    # Check if license plate already exists in this organization
+                    existing = execute_query("""
+                        SELECT id, name FROM vehicles 
+                        WHERE organization_id = :org_id 
+                        AND license_plate = :license_plate
+                    """, {
+                        'org_id': org_id,
+                        'license_plate': license_plate
+                    })
+                    
+                    if existing:
+                        st.error(f"❌ Автомобиль с номером {license_plate} уже существует: {existing[0][1]}")
+                        st.error(f"❌ Fahrzeug mit Kennzeichen {license_plate} existiert bereits: {existing[0][1]}")
+                        return
+                    
                     st.info(f"🔄 Сохранение автомобиля для организации: {org_id}")
                     
                     # Handle photo upload
@@ -504,6 +519,25 @@ def show_edit_vehicle_form(vehicle_id):
                 if st.form_submit_button("💾 Сохранить / Speichern", type="primary"):
                     if name and license_plate:
                         try:
+                            # Check if license plate changed and if new one already exists
+                            if license_plate != current_vehicle[1]:
+                                org_id = st.session_state.get('organization_id')
+                                existing = execute_query("""
+                                    SELECT id, name FROM vehicles 
+                                    WHERE organization_id = :org_id 
+                                    AND license_plate = :license_plate
+                                    AND id != :current_id
+                                """, {
+                                    'org_id': org_id,
+                                    'license_plate': license_plate,
+                                    'current_id': vehicle_id
+                                })
+                                
+                                if existing:
+                                    st.error(f"❌ Автомобиль с номером {license_plate} уже существует: {existing[0][1]}")
+                                    st.error(f"❌ Fahrzeug mit Kennzeichen {license_plate} existiert bereits: {existing[0][1]}")
+                                    return
+                            
                             # Handle photo upload
                             existing_photo_url = current_photo_url  # Keep current photo by default
                             photo_url_to_save = existing_photo_url
