@@ -66,16 +66,18 @@ def show_users_list():
         """, {'org_id': str(user.organization_id)})
         
         if users:            
-            for user in users:
+            for usr in users:
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                     
                     with col1:
-                        st.write(f"**{user[1]} {user[2]}**")
-                        if user[4]:  # phone
-                            st.write(f"📞 {user[4]}")
-                        if user[5]:  # team_name
-                            st.write(f"👥 {user[5]}")
+                        st.write(f"**{usr[1]} {usr[2]}**")
+                        if usr[4]:  # phone
+                            st.write(f"📞 {usr[4]}")
+                        if usr[5]:  # email
+                            st.write(f"✉️ {usr[5]}")
+                        if usr[6]:  # team_name
+                            st.write(f"👥 {usr[6]}")
                     
                     with col2:
                         role_icons = {
@@ -85,27 +87,27 @@ def show_users_list():
                             'team_lead': '👨‍💼',
                             'worker': '👷'
                         }
-                        icon = role_icons.get(user[3], '👤')
-                        st.write(f"{icon} {get_text(user[3], language)}")
+                        icon = role_icons.get(usr[3], '👤')
+                        st.write(f"{icon} {get_text(usr[3], language)}")
                     
                     with col3:
                         # Count user documents
                         doc_count = execute_query("""
                             SELECT COUNT(*) FROM user_documents 
                             WHERE user_id = :user_id AND is_active = true
-                        """, {'user_id': user[0]})
+                        """, {'user_id': usr[0]})
                         count = doc_count[0][0] if doc_count else 0
                         st.write(f"📄 {count} документов")
                     
                     with col4:
                         col_edit, col_delete = st.columns(2)
                         with col_edit:
-                            if st.button("✏️", key=f"edit_user_{user[0]}", help="Редактировать"):
-                                st.session_state.edit_user_id = user[0]
+                            if st.button("✏️", key=f"edit_user_{usr[0]}", help="Редактировать"):
+                                st.session_state.edit_user_id = usr[0]
                                 st.rerun()
                         with col_delete:
-                            if st.button("🗑️", key=f"delete_user_{user[0]}", help="Удалить"):
-                                delete_user(user[0])
+                            if st.button("🗑️", key=f"delete_user_{usr[0]}", help="Удалить"):
+                                delete_user(usr[0])
                     
                     st.divider()
         else:
