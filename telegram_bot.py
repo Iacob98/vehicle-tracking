@@ -5,8 +5,17 @@ import os
 import asyncio
 import logging
 from typing import Optional
-from telegram import Bot
-from telegram.error import TelegramError
+try:
+    from telegram import Bot
+    from telegram.error import TelegramError
+except ImportError:
+    try:
+        from telegram.bot import Bot
+        from telegram.error import TelegramError
+    except ImportError:
+        # Fallback if telegram module is not properly installed
+        Bot = None
+        TelegramError = Exception
 import streamlit as st
 
 # Configure logging
@@ -19,11 +28,13 @@ class TelegramBugReporter:
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.bot = None
         
-        if self.token:
+        if self.token and Bot is not None:
             try:
                 self.bot = Bot(token=self.token)
             except Exception as e:
                 logger.error(f"Failed to initialize Telegram bot: {e}")
+        elif Bot is None:
+            logger.warning("Telegram library not properly installed")
         else:
             logger.warning("TELEGRAM_BOT_TOKEN not found in environment variables")
     
