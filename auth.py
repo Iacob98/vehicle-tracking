@@ -21,6 +21,27 @@ def init_session():
         st.session_state.user_role = None
     if 'organization_name' not in st.session_state:
         st.session_state.organization_name = None
+    if 'last_email' not in st.session_state:
+        st.session_state.last_email = ""
+    if 'remember_me' not in st.session_state:
+        st.session_state.remember_me = False
+    if 'last_activity' not in st.session_state:
+        st.session_state.last_activity = datetime.now()
+    
+    # Check session timeout (8 hours if remember_me, 2 hours otherwise)
+    if st.session_state.authenticated and st.session_state.last_activity:
+        timeout = timedelta(hours=8) if st.session_state.get('remember_me', False) else timedelta(hours=2)
+        if datetime.now() - st.session_state.last_activity > timeout:
+            # Session expired, logout
+            st.session_state.authenticated = False
+            st.session_state.user_id = None
+            st.session_state.organization_id = None
+            st.session_state.user_role = None
+            st.session_state.organization_name = None
+            st.warning("Сессия истекла. Пожалуйста, войдите снова / Session expired. Please login again")
+        else:
+            # Update last activity
+            st.session_state.last_activity = datetime.now()
 
 def hash_password(password):
     """Hash password with salt"""
@@ -62,7 +83,7 @@ def create_organization(org_name, admin_email, admin_password, admin_first_name,
     except Exception as e:
         return False, f"Error creating organization: {str(e)}"
 
-def authenticate_user(email, password):
+def authenticate_user(email, password, remember_me=False):
     """Authenticate user and set session"""
     try:
         hashed_password = hash_password(password)
@@ -84,6 +105,9 @@ def authenticate_user(email, password):
             st.session_state.organization_id = user[1]
             st.session_state.user_role = user[4]
             st.session_state.organization_name = user[5]
+            st.session_state.last_email = email
+            st.session_state.remember_me = remember_me
+            st.session_state.last_activity = datetime.now()
             return True, f"Welcome, {user[2]} {user[3]}!"
         else:
             return False, "Invalid email or password"
@@ -92,11 +116,20 @@ def authenticate_user(email, password):
 
 def logout():
     """Logout user and clear session"""
+    # Save last email before clearing session
+    last_email = st.session_state.get('last_email', '')
+    
     st.session_state.authenticated = False
     st.session_state.user_id = None
     st.session_state.organization_id = None
     st.session_state.user_role = None
     st.session_state.organization_name = None
+    st.session_state.remember_me = False
+    st.session_state.last_activity = None
+    
+    # Keep the last email for convenience
+    st.session_state.last_email = last_email
+    
     st.rerun()
 
 def require_auth():
@@ -144,12 +177,18 @@ def show_login_page():
         st.subheader("Вход в систему / System Login")
         
         with st.form("login_form"):
-            email = st.text_input("Email")
+            # Use last email if available
+            default_email = st.session_state.get('last_email', '')
+            email = st.text_input("Email", value=default_email)
             password = st.text_input("Пароль / Password", type="password")
+            
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                remember_me = st.checkbox("Запомнить меня / Remember me", value=True)
             
             if st.form_submit_button("Войти / Login", type="primary"):
                 if email and password:
-                    success, message = authenticate_user(email, password)
+                    success, message = authenticate_user(email, password, remember_me)
                     if success:
                         st.success(message)
                         st.rerun()
