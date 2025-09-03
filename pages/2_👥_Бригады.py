@@ -495,6 +495,14 @@ def show_team_member_documents():
         # Get documents for selected member  
         documents = session.query(TeamMemberDocument).filter_by(team_member_id=selected_member_id).all()
         
+        # Check which documents are missing for this member
+        existing_doc_titles = [doc.title for doc in documents]
+        required_docs = ["Паспорт", "Разрешение на работу", "Вид на жительство", "Медицинская страховка"]
+        missing_docs = [doc for doc in required_docs if doc not in existing_doc_titles]
+        
+        if missing_docs:
+            st.warning(f"⚠️ Отсутствуют обязательные документы: {', '.join(missing_docs)}")
+        
         doc_tab1, doc_tab2 = st.tabs(["📋 Список документов", "➕ Добавить документ"])
         
         with doc_tab1:
@@ -546,29 +554,74 @@ def show_team_member_documents():
         with doc_tab2:
             st.write("### Добавить документ")
             
+            # Document types for workers in Germany
+            document_types = {
+                "🆔 Паспорт / Reisepass": "Паспорт",
+                "🚗 Водительские права / Führerschein": "Водительские права",
+                "💼 Разрешение на работу / Arbeitserlaubnis": "Разрешение на работу",
+                "🏠 Вид на жительство / Aufenthaltstitel": "Вид на жительство",
+                "🏥 Медицинская страховка / Krankenversicherung": "Медицинская страховка",
+                "📍 Регистрация по месту жительства / Anmeldung": "Регистрация по месту жительства",
+                "💰 Налоговый номер / Steuer-ID": "Налоговый номер",
+                "👥 Социальное страхование / Sozialversicherungsausweis": "Социальное страхование",
+                "📋 Трудовой договор / Arbeitsvertrag": "Трудовой договор",
+                "🎓 Квалификация / Qualifikation": "Квалификация",
+                "📝 Другой документ / Sonstiges": "Другой документ"
+            }
+            
             with st.form("add_team_member_document_form"):
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    doc_title = st.text_input("📋 Название документа*", placeholder="Например: Паспорт")
+                    # Dropdown for document type
+                    selected_doc_type = st.selectbox(
+                        "📋 Тип документа* / Dokumenttyp*",
+                        options=list(document_types.keys()),
+                        help="Выберите тип документа из списка / Wählen Sie den Dokumenttyp"
+                    )
+                    
+                    # If "Other" is selected, show text input
+                    if selected_doc_type == "📝 Другой документ / Sonstiges":
+                        custom_doc_title = st.text_input(
+                            "Название документа*",
+                            placeholder="Введите название / Dokumentname eingeben"
+                        )
+                        doc_title = custom_doc_title if custom_doc_title else "Другой документ"
+                    else:
+                        doc_title = document_types[selected_doc_type]
+                        st.info(f"📄 Будет сохранен как: **{doc_title}**")
+                    
                     uploaded_file = st.file_uploader(
-                        "📎 Выберите файл",
+                        "📎 Выберите файл / Datei auswählen",
                         type=['pdf', 'jpg', 'jpeg', 'png'],
                         help="Форматы: PDF, JPG, PNG"
                     )
                 
                 with col2:
                     expiry_date = st.date_input(
-                        "📅 Дата окончания срока действия",
+                        "📅 Срок действия до / Gültig bis",
                         value=None,
-                        help="Оставьте пустым если срок не ограничен"
+                        help="Оставьте пустым если срок не ограничен / Leer lassen wenn unbegrenzt"
                     )
+                    
+                    # Show required documents info
+                    st.markdown("#### ⚠️ Обязательные документы:")
+                    st.markdown("""
+                    **Для работы в Германии:**
+                    - 🆔 Паспорт
+                    - 💼 Разрешение на работу
+                    - 🏠 Вид на жительство
+                    - 🏥 Медицинская страховка
+                    
+                    **Для водителей:**
+                    - 🚗 Водительские права
+                    """)
                 
-                if st.form_submit_button("💾 Сохранить документ"):
-                    if not doc_title:
-                        st.error("❌ Необходимо указать название документа")
+                if st.form_submit_button("💾 Сохранить документ / Dokument speichern"):
+                    if selected_doc_type == "📝 Другой документ / Sonstiges" and not custom_doc_title:
+                        st.error("❌ Необходимо указать название документа / Dokumentname erforderlich")
                     elif not uploaded_file:
-                        st.error("❌ Необходимо выбрать файл")
+                        st.error("❌ Необходимо выбрать файл / Datei erforderlich")
                     else:
                         try:
                             from utils import upload_file
