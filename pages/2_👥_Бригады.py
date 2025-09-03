@@ -497,11 +497,11 @@ def show_team_member_documents():
         
         # Check which documents are missing for this member
         existing_doc_titles = [doc.title for doc in documents]
-        required_docs = ["Паспорт", "Разрешение на работу", "Вид на жительство", "Медицинская страховка"]
-        missing_docs = [doc for doc in required_docs if doc not in existing_doc_titles]
+        recommended_docs = ["Паспорт", "Разрешение на работу", "Вид на жительство", "Медицинская страховка"]
+        missing_docs = [doc for doc in recommended_docs if doc not in existing_doc_titles]
         
         if missing_docs:
-            st.warning(f"⚠️ Отсутствуют обязательные документы: {', '.join(missing_docs)}")
+            st.info(f"💡 Рекомендуется добавить: {', '.join(missing_docs)}")
         
         doc_tab1, doc_tab2 = st.tabs(["📋 Список документов", "➕ Добавить документ"])
         
@@ -604,8 +604,8 @@ def show_team_member_documents():
                         help="Оставьте пустым если срок не ограничен / Leer lassen wenn unbegrenzt"
                     )
                     
-                    # Show required documents info
-                    st.markdown("#### ⚠️ Обязательные документы:")
+                    # Show recommended documents info
+                    st.markdown("#### 💡 Рекомендуемые документы:")
                     st.markdown("""
                     **Для работы в Германии:**
                     - 🆔 Паспорт
