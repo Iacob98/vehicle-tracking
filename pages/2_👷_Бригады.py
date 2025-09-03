@@ -11,7 +11,7 @@ from models import TeamMember, Team, WorkerCategory, TeamMemberDocument
 # Page config
 st.set_page_config(
     page_title="Бригады",
-    page_icon="👥",
+    page_icon="👷",
     layout="wide"
 )
 
@@ -649,7 +649,7 @@ def show_team_member_documents():
                             st.error(f"❌ Ошибка сохранения документа: {str(e)}")
 
 # Main page
-st.title("👥 Бригады")
+st.title("👷 Бригады")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📋 Список бригад",
