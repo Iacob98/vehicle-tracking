@@ -10,7 +10,7 @@ dependencies = [
     "pillow>=11.3.0",
     "plotly>=6.3.0",
     "psycopg2-binary>=2.9.10",
-    "python-telegram-bot>=22.3",
+    "python-telegram-bot==21.3",
     "sqlalchemy>=2.0.43",
     "streamlit>=1.48.1",
 ]

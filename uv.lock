@@ -1297,14 +1297,14 @@ wheels = [
 
 [[package]]
 name = "python-telegram-bot"
-version = "22.3"
+version = "21.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/fc/0196e0d7ad247011a560788db204e0a28d76ab75b3d7c7131878f8fb5a06/python_telegram_bot-22.3.tar.gz", hash = "sha256:513d5ab9db96dcf25272dad0a726555e80edf60d09246a7d0d425b77115f5440", size = 1464513 }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/b3/8e45a697aaa77b72bcdb462f304acb796c0a59afb932da368551d767950f/python-telegram-bot-21.3.tar.gz", hash = "sha256:1be3c8b6f2b7354418109daa3f23c522e82ed22e7fc904346bee0c7b4aab52ae", size = 425355 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/54/0955bd46a1e046169500e129c7883664b6675d580074d68823485e4d5de1/python_telegram_bot-22.3-py3-none-any.whl", hash = "sha256:88fab2d1652dbfd5379552e8b904d86173c524fdb9270d3a8685f599ffe0299f", size = 717115 },
+    { url = "https://files.pythonhosted.org/packages/a0/2c/bad4e46c7a0460f1b058a4d41b7b61f5323c5c86f0774807101bda70d07c/python_telegram_bot-21.3-py3-none-any.whl", hash = "sha256:8f575e6da903edd1e78967b5b481455ee6b27f2804d2384029177eab165f2e93", size = 631599 },
 ]
 
 [[package]]
@@ -1354,7 +1354,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "plotly", specifier = ">=6.3.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
-    { name = "python-telegram-bot", specifier = ">=22.3" },
+    { name = "python-telegram-bot", specifier = "==21.3" },
     { name = "sqlalchemy", specifier = ">=2.0.43" },
     { name = "streamlit", specifier = ">=1.48.1" },
 ]
