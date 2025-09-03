@@ -714,16 +714,18 @@ def show_user_documents():
     with doc_tab2:
         show_add_user_document_form()
 
-# Main page - simplified structure
-st.title(f"👤 {get_text('users', language)}")
-
-tab1, tab2 = st.tabs([
-    "Список / Liste",
-    "Добавить / Hinzufügen"
+# Main page
+tabs = st.tabs([
+    "👥 Список / Liste", 
+    "➕ Добавить / Hinzufügen",
+    "📄 Документы / Dokumente"
 ])
 
-with tab1:
+with tabs[0]:
     show_users_list()
 
-with tab2:
+with tabs[1]:
     show_add_user_form()
+
+with tabs[2]:
+    show_user_documents()
