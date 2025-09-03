@@ -25,7 +25,7 @@ show_org_header()
 language = st.session_state.get('language', 'ru')
 
 # Only admins can manage platform users
-if not is_admin(user):
+if not is_admin():
     st.error("❌ Доступ запрещен. Только администраторы могут управлять пользователями платформы.")
     st.error("❌ Zugriff verweigert. Nur Administratoren können Plattformbenutzer verwalten.")
     st.info("💡 Для управления участниками бригады используйте страницу 'Участники бригады'")
