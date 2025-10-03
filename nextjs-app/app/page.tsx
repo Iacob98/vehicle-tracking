@@ -42,18 +42,16 @@ export default function Home() {
 
           <div className="flex gap-4 mt-6">
             <a 
-              href="/test-connection"
+              href="/login"
               className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition text-center font-medium"
             >
-              Проверить подключение
+              Войти в систему
             </a>
             <a 
-              href="https://wymucemxzhaulibsqdta.supabase.co"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/test-connection"
               className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg hover:bg-gray-700 transition text-center font-medium"
             >
-              Открыть Supabase →
+              Тест подключения
             </a>
           </div>
         </div>
