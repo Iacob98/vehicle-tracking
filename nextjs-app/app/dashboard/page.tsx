@@ -1,77 +1,102 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 
 export default async function DashboardPage() {
   const supabase = await createServerClient();
   
   const { data: { user: authUser } } = await supabase.auth.getUser();
   
-  if (!authUser) {
-    redirect('/login');
-  }
+  const orgId = authUser?.user_metadata?.organization_id;
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*, organizations(*)')
-    .eq('id', authUser.id)
-    .single();
+  // Fetch stats
+  const [vehiclesCount, teamsCount, penaltiesCount, expensesSum] = await Promise.all([
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
+    supabase.from('teams').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
+    supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'open'),
+    supabase.from('expenses').select('amount').eq('organization_id', orgId),
+  ]);
 
-  const handleSignOut = async () => {
-    'use server';
-    const supabase = await createServerClient();
-    await supabase.auth.signOut();
-    redirect('/login');
-  };
+  const totalExpenses = expensesSum.data?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              🚗 Fleet Management
-            </h1>
-            <p className="text-sm text-gray-600">
-              {user?.organizations?.name || 'Организация'}
-            </p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600">Обзор системы управления автопарком</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Автомобили</p>
+              <p className="text-3xl font-bold text-gray-900">{vehiclesCount.count || 0}</p>
+            </div>
+            <div className="text-4xl">🚗</div>
           </div>
-          <form action={handleSignOut}>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition"
-            >
-              Выйти
-            </button>
-          </form>
         </div>
-      </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Добро пожаловать, {user?.first_name} {user?.last_name}!
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-600 font-medium">Email</p>
-              <p className="text-lg text-blue-900">{user?.email}</p>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Бригады</p>
+              <p className="text-3xl font-bold text-gray-900">{teamsCount.count || 0}</p>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-green-600 font-medium">Роль</p>
-              <p className="text-lg text-green-900">{user?.role}</p>
-            </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-600 font-medium">Организация</p>
-              <p className="text-lg text-purple-900">{user?.organizations?.name}</p>
-            </div>
+            <div className="text-4xl">👥</div>
           </div>
+        </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm text-yellow-800">
-              ✨ Система авторизации работает! Следующие модули будут добавлены в ближайшее время.
-            </p>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Открытые штрафы</p>
+              <p className="text-3xl font-bold text-red-600">{penaltiesCount.count || 0}</p>
+            </div>
+            <div className="text-4xl">💰</div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Расходы</p>
+              <p className="text-3xl font-bold text-gray-900">{totalExpenses.toFixed(2)} €</p>
+            </div>
+            <div className="text-4xl">💵</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Быстрые действия</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <a
+            href="/dashboard/vehicles"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-center"
+          >
+            <div className="text-3xl mb-2">🚗</div>
+            <p className="text-sm font-medium">Добавить автомобиль</p>
+          </a>
+          <a
+            href="/dashboard/teams"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-center"
+          >
+            <div className="text-3xl mb-2">👥</div>
+            <p className="text-sm font-medium">Создать бригаду</p>
+          </a>
+          <a
+            href="/dashboard/penalties"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-center"
+          >
+            <div className="text-3xl mb-2">💰</div>
+            <p className="text-sm font-medium">Добавить штраф</p>
+          </a>
+          <a
+            href="/dashboard/expenses"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-center"
+          >
+            <div className="text-3xl mb-2">💵</div>
+            <p className="text-sm font-medium">Добавить расход</p>
+          </a>
         </div>
       </div>
     </div>
