@@ -18,35 +18,19 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Fleet Management App"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Next.js App"
-
-[[workflows.workflow]]
-name = "Fleet Management App"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "streamlit run Home.py --server.port 5000 --server.address 0.0.0.0 --server.headless true"
-waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Next.js App"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd nextjs-app && npm run dev"
-waitForPort = 3000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nextjs-app && npm run dev -- -p 5000"
+waitForPort = 5000
 
 [[ports]]
 localPort = 3000
@@ -57,5 +41,13 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 8501
+externalPort = 3002
+
+[[ports]]
 localPort = 36417
 externalPort = 3000
+
+[[ports]]
+localPort = 46777
+externalPort = 3003
