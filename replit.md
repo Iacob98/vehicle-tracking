@@ -65,3 +65,44 @@ Preferred communication style: Simple, everyday language.
 - **datetime**: For date and time handling.
 - **enum**: For enumeration support.
 - **os**: For environment variable management.
+
+## Next.js Migration (In Progress)
+
+### Migration Overview
+Started migration to modern tech stack: Next.js + Supabase for better scalability, security, and developer experience.
+
+### Current Status
+- ✅ **Next.js Project Structure**: Created with TypeScript, Tailwind CSS, App Router
+- ✅ **Supabase Integration**: Client and server configurations ready
+- ✅ **Database Schema**: Complete SQL schema with enhanced security (organization_id added to all tables)
+- ⏳ **Row Level Security**: Base RLS policies created, requires refinement (see RLS_SECURITY_NOTES.md)
+- ⏳ **Authentication**: Awaiting Supabase project setup
+- ⏳ **UI Migration**: Not started
+- ⏳ **Data Migration**: Not started
+
+### Architecture Changes
+**Enhanced Security:**
+- Added `organization_id` to: vehicles, materials, penalties, maintenances, expenses
+- Supabase Row Level Security (RLS) for automatic multi-tenant isolation
+- JWT-based authentication with user metadata
+
+**Migration Files:**
+- `nextjs-app/` - Next.js application
+- `nextjs-app/lib/database-schema.sql` - Complete database schema
+- `nextjs-app/lib/RLS_SECURITY_NOTES.md` - Security considerations and improvements needed
+- `nextjs-app/MIGRATION_GUIDE.md` - Step-by-step migration instructions
+
+### Next Steps
+1. Setup Supabase project and get API keys
+2. Execute database schema in Supabase
+3. Implement authentication system
+4. Migrate UI components
+5. Data and file migration
+6. Parallel system testing
+7. Final cutover
+
+### Technology Stack (New)
+- **Frontend**: Next.js 15 with TypeScript, React 19, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth + Storage + Real-time)
+- **Deployment**: Vercel or Replit (TBD)
+- **Testing**: Playwright for E2E (planned)
