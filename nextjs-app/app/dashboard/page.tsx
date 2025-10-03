@@ -4,16 +4,16 @@ import { redirect } from 'next/navigation';
 export default async function DashboardPage() {
   const supabase = await createServerClient();
   
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
   
-  if (!session) {
+  if (!authUser) {
     redirect('/login');
   }
 
   const { data: user } = await supabase
     .from('users')
     .select('*, organizations(*)')
-    .eq('id', session.user.id)
+    .eq('id', authUser.id)
     .single();
 
   const handleSignOut = async () => {
