@@ -13,8 +13,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { uploadMultipleFiles } from '@/lib/storage';
-import { supabase } from '@/lib/supabase/client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostFormData, useDelete } from '@/lib/api-client';
 import Image from 'next/image';
 import { DocumentViewer } from './DocumentViewer';
 
@@ -57,11 +67,31 @@ const DOCUMENT_TYPES = [
 export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocumentsProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [editingDoc, setEditingDoc] = useState<string | null>(null);
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading: addLoading, error: addError, post } = usePostFormData('/api/vehicle-documents', {
+    onSuccess: (data) => {
+      setDocuments([...documents, data.document]);
+      setDocumentFiles([]);
+      router.refresh();
+    },
+  });
+
+  const { loading: deleteLoading, error: deleteError, deleteItem } = useDelete(
+    docToDelete ? `/api/vehicle-documents/${docToDelete}` : '',
+    {
+      onSuccess: () => {
+        setDocuments(documents.filter((doc) => doc.id !== docToDelete));
+        setDocToDelete(null);
+        setDeleteDialogOpen(false);
+        router.refresh();
+      },
+    }
+  );
 
   // Calculate document status
   const getDocumentStatus = (expiryDate: string | null) => {
@@ -96,61 +126,33 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
 
   const handleAddDocument = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
 
-    try {
-      const formData = new FormData(e.currentTarget);
+    const formData = new FormData(e.currentTarget);
 
-      // Add vehicle_id and files to formData
-      formData.append('vehicle_id', vehicle.id);
+    // Add vehicle_id and files to formData
+    formData.append('vehicle_id', vehicle.id);
 
-      // Add all document files
-      documentFiles.forEach((file) => {
-        formData.append('files', file);
-      });
+    // Add all document files
+    documentFiles.forEach((file) => {
+      formData.append('files', file);
+    });
 
-      // Call API route instead of direct Supabase call
-      const response = await fetch('/api/vehicle-documents', {
-        method: 'POST',
-        body: formData,
-      });
+    await post(formData);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to add document');
-      }
-
-      setDocuments([...documents, result.document]);
-      setDocumentFiles([]);
+    // Сброс формы только при успехе
+    if (!addError) {
       (e.target as HTMLFormElement).reset();
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error adding document:', err);
-      setError(err.message || 'Ошибка добавления документа');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleDeleteDocument = async (docId: string) => {
-    if (!confirm('Удалить этот документ?')) return;
+  const handleDeleteClick = (docId: string) => {
+    setDocToDelete(docId);
+    setDeleteDialogOpen(true);
+  };
 
-    try {
-      const { error: deleteError } = await supabase
-        .from('vehicle_documents')
-        .update({ is_active: false })
-        .eq('id', docId)
-        .eq('organization_id', vehicle.organization_id);
-
-      if (deleteError) throw deleteError;
-
-      setDocuments(documents.filter((doc) => doc.id !== docId));
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error deleting document:', err);
-      alert('Ошибка удаления документа');
+  const handleDeleteConfirm = async () => {
+    if (docToDelete) {
+      await deleteItem();
     }
   };
 
@@ -172,6 +174,10 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
 
   return (
     <div className="space-y-6">
+      {/* Показываем ошибки добавления и удаления */}
+      {addError && <ErrorAlert error={addError} />}
+      {deleteError && <ErrorAlert error={deleteError} />}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -355,7 +361,7 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteDocument(doc.id)}
+                            onClick={() => handleDeleteClick(doc.id)}
                             className="text-red-600 hover:bg-red-50"
                           >
                             🗑️
@@ -379,11 +385,6 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
         {/* Add Document Form */}
         <TabsContent value="add">
           <form onSubmit={handleAddDocument} className="bg-white rounded-lg shadow p-6 space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {error}
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -444,8 +445,8 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
             </div>
 
             <div className="flex gap-4 pt-4 border-t">
-              <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700">
-                {loading ? 'Сохранение...' : '✅ Добавить документ'}
+              <Button type="submit" disabled={addLoading} className="bg-blue-600 hover:bg-blue-700">
+                {addLoading ? 'Сохранение...' : '✅ Добавить документ'}
               </Button>
             </div>
           </form>
@@ -460,6 +461,30 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
           onClose={() => setViewerFile(null)}
         />
       )}
+
+      {/* AlertDialog для подтверждения удаления */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить этот документ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Документ будет помечен как неактивный.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDocToDelete(null)}>
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteLoading ? 'Удаление...' : 'Удалить'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

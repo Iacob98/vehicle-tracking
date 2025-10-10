@@ -11,27 +11,23 @@ import { z } from 'zod';
  */
 
 // Car expense category enum
-export const carExpenseCategorySchema = z.enum(
-  [
-    'fuel',
-    'maintenance',
-    'repair',
-    'insurance',
-    'tax',
-    'parking',
-    'toll',
-    'wash',
-    'other',
-  ],
-  {
-    errorMap: () => ({ message: 'Выберите категорию расхода' }),
-  }
-);
+export const carExpenseCategorySchema = z.enum([
+  'fuel',
+  'maintenance',
+  'repair',
+  'insurance',
+  'tax',
+  'parking',
+  'toll',
+  'wash',
+  'other',
+]);
 
 // Main car expense schema
 export const carExpenseSchema = z.object({
   vehicle_id: z
-    .string({ required_error: 'Выберите автомобиль' })
+    .string()
+    .min(1, 'Выберите автомобиль')
     .uuid('Некорректный ID автомобиля'),
 
   maintenance_id: z
@@ -41,7 +37,8 @@ export const carExpenseSchema = z.object({
     .optional(),
 
   date: z
-    .string({ required_error: 'Дата расхода обязательна' })
+    .string()
+    .min(1, 'Дата расхода обязательна')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
     .refine(
       (dateStr) => {
@@ -54,10 +51,7 @@ export const carExpenseSchema = z.object({
     ),
 
   amount: z
-    .number({
-      required_error: 'Сумма расхода обязательна',
-      invalid_type_error: 'Сумма должна быть числом',
-    })
+    .number()
     .positive('Сумма расхода должна быть положительной')
     .max(999999.99, 'Сумма расхода слишком большая (максимум 999,999.99€)'),
 
@@ -76,9 +70,7 @@ export const carExpenseSchema = z.object({
     .optional(),
 
   mileage: z
-    .number({
-      invalid_type_error: 'Пробег должен быть числом',
-    })
+    .number()
     .int('Пробег должен быть целым числом')
     .positive('Пробег должен быть положительным')
     .max(9999999, 'Пробег слишком большой')

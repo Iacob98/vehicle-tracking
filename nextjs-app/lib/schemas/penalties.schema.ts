@@ -12,14 +12,12 @@ import { z } from 'zod';
  */
 
 // Penalty status enum
-export const penaltyStatusSchema = z.enum(['open', 'paid', 'contested', 'cancelled'], {
-  errorMap: () => ({ message: 'Выберите корректный статус штрафа' }),
-});
+export const penaltyStatusSchema = z.enum(['open', 'paid', 'contested', 'cancelled']);
 
 // Main penalty schema
 export const penaltySchema = z.object({
   vehicle_id: z
-    .string({ required_error: 'Выберите автомобиль' })
+    .string().min(1, 'Выберите автомобиль')
     .uuid('Некорректный ID автомобиля'),
 
   user_id: z
@@ -29,7 +27,7 @@ export const penaltySchema = z.object({
     .optional(),
 
   date: z
-    .string({ required_error: 'Дата штрафа обязательна' })
+    .string().min(1, 'Дата штрафа обязательна')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
     .refine(
       (dateStr) => {
@@ -42,10 +40,7 @@ export const penaltySchema = z.object({
     ),
 
   amount: z
-    .number({
-      required_error: 'Сумма штрафа обязательна',
-      invalid_type_error: 'Сумма должна быть числом',
-    })
+    .number()
     .positive('Сумма штрафа должна быть положительной')
     .max(99999.99, 'Сумма штрафа слишком большая (максимум 99,999.99€)'),
 

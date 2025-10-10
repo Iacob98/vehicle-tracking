@@ -10,29 +10,24 @@ import { z } from 'zod';
  */
 
 // Maintenance type enum
-export const maintenanceTypeSchema = z.enum(
-  [
-    'inspection',
-    'oil_change',
-    'tire_change',
-    'brake_service',
-    'filter_replacement',
-    'battery_replacement',
-    'other',
-  ],
-  {
-    errorMap: () => ({ message: 'Выберите тип обслуживания' }),
-  }
-);
+export const maintenanceTypeSchema = z.enum([
+  'inspection',
+  'oil_change',
+  'tire_change',
+  'brake_service',
+  'filter_replacement',
+  'battery_replacement',
+  'other',
+]);
 
 // Main maintenance schema
 export const maintenanceSchema = z.object({
   vehicle_id: z
-    .string({ required_error: 'Выберите автомобиль' })
+    .string().min(1, 'Выберите автомобиль')
     .uuid('Некорректный ID автомобиля'),
 
   date: z
-    .string({ required_error: 'Дата обслуживания обязательна' })
+    .string().min(1, 'Дата обслуживания обязательна')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
     .refine(
       (dateStr) => {
@@ -59,9 +54,7 @@ export const maintenanceSchema = z.object({
     .optional(),
 
   mileage: z
-    .number({
-      invalid_type_error: 'Пробег должен быть числом',
-    })
+    .number()
     .int('Пробег должен быть целым числом')
     .positive('Пробег должен быть положительным')
     .max(9999999, 'Пробег слишком большой')
@@ -75,9 +68,7 @@ export const maintenanceSchema = z.object({
     .optional(),
 
   next_maintenance_mileage: z
-    .number({
-      invalid_type_error: 'Пробег должен быть числом',
-    })
+    .number()
     .int('Пробег должен быть целым числом')
     .positive('Пробег должен быть положительным')
     .max(9999999, 'Пробег слишком большой')

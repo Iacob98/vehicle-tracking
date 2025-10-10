@@ -11,20 +11,20 @@ import { z } from 'zod';
 
 export const userSchema = z.object({
   email: z
-    .string({ required_error: 'Email обязателен' })
+    .string().min(1)
     .email('Некорректный формат email')
     .min(1, 'Email не может быть пустым')
     .max(255, 'Email слишком длинный')
     .toLowerCase(),
 
   first_name: z
-    .string({ required_error: 'Имя обязательно' })
+    .string().min(1)
     .min(1, 'Имя не может быть пустым')
     .max(100, 'Имя слишком длинное')
     .regex(/^[a-zA-Zа-яА-ЯёЁ\s\-]+$/u, 'Имя может содержать только буквы, пробелы и дефисы'),
 
   last_name: z
-    .string({ required_error: 'Фамилия обязательна' })
+    .string().min(1)
     .min(1, 'Фамилия не может быть пустой')
     .max(100, 'Фамилия слишком длинная')
     .regex(/^[a-zA-Zа-яА-ЯёЁ\s\-]+$/u, 'Фамилия может содержать только буквы, пробелы и дефисы'),
@@ -55,14 +55,14 @@ export type UserFormData = z.infer<typeof userSchema>;
 // Schema for user creation (includes password)
 export const createUserSchema = userSchema.extend({
   password: z
-    .string({ required_error: 'Пароль обязателен' })
+    .string().min(1)
     .min(8, 'Пароль должен содержать минимум 8 символов')
     .max(100, 'Пароль слишком длинный')
     .regex(/[A-Z]/, 'Пароль должен содержать хотя бы одну заглавную букву')
     .regex(/[a-z]/, 'Пароль должен содержать хотя бы одну строчную букву')
     .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру'),
 
-  confirmPassword: z.string({ required_error: 'Подтверждение пароля обязательно' }),
+  confirmPassword: z.string().min(1),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
   path: ['confirmPassword'],
@@ -74,15 +74,15 @@ export const updateUserSchema = userSchema.partial().required({ email: true, fir
 // Schema for password change
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string({ required_error: 'Введите текущий пароль' }),
+    currentPassword: z.string().min(1),
     newPassword: z
-      .string({ required_error: 'Введите новый пароль' })
+      .string().min(1)
       .min(8, 'Пароль должен содержать минимум 8 символов')
       .max(100, 'Пароль слишком длинный')
       .regex(/[A-Z]/, 'Пароль должен содержать хотя бы одну заглавную букву')
       .regex(/[a-z]/, 'Пароль должен содержать хотя бы одну строчную букву')
       .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру'),
-    confirmNewPassword: z.string({ required_error: 'Подтвердите новый пароль' }),
+    confirmNewPassword: z.string().min(1),
   })
   .refine((data) => data.newPassword === data.confirmNewPassword, {
     message: 'Пароли не совпадают',

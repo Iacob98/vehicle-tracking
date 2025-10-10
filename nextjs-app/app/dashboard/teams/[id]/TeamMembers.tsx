@@ -4,7 +4,19 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostJSON, useDelete } from '@/lib/api-client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface TeamMember {
   id: string;
@@ -25,69 +37,66 @@ export default function TeamMembers({ teamId, orgId, initialMembers }: TeamMembe
   const router = useRouter();
   const [members, setMembers] = useState<TeamMember[]>(initialMembers);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading: addLoading, error: addError, post } = usePostJSON('/api/team-members', {
+    onSuccess: (data) => {
+      setMembers([...members, data.member]);
+      setShowAddForm(false);
+      router.refresh();
+    },
+  });
+
+  const { loading: deleteLoading, error: deleteError, deleteItem } = useDelete(
+    memberToDelete ? `/api/team-members/${memberToDelete}` : '',
+    {
+      onSuccess: () => {
+        setMembers(members.filter(m => m.id !== memberToDelete));
+        setMemberToDelete(null);
+        setDeleteDialogOpen(false);
+        router.refresh();
+      },
+    }
+  );
 
   const handleAddMember = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
 
     const formData = new FormData(e.currentTarget);
 
-    try {
-      const response = await fetch('/api/team-members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          team_id: teamId,
-          organization_id: orgId,
-          first_name: formData.get('first_name'),
-          last_name: formData.get('last_name'),
-          phone: formData.get('phone'),
-          category: formData.get('category'),
-        }),
-      });
+    await post({
+      team_id: teamId,
+      first_name: formData.get('first_name') as string,
+      last_name: formData.get('last_name') as string,
+      phone: formData.get('phone') as string || null,
+      category: formData.get('category') as string || null,
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to add member');
-      }
-
-      const { member } = await response.json();
-      setMembers([...members, member]);
-      setShowAddForm(false);
+    // Сброс формы только при успехе (post автоматически вызовет onSuccess)
+    if (!addError) {
       (e.target as HTMLFormElement).reset();
-      router.refresh();
-    } catch (error) {
-      console.error('Error adding member:', error);
-      alert('Ошибка добавления участника');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!confirm('Удалить участника из бригады?')) {
-      return;
-    }
+  const handleDeleteClick = (memberId: string) => {
+    setMemberToDelete(memberId);
+    setDeleteDialogOpen(true);
+  };
 
-    try {
-      const response = await fetch(`/api/team-members/${memberId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete member');
-      }
-
-      setMembers(members.filter(m => m.id !== memberId));
-      router.refresh();
-    } catch (error) {
-      console.error('Error deleting member:', error);
-      alert('Ошибка удаления участника');
+  const handleDeleteConfirm = async () => {
+    if (memberToDelete) {
+      await deleteItem();
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* Показываем ошибки добавления и удаления */}
+      {addError && <ErrorAlert error={addError} />}
+      {deleteError && <ErrorAlert error={deleteError} />}
+
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Участники бригады</h2>
         <Button onClick={() => setShowAddForm(!showAddForm)}>
@@ -138,8 +147,8 @@ export default function TeamMembers({ teamId, orgId, initialMembers }: TeamMembe
               </select>
             </div>
           </div>
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Добавление...' : '💾 Добавить'}
+          <Button type="submit" disabled={addLoading}>
+            {addLoading ? 'Добавление...' : '💾 Добавить'}
           </Button>
         </form>
       )}
@@ -166,7 +175,7 @@ export default function TeamMembers({ teamId, orgId, initialMembers }: TeamMembe
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDeleteMember(member.id)}
+                    onClick={() => handleDeleteClick(member.id)}
                   >
                     🗑️
                   </Button>
@@ -183,6 +192,30 @@ export default function TeamMembers({ teamId, orgId, initialMembers }: TeamMembe
           </Button>
         </div>
       )}
+
+      {/* AlertDialog для подтверждения удаления */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить участника из бригады?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Участник будет удален из бригады.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMemberToDelete(null)}>
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteLoading ? 'Удаление...' : 'Удалить'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

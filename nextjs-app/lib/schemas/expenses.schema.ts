@@ -12,9 +12,7 @@ import { z } from 'zod';
  */
 
 // Expense type enum
-export const expenseTypeSchema = z.enum(['vehicle', 'team'], {
-  errorMap: () => ({ message: 'Выберите тип расхода' }),
-});
+export const expenseTypeSchema = z.enum(['vehicle', 'team']);
 
 // Main expense schema
 export const expenseSchema = z
@@ -34,7 +32,8 @@ export const expenseSchema = z
       .optional(),
 
     date: z
-      .string({ required_error: 'Дата расхода обязательна' })
+      .string()
+      .min(1, 'Дата расхода обязательна')
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
       .refine(
         (dateStr) => {
@@ -47,10 +46,7 @@ export const expenseSchema = z
       ),
 
     amount: z
-      .number({
-        required_error: 'Сумма расхода обязательна',
-        invalid_type_error: 'Сумма должна быть числом',
-      })
+      .number()
       .positive('Сумма расхода должна быть положительной')
       .max(999999.99, 'Сумма расхода слишком большая (максимум 999,999.99€)'),
 

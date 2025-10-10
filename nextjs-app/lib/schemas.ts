@@ -139,10 +139,15 @@ export type TeamFormData = z.infer<typeof teamSchema>;
 
 export const createUserSchema = z.object({
   email: z.string().email('Некорректный email'),
+  password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
+  confirmPassword: z.string().min(1, 'Подтверждение пароля обязательно'),
   first_name: z.string().min(1, 'Имя обязательно'),
   last_name: z.string().min(1, 'Фамилия обязательна'),
-  role: z.enum(['admin', 'manager', 'user']).default('user'),
   phone: z.string().optional().nullable(),
+  position: z.string().optional().nullable(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Пароли не совпадают',
+  path: ['confirmPassword'],
 });
 
 export type CreateUserFormData = z.infer<typeof createUserSchema>;

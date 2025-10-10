@@ -13,20 +13,18 @@ import { z } from 'zod';
  */
 
 // Vehicle status enum (matches database enum)
-export const vehicleStatusSchema = z.enum(['active', 'repair', 'unavailable', 'rented'], {
-  errorMap: () => ({ message: 'Выберите корректный статус автомобиля' }),
-});
+export const vehicleStatusSchema = z.enum(['active', 'repair', 'unavailable', 'rented']);
 
 // Main vehicle schema
 export const vehicleSchema = z
   .object({
     name: z
-      .string({ required_error: 'Название обязательно' })
+      .string().min(1, 'Название обязательно')
       .min(1, 'Название не может быть пустым')
       .max(255, 'Название слишком длинное (максимум 255 символов)'),
 
     license_plate: z
-      .string({ required_error: 'Госномер обязателен' })
+      .string().min(1, 'Госномер обязателен')
       .min(1, 'Госномер не может быть пустым')
       .max(50, 'Госномер слишком длинный')
       .regex(/^[A-Z0-9\s-]+$/i, 'Госномер может содержать только буквы, цифры, пробелы и дефисы')
@@ -47,9 +45,7 @@ export const vehicleSchema = z
       .or(z.literal('')),
 
     year: z
-      .number({
-        invalid_type_error: 'Год должен быть числом',
-      })
+      .number()
       .int('Год должен быть целым числом')
       .min(1900, 'Год не может быть раньше 1900')
       .max(new Date().getFullYear() + 1, `Год не может быть больше ${new Date().getFullYear() + 1}`)
@@ -81,9 +77,7 @@ export const vehicleSchema = z
       .optional(),
 
     rental_monthly_price: z
-      .number({
-        invalid_type_error: 'Цена должна быть числом',
-      })
+      .number()
       .positive('Цена аренды должна быть положительной')
       .max(999999.99, 'Цена аренды слишком большая')
       .nullable()

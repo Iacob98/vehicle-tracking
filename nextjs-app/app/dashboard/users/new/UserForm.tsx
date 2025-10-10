@@ -1,19 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
-import { createUserSchema } from '@/lib/schemas';
-import { z } from 'zod';
-
-type UserFormData = z.infer<typeof createUserSchema>;
+import { createUserSchema, type CreateUserFormData } from '@/lib/schemas';
 
 interface UserFormProps {
   teams: Array<{
@@ -24,15 +20,21 @@ interface UserFormProps {
 
 export function UserForm({ teams }: UserFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading, error, post } = usePostJSON('/api/users', {
+    onSuccess: () => {
+      router.push('/dashboard/users');
+      router.refresh();
+    },
+  });
 
   // Setup react-hook-form with Zod validation
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<UserFormData>({
+  } = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       position: '',
@@ -40,50 +42,15 @@ export function UserForm({ teams }: UserFormProps) {
     },
   });
 
-  const onSubmit = async (data: UserFormData) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
-
-      // Hash password (simple SHA256 - matching existing implementation)
-      const crypto = require('crypto');
-      const passwordHash = crypto
-        .createHash('sha256')
-        .update(data.password + 'fleet_management_salt_2025')
-        .digest('hex');
-
-      const { error: insertError } = await supabase.from('users').insert({
-        organization_id: orgId,
-        email: data.email,
-        password_hash: passwordHash,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        phone: data.phone || null,
-        position: data.position || null,
-        created_at: new Date().toISOString(),
-      });
-
-      if (insertError) {
-        // Handle unique constraint violation
-        if (insertError.code === '23505' && insertError.message.includes('email')) {
-          throw new Error('Пользователь с таким email уже существует в вашей организации');
-        }
-        throw insertError;
-      }
-
-      router.push('/dashboard/users');
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating user:', err);
-      setError(err.message || 'Ошибка создания пользователя');
-    } finally {
-      setLoading(false);
-    }
+  const onSubmit = async (data: CreateUserFormData) => {
+    await post({
+      email: data.email,
+      password: data.password,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      phone: data.phone || null,
+      position: data.position || null,
+    });
   };
 
   return (
@@ -95,11 +62,7 @@ export function UserForm({ teams }: UserFormProps) {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert error={error} />}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
