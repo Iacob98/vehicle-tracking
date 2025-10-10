@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -143,6 +144,13 @@ export default async function CarExpensesPage({
                           <Link href={`/dashboard/car-expenses/${expense.id}/edit`}>
                             <Button variant="outline" size="sm">✏️</Button>
                           </Link>
+                          <DeleteItemButton
+                            id={expense.id}
+                            baseUrl="/api/car-expenses"
+                            itemName={`расход "${expense.description || CATEGORY_NAMES[expense.category as keyof typeof CATEGORY_NAMES]}" на ${expense.vehicle_name} (€${parseFloat(expense.amount || 0).toFixed(2)})`}
+                            size="sm"
+                            variant="outline"
+                          />
                         </>
                       )}
                       {expense.maintenance_id && (

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import Image from 'next/image';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
 
 interface Vehicle {
   id: string;
@@ -224,9 +225,13 @@ export function VehiclesTable({
                         ✏️ Редактировать
                       </Button>
                     </Link>
-                    <Button variant="destructive" size="sm">
-                      🗑️
-                    </Button>
+                    <DeleteItemButton
+                      id={vehicle.id}
+                      baseUrl="/api/vehicles"
+                      itemName={`автомобиль "${vehicle.name}" (${vehicle.license_plate || 'без номера'})`}
+                      size="sm"
+                      variant="outline"
+                    />
                   </div>
                 </div>
               </div>

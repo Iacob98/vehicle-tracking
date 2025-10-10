@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -81,9 +82,18 @@ export default async function MaintenancePage({
                     </td>
                     <td className="px-6 py-4 text-sm">{m.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link href={`/dashboard/maintenance/${m.id}`}>
-                        <Button variant="outline" size="sm">👁️ Просмотр</Button>
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dashboard/maintenance/${m.id}`}>
+                          <Button variant="outline" size="sm">👁️ Просмотр</Button>
+                        </Link>
+                        <DeleteItemButton
+                          id={m.id}
+                          baseUrl="/api/maintenance"
+                          itemName={`обслуживание "${m.description || (m.type === 'inspection' ? 'Осмотр' : 'Ремонт')}" для ${m.vehicle?.name} (${m.date})`}
+                          size="sm"
+                          variant="outline"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
