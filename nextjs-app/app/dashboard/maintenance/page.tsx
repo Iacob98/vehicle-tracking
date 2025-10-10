@@ -1,9 +1,17 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default async function MaintenancePage() {
   const supabase = await createServerClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
   const orgId = user?.user_metadata?.organization_id;
 
   const { data: maintenances } = await supabase
@@ -17,9 +25,14 @@ export default async function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Обслуживание</h1>
-        <p className="text-gray-600">История обслуживания автомобилей</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">🔧 Обслуживание / Wartung</h1>
+          <p className="text-gray-600">История обслуживания автомобилей</p>
+        </div>
+        <Link href="/dashboard/maintenance/new">
+          <Button>➕ Добавить обслуживание</Button>
+        </Link>
       </div>
 
       {maintenances && maintenances.length > 0 ? (
@@ -31,6 +44,7 @@ export default async function MaintenancePage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Автомобиль</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тип</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Описание</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Действия</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -48,6 +62,11 @@ export default async function MaintenancePage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm">{m.description || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <Link href={`/dashboard/maintenance/${m.id}`}>
+                      <Button variant="outline" size="sm">👁️ Просмотр</Button>
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

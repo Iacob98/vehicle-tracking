@@ -1,103 +1,170 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+
+const STATUS_ICONS = {
+  open: '🔴',
+  paid: '🟢',
+};
+
+const STATUS_NAMES = {
+  open: 'К оплате / Offen',
+  paid: 'Оплачен / Bezahlt',
+};
 
 export default async function PenaltiesPage() {
   const supabase = await createServerClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
 
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const orgId = user.user_metadata?.organization_id;
+
+  if (!orgId) {
+    return <div>Organization ID not found</div>;
+  }
+
+  // Fetch penalties
   const { data: penalties } = await supabase
     .from('penalties')
-    .select(`
-      *,
-      vehicle:vehicles(name, license_plate),
-      user:users(first_name, last_name)
-    `)
+    .select('*')
     .eq('organization_id', orgId)
     .order('date', { ascending: false });
 
+  // Get related data for each penalty
+  const penaltiesWithDetails = await Promise.all((penalties || []).map(async (penalty) => {
+    // Get vehicle info
+    let vehicleInfo = null;
+    if (penalty.vehicle_id) {
+      const { data: vehicleData } = await supabase
+        .from('vehicles')
+        .select('name, license_plate')
+        .eq('id', penalty.vehicle_id)
+        .single();
+      vehicleInfo = vehicleData;
+    }
+
+    // Get user info
+    let userInfo = null;
+    if (penalty.user_id) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('first_name, last_name')
+        .eq('id', penalty.user_id)
+        .single();
+      userInfo = userData;
+    }
+
+    return {
+      ...penalty,
+      vehicle_name: vehicleInfo?.name,
+      license_plate: vehicleInfo?.license_plate,
+      user_name: userInfo ? `${userInfo.first_name} ${userInfo.last_name}` : null,
+    };
+  }));
+
+  // Calculate statistics
   const stats = {
-    total: penalties?.length || 0,
-    open: penalties?.filter(p => p.status === 'open').length || 0,
-    totalAmount: penalties?.reduce((sum, p) => sum + Number(p.amount), 0) || 0,
-    openAmount: penalties?.filter(p => p.status === 'open').reduce((sum, p) => sum + Number(p.amount), 0) || 0,
+    total: penaltiesWithDetails.length,
+    open: penaltiesWithDetails.filter(p => p.status === 'open').length,
+    totalAmount: penaltiesWithDetails.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+    openAmount: penaltiesWithDetails.filter(p => p.status === 'open').reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Штрафы</h1>
-          <p className="text-gray-600">Управление штрафами и нарушениями</p>
+          <h1 className="text-3xl font-bold">🚧 Штрафы / Strafen</h1>
+          <p className="text-gray-600">Управление штрафами и их оплатой</p>
         </div>
-        <Link
-          href="/dashboard/penalties/new"
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          + Добавить штраф
+        <Link href="/dashboard/penalties/new">
+          <Button>➕ Добавить штраф</Button>
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-600">Всего штрафов</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+      {/* Statistics */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white border rounded-lg p-6">
+          <p className="text-sm text-gray-600">Всего штрафов / Strafen insgesamt</p>
+          <p className="text-3xl font-bold mt-2">{stats.total}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-600">Открытые</p>
-          <p className="text-2xl font-bold text-red-600">{stats.open}</p>
+        <div className="bg-white border rounded-lg p-6">
+          <p className="text-sm text-gray-600">Общая сумма / Gesamtbetrag</p>
+          <p className="text-3xl font-bold mt-2">€{stats.totalAmount.toFixed(2)}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-600">Общая сумма</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.totalAmount.toFixed(2)} €</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-600">К оплате</p>
-          <p className="text-2xl font-bold text-red-600">{stats.openAmount.toFixed(2)} €</p>
+        <div className="bg-white border rounded-lg p-6">
+          <p className="text-sm text-gray-600">К оплате / Zu zahlen</p>
+          <p className="text-3xl font-bold mt-2 text-red-600">€{stats.openAmount.toFixed(2)}</p>
         </div>
       </div>
 
-      {penalties && penalties.length > 0 ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Автомобиль</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Водитель</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Сумма</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {penalties.map((penalty) => (
-                <tr key={penalty.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{penalty.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {penalty.vehicle?.name} ({penalty.vehicle?.license_plate})
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {penalty.user ? `${penalty.user.first_name} ${penalty.user.last_name}` : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{Number(penalty.amount).toFixed(2)} €</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      penalty.status === 'open' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                    }`}>
-                      {penalty.status === 'open' ? 'Открыт' : 'Оплачен'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Penalties List */}
+      {penaltiesWithDetails && penaltiesWithDetails.length > 0 ? (
+        <div className="space-y-4">
+          {penaltiesWithDetails.map((penalty) => (
+            <div key={penalty.id} className="bg-white border rounded-lg p-6 hover:shadow-md transition">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 grid grid-cols-4 gap-4">
+                  <div>
+                    <h3 className="font-semibold">
+                      {penalty.vehicle_name} ({penalty.license_plate})
+                    </h3>
+                    {penalty.user_name && (
+                      <p className="text-sm text-gray-600 mt-1">👤 {penalty.user_name}</p>
+                    )}
+                    <p className="text-sm text-gray-600 mt-1">
+                      📅 {penalty.date ? new Date(penalty.date).toLocaleDateString('ru-RU') : '—'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-2xl font-bold">€{parseFloat(penalty.amount || 0).toFixed(2)}</p>
+                    <p className="text-sm mt-1">
+                      {STATUS_ICONS[penalty.status as keyof typeof STATUS_ICONS]}{' '}
+                      {STATUS_NAMES[penalty.status as keyof typeof STATUS_NAMES]}
+                    </p>
+                  </div>
+
+                  <div>
+                    {penalty.photo_url ? (
+                      <div>
+                        <p className="text-sm text-green-600">
+                          📷 {penalty.photo_url.split(';').length} файл(ов) / Datei(en)
+                        </p>
+                        {penalty.status === 'paid' && penalty.photo_url.split(';').length > 1 && (
+                          <p className="text-sm text-blue-600">✅ С чеком / Mit Beleg</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">📷 Нет фото / Kein Foto</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-end">
+                    <Link href={`/dashboard/penalties/${penalty.id}`}>
+                      <Button variant="outline" size="sm">👁️ Просмотр</Button>
+                    </Link>
+                    <Link href={`/dashboard/penalties/${penalty.id}/edit`}>
+                      <Button variant="outline" size="sm">✏️</Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <div className="text-6xl mb-4">💰</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Нет штрафов</h3>
-          <p className="text-gray-600 mb-6">Список штрафов пуст</p>
+        <div className="text-center py-12 border rounded-lg bg-white">
+          <div className="text-6xl mb-4">🚧</div>
+          <p className="text-gray-500 mb-4">Нет штрафов / Keine Strafen</p>
+          <Link href="/dashboard/penalties/new">
+            <Button>➕ Добавить первый штраф</Button>
+          </Link>
         </div>
       )}
     </div>

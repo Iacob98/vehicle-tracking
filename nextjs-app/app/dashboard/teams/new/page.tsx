@@ -1,18 +1,30 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Link from 'next/link';
 
 export default async function NewTeamPage() {
   const supabase = await createServerClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const orgId = user.user_metadata?.organization_id;
+
+  if (!orgId) {
+    return <div>Organization ID not found</div>;
+  }
 
   const { data: users } = await supabase
     .from('users')
     .select('id, first_name, last_name, role')
     .eq('organization_id', orgId)
-    .in('role', ['team_lead', 'admin', 'manager'])
     .order('first_name');
 
   async function createTeam(formData: FormData) {
@@ -22,10 +34,18 @@ export default async function NewTeamPage() {
     const { data: { user } } = await supabase.auth.getUser();
     const orgId = user?.user_metadata?.organization_id;
 
+    const name = formData.get('name') as string;
+    const leadId = formData.get('lead_id') as string;
+
+    if (!name) {
+      return;
+    }
+
     const teamData = {
       organization_id: orgId,
-      name: formData.get('name') as string,
-      lead_id: formData.get('lead_id') as string || null,
+      name: name,
+      lead_id: leadId || null,
+      created_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
@@ -43,29 +63,31 @@ export default async function NewTeamPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Создать бригаду</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">➕ Создать бригаду</h1>
+        <p className="text-gray-600">Добавьте новую бригаду в систему</p>
+      </div>
 
-      <form action={createTeam} className="bg-white rounded-lg shadow p-6 space-y-6">
+      <form action={createTeam} className="bg-white rounded-lg border p-6 space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Название *
+          <label className="block text-sm font-medium mb-2">
+            Название бригады *
           </label>
-          <input
+          <Input
             type="text"
             name="name"
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Бригада 1"
+            placeholder="Введите название бригады"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Бригадир
+          <label className="block text-sm font-medium mb-2">
+            Лидер бригады
           </label>
           <select
             name="lead_id"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Не назначен</option>
             {users?.map((u) => (
@@ -77,18 +99,14 @@ export default async function NewTeamPage() {
         </div>
 
         <div className="flex gap-4 pt-4">
-          <button
-            type="submit"
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            Создать
-          </button>
-          <a
-            href="/dashboard/teams"
-            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
-          >
-            Отмена
-          </a>
+          <Button type="submit">
+            💾 Создать бригаду
+          </Button>
+          <Link href="/dashboard/teams">
+            <Button variant="outline" type="button">
+              ❌ Отмена
+            </Button>
+          </Link>
         </div>
       </form>
     </div>

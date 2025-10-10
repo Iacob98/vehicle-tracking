@@ -4,16 +4,14 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create ENUM types (matching models.py exactly)
+-- Create ENUM types
 CREATE TYPE vehicle_status AS ENUM ('active', 'repair', 'unavailable', 'rented');
 CREATE TYPE user_role AS ENUM ('owner', 'admin', 'manager', 'team_lead', 'worker');
 CREATE TYPE penalty_status AS ENUM ('open', 'paid');
 CREATE TYPE maintenance_type AS ENUM ('inspection', 'repair');
-CREATE TYPE material_type AS ENUM ('material', 'equipment');
-CREATE TYPE material_status AS ENUM ('active', 'returned', 'broken');
 CREATE TYPE expense_type AS ENUM ('vehicle', 'team');
-CREATE TYPE material_event AS ENUM ('assigned', 'returned', 'broken');
 CREATE TYPE worker_category AS ENUM ('driver', 'mechanic', 'specialist', 'general');
+CREATE TYPE car_expense_category AS ENUM ('fuel', 'repair', 'maintenance', 'insurance', 'other');
 
 -- Organizations table
 CREATE TABLE organizations (
@@ -120,34 +118,44 @@ CREATE TABLE maintenances (
     receipt_url VARCHAR(500)
 );
 
--- Materials table (with organization_id for security)
-CREATE TABLE materials (
+-- Car expenses table (specific expenses for vehicles)
+CREATE TABLE car_expenses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    type material_type NOT NULL,
-    description TEXT
-);
-
--- Material assignments
-CREATE TABLE material_assignments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    material_id UUID NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
-    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE,
-    status material_status DEFAULT 'active'
-);
-
--- Material history
-CREATE TABLE material_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    material_id UUID NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
-    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
     date DATE NOT NULL,
-    event material_event NOT NULL,
-    description TEXT
+    category car_expense_category NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    description TEXT,
+    receipt_url VARCHAR(500),
+    maintenance_id UUID REFERENCES maintenances(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Vehicle documents table
+CREATE TABLE vehicle_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    document_type VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    file_url VARCHAR(500) NOT NULL,
+    date_issued DATE,
+    date_expiry DATE,
+    is_active BOOLEAN DEFAULT TRUE,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User documents table
+CREATE TABLE user_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_type VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    file_url VARCHAR(500) NOT NULL,
+    date_issued DATE,
+    date_expiry DATE,
+    is_active BOOLEAN DEFAULT TRUE,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Rental contracts
@@ -192,12 +200,12 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_member_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vehicle_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehicle_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE penalties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE maintenances ENABLE ROW LEVEL SECURITY;
-ALTER TABLE materials ENABLE ROW LEVEL SECURITY;
-ALTER TABLE material_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE material_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE car_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rental_contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 

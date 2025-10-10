@@ -14,11 +14,13 @@ export async function createServerClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              console.log('🍪 Setting cookie:', name, 'value length:', value?.length);
+              cookieStore.set(name, value, options);
+            });
+          } catch (error) {
             // Handle cookies in Server Components
+            console.error('⚠️ Error setting cookies:', error);
           }
         },
       },

@@ -7,12 +7,20 @@ export default async function DashboardPage() {
   
   const orgId = authUser?.user_metadata?.organization_id;
 
+  const now = new Date().toISOString();
+  const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
   // Fetch stats
-  const [vehiclesCount, teamsCount, penaltiesCount, expensesSum] = await Promise.all([
+  const [vehiclesCount, teamsCount, penaltiesCount, expensesSum, expiringDocs] = await Promise.all([
     supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase.from('teams').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'open'),
     supabase.from('expenses').select('amount').eq('organization_id', orgId),
+    supabase.from('vehicle_documents').select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+      .not('date_expiry', 'is', null)
+      .lte('date_expiry', thirtyDaysFromNow),
   ]);
 
   const totalExpenses = expensesSum.data?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
@@ -51,19 +59,22 @@ export default async function DashboardPage() {
               <p className="text-sm text-gray-600">Открытые штрафы</p>
               <p className="text-3xl font-bold text-red-600">{penaltiesCount.count || 0}</p>
             </div>
-            <div className="text-4xl">💰</div>
+            <div className="text-4xl">🚧</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <a
+          href="/dashboard/documents?status=expiring"
+          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Расходы</p>
-              <p className="text-3xl font-bold text-gray-900">{totalExpenses.toFixed(2)} €</p>
+              <p className="text-sm text-gray-600">Истекающие документы</p>
+              <p className="text-3xl font-bold text-orange-600">{expiringDocs.count || 0}</p>
             </div>
-            <div className="text-4xl">💵</div>
+            <div className="text-4xl">⚠️</div>
           </div>
-        </div>
+        </a>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

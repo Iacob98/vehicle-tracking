@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createServerClient();
+  const { id } = await params;
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -19,7 +20,7 @@ export async function DELETE(
   const { data: vehicle } = await supabase
     .from('vehicles')
     .select('organization_id')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
 
   if (!vehicle || vehicle.organization_id !== orgId) {
@@ -29,7 +30,7 @@ export async function DELETE(
   const { error } = await supabase
     .from('vehicles')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('organization_id', orgId);
 
   if (error) {

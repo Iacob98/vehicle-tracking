@@ -1,0 +1,131 @@
+import { createServerClient } from '@/lib/supabase/server';
+import { redirect, notFound } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import UserDocuments from './UserDocuments';
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+const ROLE_ICONS = {
+  owner: '👑',
+  admin: '🔧',
+  manager: '💼',
+  team_lead: '👨‍💼',
+  worker: '👷',
+};
+
+const ROLE_NAMES = {
+  owner: 'Владелец',
+  admin: 'Администратор',
+  manager: 'Менеджер',
+  team_lead: 'Бригадир',
+  worker: 'Работник',
+};
+
+export default async function UserDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const supabase = await createServerClient();
+
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+  if (!currentUser) {
+    redirect('/login');
+  }
+
+  const orgId = currentUser.user_metadata?.organization_id;
+
+  if (!orgId) {
+    return <div>Organization ID not found</div>;
+  }
+
+  // Fetch user details
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .single();
+
+  if (error || !user) {
+    notFound();
+  }
+
+  // Get team info if exists
+  let teamInfo = null;
+  if (user.team_id) {
+    const { data: teamData } = await supabase
+      .from('teams')
+      .select('id, name')
+      .eq('id', user.team_id)
+      .single();
+    teamInfo = teamData;
+  }
+
+  // Fetch user documents
+  const { data: documents } = await supabase
+    .from('user_documents')
+    .select('*')
+    .eq('user_id', id)
+    .eq('is_active', true)
+    .order('date_expiry', { ascending: true });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Link href="/dashboard/users">
+            <Button variant="ghost" size="sm">← Назад</Button>
+          </Link>
+        </div>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">
+            {user.first_name} {user.last_name}
+          </h1>
+          <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
+            {ROLE_ICONS[user.role as keyof typeof ROLE_ICONS]} {ROLE_NAMES[user.role as keyof typeof ROLE_NAMES]}
+          </span>
+        </div>
+        <div className="mt-2 space-y-1">
+          <p className="text-gray-600">✉️ {user.email}</p>
+          {user.phone && <p className="text-gray-600">📞 {user.phone}</p>}
+          {teamInfo ? (
+            <p className="text-gray-600">
+              👥 Бригада:{' '}
+              <Link href={`/dashboard/teams/${teamInfo.id}`} className="text-blue-600 hover:underline">
+                {teamInfo.name}
+              </Link>
+            </p>
+          ) : (
+            <p className="text-gray-400">Бригада не назначена</p>
+          )}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Link href={`/dashboard/users/${id}/edit`}>
+          <Button variant="outline">✏️ Редактировать</Button>
+        </Link>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="documents" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="documents">📄 Документы ({documents?.length || 0})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="documents" className="space-y-4">
+          <UserDocuments
+            userId={id}
+            userName={`${user.first_name} ${user.last_name}`}
+            initialDocuments={documents || []}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -13,12 +13,16 @@ export default function Sidebar({ user }: SidebarProps) {
   const menuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🚗', label: 'Автомобили', href: '/dashboard/vehicles' },
-    { icon: '👥', label: 'Бригады', href: '/dashboard/teams' },
+    { icon: '📄', label: 'Документы', href: '/dashboard/documents' },
+    { icon: '👷', label: 'Бригады', href: '/dashboard/teams' },
     { icon: '👤', label: 'Пользователи', href: '/dashboard/users' },
-    { icon: '💰', label: 'Штрафы', href: '/dashboard/penalties' },
+    { icon: '🚧', label: 'Штрафы', href: '/dashboard/penalties' },
     { icon: '🔧', label: 'Обслуживание', href: '/dashboard/maintenance' },
-    { icon: '📦', label: 'Материалы', href: '/dashboard/materials' },
+    { icon: '🚗💰', label: 'Расходы на авто', href: '/dashboard/car-expenses' },
     { icon: '💵', label: 'Расходы', href: '/dashboard/expenses' },
+    { icon: '📊', label: 'Аналитика', href: '/dashboard/analytics' },
+    { icon: '🏢', label: 'Управление аккаунтом', href: '/dashboard/account' },
+    { icon: '🐛', label: 'Баг репорт', href: '/dashboard/bug-report' },
   ];
 
   return (

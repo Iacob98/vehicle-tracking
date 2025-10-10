@@ -1,77 +1,322 @@
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default async function TeamsPage() {
   const supabase = await createServerClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
 
-  const { data: teams } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const orgId = user.user_metadata?.organization_id;
+
+  if (!orgId) {
+    return <div>Organization ID not found</div>;
+  }
+
+  // Fetch teams
+  const { data: teams, error } = await supabase
     .from('teams')
+    .select('*')
+    .eq('organization_id', orgId)
+    .order('name');
+
+  if (error) {
+    console.error('Error fetching teams:', error);
+  }
+
+  // Get counts and lead info for each team
+  const teamsWithCounts = await Promise.all((teams || []).map(async (team) => {
+    // Get lead info if lead_id exists
+    let lead = null;
+    if (team.lead_id) {
+      const { data: leadData } = await supabase
+        .from('users')
+        .select('first_name, last_name')
+        .eq('id', team.lead_id)
+        .single();
+      lead = leadData;
+    }
+
+    const { count: usersCount } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', team.id);
+
+    const { count: membersCount } = await supabase
+      .from('team_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', team.id);
+
+    const { count: vehiclesCount } = await supabase
+      .from('vehicle_assignments')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', team.id)
+      .or('end_date.is.null,end_date.gt.' + new Date().toISOString());
+
+    return {
+      ...team,
+      lead,
+      users_count: usersCount || 0,
+      members_count: membersCount || 0,
+      vehicles_count: vehiclesCount || 0,
+    };
+  }));
+
+  // Fetch all team members
+  const { data: teamMembers } = await supabase
+    .from('team_members')
     .select(`
       *,
-      lead:users!teams_lead_id_fkey(first_name, last_name),
-      team_members(id)
+      team:teams(id, name)
     `)
     .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
+    .order('first_name');
+
+  // Fetch team member documents
+  const { data: documents } = await supabase
+    .from('team_member_documents')
+    .select(`
+      *,
+      team_member:team_members(first_name, last_name)
+    `)
+    .order('upload_date', { ascending: false });
+
+  // Filter expired and expiring documents
+  const today = new Date();
+  const thirtyDaysFromNow = new Date(today);
+  thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+  const expiredDocs = documents?.filter(doc =>
+    doc.expiry_date && new Date(doc.expiry_date) < today
+  ) || [];
+
+  const expiringDocs = documents?.filter(doc =>
+    doc.expiry_date &&
+    new Date(doc.expiry_date) >= today &&
+    new Date(doc.expiry_date) <= thirtyDaysFromNow
+  ) || [];
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Бригады</h1>
-          <p className="text-gray-600">Управление бригадами и составом</p>
+          <h1 className="text-3xl font-bold">👷 Бригады и участники</h1>
+          <p className="text-gray-600">Управление бригадами, участниками и их документами</p>
         </div>
-        <Link
-          href="/dashboard/teams/new"
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          + Создать бригаду
+        <Link href="/dashboard/teams/new">
+          <Button>➕ Добавить бригаду</Button>
         </Link>
       </div>
 
-      {teams && teams.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {teams.map((team) => (
-            <Link
-              key={team.id}
-              href={`/dashboard/teams/${team.id}`}
-              className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{team.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Бригадир: {team.lead ? `${team.lead.first_name} ${team.lead.last_name}` : 'Не назначен'}
-                  </p>
+      <Tabs defaultValue="teams" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="teams">👥 Бригады ({teamsWithCounts?.length || 0})</TabsTrigger>
+          <TabsTrigger value="members">👷 Участники ({teamMembers?.length || 0})</TabsTrigger>
+          <TabsTrigger value="documents">📄 Документы ({documents?.length || 0})</TabsTrigger>
+          <TabsTrigger value="expiring">⚠️ Истекающие ({expiringDocs.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="teams" className="space-y-4">
+          {teamsWithCounts && teamsWithCounts.length > 0 ? (
+            <div className="space-y-4">
+              {teamsWithCounts.map((team) => (
+                <div key={team.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow bg-white">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold">{team.name}</h3>
+                      {team.lead ? (
+                        <p className="text-gray-600">
+                          👤 Лидер: {team.lead.first_name} {team.lead.last_name}
+                        </p>
+                      ) : (
+                        <p className="text-gray-500">👤 Лидер: не назначен</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-8 text-sm mr-8">
+                      <div className="text-center">
+                        <p className="text-gray-500">👥 Пользователей</p>
+                        <p className="text-2xl font-semibold">{team.users_count}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-500">👷 Участников</p>
+                        <p className="text-2xl font-semibold">{team.members_count}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-500">🚗 Автомобилей</p>
+                        <p className="text-2xl font-semibold">{team.vehicles_count}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Link href={`/dashboard/teams/${team.id}/edit`}>
+                        <Button variant="outline" size="sm">✏️</Button>
+                      </Link>
+                      <Link href={`/dashboard/teams/${team.id}`}>
+                        <Button variant="outline" size="sm">👁️</Button>
+                      </Link>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-3xl">👥</div>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>{team.team_members?.length || 0} работников</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <div className="text-6xl mb-4">👥</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Нет бригад
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Создайте первую бригаду для организации работы
-          </p>
-          <Link
-            href="/dashboard/teams/new"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            + Создать бригаду
-          </Link>
-        </div>
-      )}
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 border rounded-lg bg-white">
+              <div className="text-6xl mb-4">👷</div>
+              <p className="text-gray-500 mb-4">Нет созданных бригад</p>
+              <Link href="/dashboard/teams/new">
+                <Button>➕ Создать первую бригаду</Button>
+              </Link>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="members" className="space-y-4">
+          {teamMembers && teamMembers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamMembers.map((member) => (
+                <div key={member.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition">
+                  <h3 className="font-semibold text-lg">
+                    {member.first_name} {member.last_name}
+                  </h3>
+                  {member.phone && (
+                    <p className="text-sm text-gray-600">📞 {member.phone}</p>
+                  )}
+                  {member.category && (
+                    <p className="text-sm text-gray-500">Категория: {member.category}</p>
+                  )}
+                  {member.team ? (
+                    <p className="text-sm text-gray-500">Бригада: {member.team.name}</p>
+                  ) : (
+                    <p className="text-sm text-gray-400">Бригада не назначена</p>
+                  )}
+                  <div className="mt-4">
+                    <Link href={`/dashboard/team-members/${member.id}`}>
+                      <Button size="sm" className="w-full">Просмотр документов</Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 border rounded-lg bg-white">
+              <p className="text-gray-500">Нет участников</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Добавьте участников через страницу бригад
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="documents" className="space-y-4">
+          {documents && documents.length > 0 ? (
+            <div className="bg-white border rounded-lg divide-y">
+              {documents.map((doc) => (
+                <div key={doc.id} className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold">{doc.title}</h3>
+                      {doc.team_member && (
+                        <p className="text-sm text-gray-600">
+                          👤 {doc.team_member.first_name} {doc.team_member.last_name}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-500">
+                        📅 Загружен: {new Date(doc.upload_date).toLocaleDateString('ru-RU')}
+                      </p>
+                      {doc.expiry_date && (
+                        <p className="text-sm text-gray-500">
+                          ⏰ Истекает: {new Date(doc.expiry_date).toLocaleDateString('ru-RU')}
+                        </p>
+                      )}
+                    </div>
+                    <Link href={`/dashboard/team-members/${doc.team_member_id}`}>
+                      <Button variant="outline" size="sm">Просмотр</Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 border rounded-lg bg-white">
+              <p className="text-gray-500">Нет документов</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="expiring" className="space-y-4">
+          {expiringDocs.length > 0 || expiredDocs.length > 0 ? (
+            <div className="space-y-4">
+              {expiredDocs.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2 text-red-600">❌ Просроченные ({expiredDocs.length})</h3>
+                  <div className="bg-white border rounded-lg divide-y">
+                    {expiredDocs.map((doc) => (
+                      <div key={doc.id} className="p-4 bg-red-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold">❌ {doc.title}</h3>
+                            {doc.team_member && (
+                              <p className="text-sm text-gray-600">
+                                👤 {doc.team_member.first_name} {doc.team_member.last_name}
+                              </p>
+                            )}
+                            <p className="text-sm text-red-600 font-medium">
+                              Просрочен: {new Date(doc.expiry_date!).toLocaleDateString('ru-RU')}
+                            </p>
+                          </div>
+                          <Link href={`/dashboard/team-members/${doc.team_member_id}`}>
+                            <Button variant="destructive" size="sm">Обновить срочно</Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {expiringDocs.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2 text-orange-600">⚠️ Истекают скоро ({expiringDocs.length})</h3>
+                  <div className="bg-white border rounded-lg divide-y">
+                    {expiringDocs.map((doc) => (
+                      <div key={doc.id} className="p-4 bg-yellow-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold">⚠️ {doc.title}</h3>
+                            {doc.team_member && (
+                              <p className="text-sm text-gray-600">
+                                👤 {doc.team_member.first_name} {doc.team_member.last_name}
+                              </p>
+                            )}
+                            <p className="text-sm text-orange-600 font-medium">
+                              Истекает: {new Date(doc.expiry_date!).toLocaleDateString('ru-RU')}
+                              {' '}({Math.ceil((new Date(doc.expiry_date!).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} дней)
+                            </p>
+                          </div>
+                          <Link href={`/dashboard/team-members/${doc.team_member_id}`}>
+                            <Button variant="outline" size="sm">Обновить</Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 border rounded-lg bg-white">
+              <p className="text-green-600">✅ Нет истекающих или просроченных документов</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
