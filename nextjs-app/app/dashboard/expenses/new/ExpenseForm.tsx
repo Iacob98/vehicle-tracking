@@ -7,9 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
 import { expenseSchema, EXPENSE_TYPE_OPTIONS, type ExpenseFormData } from '@/lib/schemas';
 
 interface ExpenseFormProps {
@@ -26,8 +26,14 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading, error, post } = usePostJSON('/api/expenses', {
+    onSuccess: () => {
+      router.push('/dashboard/expenses');
+      router.refresh();
+    },
+  });
 
   // Setup react-hook-form with Zod validation
   const {
@@ -46,44 +52,19 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
   const expenseType = watch('type');
 
   const onSubmit = async (data: ExpenseFormData) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
-
-      const { error: insertError } = await supabase.from('expenses').insert({
-        organization_id: orgId,
-        type: data.type,
-        vehicle_id: data.type === 'vehicle' ? data.vehicle_id : null,
-        team_id: data.type === 'team' ? data.team_id : null,
-        amount: data.amount,
-        date: data.date,
-        description: data.description || null,
-      });
-
-      if (insertError) throw insertError;
-
-      router.push('/dashboard/expenses');
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating expense:', err);
-      setError(err.message || 'Ошибка создания расхода');
-    } finally {
-      setLoading(false);
-    }
+    await post({
+      type: data.type,
+      vehicle_id: data.vehicle_id || null,
+      team_id: data.team_id || null,
+      amount: data.amount,
+      date: data.date,
+      description: data.description || null,
+    });
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert error={error} />}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">

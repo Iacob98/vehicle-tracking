@@ -14,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { uploadMultipleFiles } from '@/lib/storage';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
-import { supabase } from '@/lib/supabase/client';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostFormData, useApi } from '@/lib/api-client';
+import { putJSON } from '@/lib/api-client';
 import { vehicleSchema, VEHICLE_STATUS_OPTIONS, type VehicleFormData } from '@/lib/schemas';
 import Image from 'next/image';
 
@@ -40,10 +40,26 @@ interface VehicleFormProps {
 
 export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
+
+  // Используем централизованную обработку ошибок через API hooks
+  const createVehicleApi = usePostFormData('/api/vehicles', {
+    onSuccess: () => {
+      router.push('/dashboard/vehicles');
+      router.refresh();
+    },
+  });
+
+  const updateVehicleApi = useApi({
+    onSuccess: () => {
+      router.push('/dashboard/vehicles');
+      router.refresh();
+    },
+  });
+
+  const loading = isEdit ? updateVehicleApi.loading : createVehicleApi.loading;
+  const error = isEdit ? updateVehicleApi.error : createVehicleApi.error;
 
   // Setup react-hook-form with Zod validation
   const {
@@ -82,126 +98,56 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
   };
 
   const onSubmit = async (data: VehicleFormData) => {
-    setLoading(true);
-    setError('');
+    // Подготовка FormData для отправки на сервер
+    const formData = new FormData();
 
-    console.log('🚗 Form submitted - starting vehicle creation...');
+    // Добавляем текстовые поля
+    formData.append('name', data.name);
+    formData.append('license_plate', data.license_plate || '');
+    formData.append('vin', data.vin || '');
+    formData.append('model', data.model || '');
+    formData.append('year', data.year?.toString() || '');
+    formData.append('status', data.status);
+    formData.append('is_rental', data.is_rental ? 'true' : 'false');
+    formData.append('rental_monthly_price', data.rental_monthly_price?.toString() || '');
+    formData.append('rental_start_date', data.rental_start_date || '');
+    formData.append('rental_end_date', data.rental_end_date || '');
 
-    try {
-      // Get organization ID (with fallback to users table)
-      console.log('🔍 Fetching organization ID...');
-      const orgId = await getOrganizationIdClient();
-      console.log('🏢 Organization ID received:', orgId);
+    // Добавляем фотографии
+    photoFiles.forEach((file) => {
+      formData.append('photos', file);
+    });
 
-      if (!orgId) {
-        console.error('❌ No organization ID - throwing error');
-        throw new Error(
-          'Ваша сессия истекла или вы не залогинены. Пожалуйста, войдите в систему снова.'
-        );
-      }
-
-      console.log('✅ Creating vehicle with org_id:', orgId);
-
-      // Upload photos if any
-      let photoUrls: string[] = [];
-      if (photoFiles.length > 0) {
-        photoUrls = await uploadMultipleFiles(photoFiles, 'vehicles', orgId);
-      }
-
-      // Keep existing photos if editing and no new photos
-      let finalPhotoUrl: string | null = null;
-      if (isEdit && vehicle?.photo_url && photoUrls.length === 0) {
-        finalPhotoUrl = vehicle.photo_url;
-      } else if (photoUrls.length > 0) {
-        // Combine existing and new photos if editing
-        if (isEdit && vehicle?.photo_url) {
-          const existingUrls = vehicle.photo_url.split(';');
-          finalPhotoUrl = [...existingUrls, ...photoUrls].join(';');
-        } else {
-          finalPhotoUrl = photoUrls.join(';');
-        }
-      }
-
-      const vehicleData = {
-        organization_id: orgId,
-        name: data.name,
-        license_plate: data.license_plate || null,
-        vin: data.vin || null,
-        model: data.model || null,
-        year: data.year || null,
-        status: data.status,
-        photo_url: finalPhotoUrl,
-        is_rental: data.is_rental,
-        rental_monthly_price: data.rental_monthly_price || null,
-        rental_start_date: data.rental_start_date || null,
-        rental_end_date: data.rental_end_date || null,
-      };
-
-      if (isEdit && vehicle) {
-        // Update existing vehicle
-        console.log('📝 Updating existing vehicle:', vehicle.id);
-        const { error: updateError } = await supabase
-          .from('vehicles')
-          .update(vehicleData)
-          .eq('id', vehicle.id)
-          .eq('organization_id', orgId);
-
-        if (updateError) {
-          console.error('❌ Update error:', updateError);
-          throw updateError;
-        }
-        console.log('✅ Vehicle updated successfully');
-      } else {
-        // Create new vehicle
-        console.log('➕ Creating new vehicle with data:', vehicleData);
-        const { data: insertedData, error: insertError } = await supabase
-          .from('vehicles')
-          .insert(vehicleData)
-          .select();
-
-        if (insertError) {
-          console.error('❌ Insert error:', insertError);
-          throw insertError;
-        }
-        console.log('✅ Vehicle created successfully:', insertedData);
-      }
-
-      console.log('✅ SUCCESS! Vehicle saved. Redirecting to vehicles list...');
-      router.push('/dashboard/vehicles');
-      router.refresh();
-    } catch (err: any) {
-      console.error('❌ Error saving vehicle:', err);
-
-      // Handle specific error cases
-      let errorMessage = 'Ошибка сохранения автомобиля';
-
-      if (err.code === '23505') {
-        // Unique constraint violation
-        if (err.message.includes('license_plate')) {
-          errorMessage = 'Автомобиль с таким госномером уже существует в вашей организации';
-        } else if (err.message.includes('vin')) {
-          errorMessage = 'Автомобиль с таким VIN уже существует';
-        } else {
-          errorMessage = 'Автомобиль с такими данными уже существует';
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      console.log('✅ Form submission completed');
+    if (isEdit && vehicle) {
+      // Обновление существующего vehicle через PUT API
+      await updateVehicleApi.execute(() =>
+        fetch(`/api/vehicles/${vehicle.id}`, {
+          method: 'PUT',
+          body: formData,
+        }).then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            return {
+              error: {
+                type: data.type,
+                message: data.error || 'Ошибка обновления автомобиля',
+                details: data.details,
+                field: data.field,
+              },
+            };
+          }
+          return { data };
+        })
+      );
+    } else {
+      // Создание нового vehicle через POST API
+      await createVehicleApi.post(formData);
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-6 space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert error={error} />}
 
       {/* Basic Information */}
       <div className="space-y-4">

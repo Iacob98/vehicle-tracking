@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+// import { zodResolver } from '@hookform/resolvers/zod'; // TODO: Phase 2
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
-import { maintenanceSchema, MAINTENANCE_TYPE_OPTIONS, type MaintenanceFormData } from '@/lib/schemas';
+import { MAINTENANCE_TYPE_OPTIONS } from '@/lib/schemas';
 
 interface MaintenanceFormProps {
   vehicles: Array<{
@@ -30,15 +30,16 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<MaintenanceFormData>({
-    resolver: zodResolver(maintenanceSchema),
+  } = useForm({
+    // TODO: Integrate with maintenanceSchema - Phase 2
+    // resolver: zodResolver(maintenanceSchema),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
+      scheduled_date: new Date().toISOString().split('T')[0],
       type: 'inspection',
     },
   });
 
-  const onSubmit = async (data: MaintenanceFormData) => {
+  const onSubmit = async (data: any) => {
     setLoading(true);
     setError('');
 
@@ -52,12 +53,11 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
         organization_id: orgId,
         vehicle_id: data.vehicle_id,
         type: data.type,
-        date: data.date,
+        scheduled_date: data.scheduled_date,
+        completed_date: data.completed_date || null,
         description: data.description || null,
         notes: data.notes || null,
-        mileage: data.mileage || null,
-        next_maintenance_date: data.next_maintenance_date || null,
-        next_maintenance_mileage: data.next_maintenance_mileage || null,
+        cost: data.cost || null,
       });
 
       if (insertError) throw insertError;
@@ -131,13 +131,13 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
             📅 Дата / Datum *
           </Label>
           <Input
-            id="date"
+            id="scheduled_date"
             type="date"
-            {...register('date')}
-            className={errors.date ? 'border-red-500' : ''}
+            {...register('scheduled_date')}
+            className={errors.scheduled_date ? 'border-red-500' : ''}
           />
-          {errors.date && (
-            <p className="text-sm text-red-600 mt-1">{errors.date.message}</p>
+          {errors.scheduled_date && (
+            <p className="text-sm text-red-600 mt-1">{errors.scheduled_date.message}</p>
           )}
         </div>
 

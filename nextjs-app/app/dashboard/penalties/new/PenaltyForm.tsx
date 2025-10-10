@@ -7,10 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostFormData } from '@/lib/api-client';
 import Link from 'next/link';
-import { uploadFile } from '@/lib/storage';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
-import { supabase } from '@/lib/supabase/client';
 import { penaltySchema, type PenaltyFormData } from '@/lib/schemas';
 
 interface PenaltyFormProps {
@@ -28,9 +27,15 @@ interface PenaltyFormProps {
 
 export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading, error, post } = usePostFormData('/api/penalties', {
+    onSuccess: () => {
+      router.push('/dashboard/penalties');
+      router.refresh();
+    },
+  });
 
   // Setup react-hook-form with Zod validation
   const {
@@ -46,58 +51,28 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   });
 
   const onSubmit = async (data: PenaltyFormData) => {
-    setLoading(true);
-    setError('');
+    // Подготовка FormData для отправки на сервер
+    const formData = new FormData();
 
-    try {
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
+    formData.append('vehicle_id', data.vehicle_id);
+    formData.append('user_id', data.user_id || '');
+    formData.append('amount', data.amount.toString());
+    formData.append('date', data.date);
+    formData.append('description', data.description || '');
+    formData.append('status', data.status);
 
-      // Upload file if selected
-      let photoUrl = null;
-      if (selectedFile) {
-        console.log('📤 Uploading penalty photo...');
-        photoUrl = await uploadFile(selectedFile, 'penalties', orgId);
-        if (!photoUrl) {
-          throw new Error('Ошибка загрузки файла');
-        }
-        console.log('✅ Photo uploaded:', photoUrl);
-      }
-
-      // Create penalty
-      const { error: insertError } = await supabase.from('penalties').insert({
-        organization_id: orgId,
-        vehicle_id: data.vehicle_id,
-        user_id: data.user_id || null,
-        amount: data.amount,
-        date: data.date,
-        description: data.description || null,
-        photo_url: photoUrl,
-        status: data.status,
-      });
-
-      if (insertError) throw insertError;
-
-      console.log('✅ Penalty created successfully');
-      router.push('/dashboard/penalties');
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating penalty:', err);
-      setError(err.message || 'Ошибка создания штрафа');
-    } finally {
-      setLoading(false);
+    // Добавляем фото если выбрано
+    if (selectedFile) {
+      formData.append('photo', selectedFile);
     }
+
+    // Отправляем через API
+    await post(formData);
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert error={error} />}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
