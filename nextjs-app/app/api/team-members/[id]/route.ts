@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication } from '@/lib/api-response';
+import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,13 +16,29 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
+    // Проверка organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
+
+    // Verify team member belongs to user's organization
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('organization_id')
+      .eq('id', id)
+      .single();
+
+    if (!teamMember || teamMember.organization_id !== orgId) {
+      return apiForbidden('У вас нет доступа к этому члену бригады');
+    }
+
     const { error } = await supabase
       .from('team_members')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organization_id', orgId);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting team member', id });
+      return apiErrorFromUnknown(error, { context: 'deleting team member', id, orgId });
     }
 
     return apiSuccess({ success: true });

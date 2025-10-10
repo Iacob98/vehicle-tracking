@@ -276,3 +276,25 @@ export function usePostFormData<T>(url: string, options?: UseApiOptions) {
     post,
   };
 }
+
+/**
+ * Хук для DELETE запросов с динамическим ID
+ * Использование: const { del } = useDeleteJSON('/api/users')
+ * Вызов: await del(userId)
+ */
+export function useDeleteJSON(baseUrl: string, options?: UseApiOptions) {
+  const api = useApi<{ success: boolean }>(options);
+
+  const del = useCallback(
+    async (id: string) => {
+      const url = `${baseUrl}/${id}`;
+      return await api.execute(() => deleteRequest(url));
+    },
+    [baseUrl, api]
+  );
+
+  return {
+    ...api,
+    del,
+  };
+}

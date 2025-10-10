@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { ROLES, type UserRole } from '@/lib/types/roles';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -132,6 +133,14 @@ export default async function UsersPage({
                       <Link href={`/dashboard/users/${u.id}/edit`}>
                         <Button variant="outline" size="sm">✏️</Button>
                       </Link>
+                      {u.id !== currentUserId && (
+                        <DeleteItemButton
+                          id={u.id}
+                          baseUrl="/api/users"
+                          itemName={`пользователя "${u.first_name} ${u.last_name}"`}
+                          size="sm"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

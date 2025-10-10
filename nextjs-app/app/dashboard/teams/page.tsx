@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -178,6 +179,12 @@ export default async function TeamsPage({
                         <Link href={`/dashboard/teams/${team.id}`}>
                           <Button variant="outline" size="sm">👁️</Button>
                         </Link>
+                        <DeleteItemButton
+                          id={team.id}
+                          baseUrl="/api/teams"
+                          itemName={`бригаду "${team.name}"`}
+                          size="sm"
+                        />
                       </div>
                     </div>
                   </div>
