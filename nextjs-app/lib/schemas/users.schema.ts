@@ -56,8 +56,10 @@ export const userSchema = z.object({
 // Type inference
 export type UserFormData = z.infer<typeof userSchema>;
 
-// Schema for user creation (includes password)
+// Schema for user creation (includes password and role)
 export const createUserSchema = userSchema.extend({
+  role: userRoleSchema,
+
   password: z
     .string().min(1)
     .min(8, 'Пароль должен содержать минимум 8 символов')
@@ -71,6 +73,8 @@ export const createUserSchema = userSchema.extend({
   message: 'Пароли не совпадают',
   path: ['confirmPassword'],
 });
+
+export type CreateUserFormData = z.infer<typeof createUserSchema>;
 
 // Schema for user update (password optional)
 export const updateUserSchema = userSchema.partial().required({ email: true, first_name: true, last_name: true });

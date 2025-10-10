@@ -1,15 +1,23 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { createUserSchema, type CreateUserFormData } from '@/lib/schemas';
+import { createUserSchema, type CreateUserFormData } from '@/lib/schemas/users.schema';
+import { ROLE_OPTIONS } from '@/lib/types/roles';
 
 interface UserFormProps {
   teams: Array<{
@@ -33,13 +41,15 @@ export function UserForm({ teams }: UserFormProps) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
+      role: 'viewer' as const,
       position: '',
       phone: '',
-    },
+    } as Partial<CreateUserFormData>,
   });
 
   const onSubmit = async (data: CreateUserFormData) => {
@@ -48,6 +58,7 @@ export function UserForm({ teams }: UserFormProps) {
       password: data.password,
       first_name: data.first_name,
       last_name: data.last_name,
+      role: data.role,
       phone: data.phone || null,
       position: data.position || null,
     });
@@ -111,6 +122,38 @@ export function UserForm({ teams }: UserFormProps) {
             {errors.confirmPassword && (
               <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
             )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="role">
+              Роль в системе *
+            </Label>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger className={errors.role ? 'border-red-500' : ''}>
+                    <SelectValue placeholder="Выберите роль" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.role && (
+              <p className="text-sm text-red-600 mt-1">{errors.role.message}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              {ROLE_OPTIONS.find((r) => r.value === 'admin')?.description}
+            </p>
           </div>
 
           <div>

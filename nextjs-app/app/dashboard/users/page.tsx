@@ -3,24 +3,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { ROLES, type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 15;
-
-const ROLE_ICONS = {
-  owner: '👑',
-  admin: '🔧',
-  manager: '💼',
-  team_lead: '👨‍💼',
-  worker: '👷',
-};
-
-const ROLE_NAMES = {
-  owner: 'Владелец',
-  admin: 'Администратор',
-  manager: 'Менеджер',
-  team_lead: 'Бригадир',
-  worker: 'Работник',
-};
 
 export default async function UsersPage({
   searchParams,
@@ -120,7 +105,7 @@ export default async function UsersPage({
                         {u.first_name} {u.last_name}
                       </h3>
                       <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
-                        {ROLE_ICONS[u.role as keyof typeof ROLE_ICONS]} {ROLE_NAMES[u.role as keyof typeof ROLE_NAMES]}
+                        {ROLES[u.role as UserRole]?.label || u.role}
                       </span>
                     </div>
                     <div className="mt-2 space-y-1">

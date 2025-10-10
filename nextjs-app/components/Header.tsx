@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { getRoleInfo, type UserRole } from '@/lib/types/roles';
 
 interface HeaderProps {
   user: any;
@@ -17,6 +18,8 @@ export default function Header({ user }: HeaderProps) {
     }
   };
 
+  const roleInfo = getRoleInfo(user?.role as UserRole);
+
   return (
     <header className="bg-white shadow-sm border-b">
       <div className="px-6 py-4 flex justify-between items-center">
@@ -25,9 +28,7 @@ export default function Header({ user }: HeaderProps) {
             Добро пожаловать, {user?.first_name}!
           </h2>
           <p className="text-sm text-gray-600">
-            {user?.role === 'admin' ? 'Администратор' : 
-             user?.role === 'manager' ? 'Менеджер' : 
-             user?.role === 'team_lead' ? 'Бригадир' : 'Работник'}
+            {roleInfo.label}
           </p>
         </div>
         <button

@@ -46,10 +46,12 @@ export {
 // Users
 export {
   userSchema,
+  userRoleSchema,
   createUserSchema,
   updateUserSchema,
   changePasswordSchema,
   type UserFormData,
+  type CreateUserFormData,
 } from './users.schema';
 
 // Car Expenses
