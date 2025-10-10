@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 import { uploadFileServer } from '@/lib/storage-server';
+import { apiSuccess, apiBadRequest, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { createFileUploadError } from '@/lib/errors';
 
 export async function POST(request: Request) {
   try {
@@ -8,15 +9,13 @@ export async function POST(request: Request) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
-    const orgId = user.user_metadata?.organization_id;
-
-    if (!orgId) {
-      return NextResponse.json({ error: 'Organization ID not found' }, { status: 400 });
-    }
+    // Проверка organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
 
     const formData = await request.formData();
 
@@ -24,8 +23,9 @@ export async function POST(request: Request) {
     const paymentNotes = formData.get('payment_notes') as string;
     const file = formData.get('file') as File | null;
 
+    // Валидация файла
     if (!file) {
-      return NextResponse.json({ error: 'Receipt file is required' }, { status: 400 });
+      return apiBadRequest('Receipt file is required');
     }
 
     console.log('📝 Payment API - Receipt file:', file.name);
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     console.log('✅ Receipt uploaded:', receiptUrl);
 
     if (!receiptUrl) {
-      return NextResponse.json({ error: 'Failed to upload receipt' }, { status: 500 });
+      const uploadError = createFileUploadError('Failed to upload receipt');
+      return apiErrorFromUnknown(uploadError, { context: 'uploading penalty receipt', penaltyId, orgId });
     }
 
     // Get current penalty data
@@ -72,13 +73,11 @@ export async function POST(request: Request) {
       .eq('organization_id', orgId);
 
     if (updateError) {
-      console.error('Update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return apiErrorFromUnknown(updateError, { context: 'updating penalty payment status', penaltyId, orgId });
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error: any) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiErrorFromUnknown(error, { context: 'POST /api/penalties/pay' });
   }
 }

@@ -1,8 +1,10 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { apiSuccess, apiBadRequest, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { createFileUploadError } from '@/lib/errors';
 
 // Create Supabase client with Service Role key for bypassing RLS
 const supabaseAdmin = createClient(
@@ -24,22 +26,22 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
-    const organizationId = user.user_metadata?.organization_id;
-    if (!organizationId) {
-      return NextResponse.json({ error: 'Organization ID not found' }, { status: 400 });
-    }
+    // Проверка organization_id
+    const { orgId: organizationId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
 
     // Parse form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string;
 
+    // Валидация файла и bucket
     if (!file || !bucket) {
-      return NextResponse.json({ error: 'Missing file or bucket' }, { status: 400 });
+      return apiBadRequest('Missing file or bucket');
     }
 
     // Generate file path
@@ -55,8 +57,8 @@ export async function POST(request: NextRequest) {
       });
 
     if (error) {
-      console.error('Upload error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const uploadError = createFileUploadError('Ошибка загрузки файла', error.message);
+      return apiErrorFromUnknown(uploadError, { context: 'uploading file', bucket, organizationId });
     }
 
     // Get public URL
@@ -64,9 +66,8 @@ export async function POST(request: NextRequest) {
       data: { publicUrl },
     } = supabaseAdmin.storage.from(bucket).getPublicUrl(data.path);
 
-    return NextResponse.json({ url: publicUrl });
+    return apiSuccess({ url: publicUrl });
   } catch (error: any) {
-    console.error('Exception in upload:', error);
-    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 });
+    return apiErrorFromUnknown(error, { context: 'POST /api/upload' });
   }
 }

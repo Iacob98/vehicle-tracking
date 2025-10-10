@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 import { uploadMultipleFilesServer } from '@/lib/storage-server';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
 
 export async function POST(request: Request) {
   try {
@@ -9,15 +9,13 @@ export async function POST(request: Request) {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
-    const orgId = user.user_metadata?.organization_id;
-
-    if (!orgId) {
-      return NextResponse.json({ error: 'Organization ID not found' }, { status: 400 });
-    }
+    // Проверка organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
 
     const formData = await request.formData();
 
@@ -58,13 +56,11 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.error('Insert error:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return apiErrorFromUnknown(insertError, { context: 'inserting vehicle document', vehicleId, orgId });
     }
 
-    return NextResponse.json({ document: newDoc });
+    return apiSuccess({ document: newDoc });
   } catch (error: any) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiErrorFromUnknown(error, { context: 'POST /api/vehicle-documents' });
   }
 }

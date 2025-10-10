@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,15 +12,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
-    const orgId = user.user_metadata?.organization_id;
-
-    if (!orgId) {
-      return NextResponse.json({ error: 'Organization ID not found' }, { status: 400 });
-    }
+    // Проверка organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
 
     // Soft delete - set is_active to false
     const { error: deleteError } = await supabase
@@ -30,13 +28,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .eq('organization_id', orgId);
 
     if (deleteError) {
-      console.error('Delete error:', deleteError);
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+      return apiErrorFromUnknown(deleteError, { context: 'soft deleting user document', id, orgId });
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error: any) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiErrorFromUnknown(error, { context: 'DELETE /api/user-documents/[id]' });
   }
 }

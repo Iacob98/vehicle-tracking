@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,9 +12,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
     const { error } = await supabase
       .from('team_members')
@@ -22,13 +22,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting team member:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return apiErrorFromUnknown(error, { context: 'deleting team member', id });
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error: any) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiErrorFromUnknown(error, { context: 'DELETE /api/team-members/[id]' });
   }
 }
