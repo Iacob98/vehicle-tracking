@@ -2,11 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
+import { expenseSchema, EXPENSE_TYPE_OPTIONS, type ExpenseFormData } from '@/lib/schemas';
 
 interface ExpenseFormProps {
   vehicles: Array<{
@@ -24,40 +28,28 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [expenseType, setExpenseType] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Setup react-hook-form with Zod validation
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<ExpenseFormData>({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: {
+      date: new Date().toISOString().split('T')[0],
+    },
+  });
+
+  // Watch expense type to show conditional fields
+  const expenseType = watch('type');
+
+  const onSubmit = async (data: ExpenseFormData) => {
     setLoading(true);
     setError('');
 
     try {
-      const formData = new FormData(e.currentTarget);
-      const type = formData.get('type') as string;
-      const vehicleId = formData.get('vehicle_id') as string;
-      const teamId = formData.get('team_id') as string;
-      const amount = formData.get('amount') as string;
-      const expenseDate = formData.get('date') as string;
-      const description = formData.get('description') as string;
-
-      if (!type || !amount || !expenseDate) {
-        setError('Заполните все обязательные поля');
-        setLoading(false);
-        return;
-      }
-
-      if (type === 'vehicle' && !vehicleId) {
-        setError('Выберите автомобиль');
-        setLoading(false);
-        return;
-      }
-
-      if (type === 'team' && !teamId) {
-        setError('Выберите бригаду');
-        setLoading(false);
-        return;
-      }
-
       const orgId = await getOrganizationIdClient();
       if (!orgId) {
         throw new Error('Organization ID not found');
@@ -65,12 +57,12 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
 
       const { error: insertError } = await supabase.from('expenses').insert({
         organization_id: orgId,
-        type,
-        vehicle_id: type === 'vehicle' ? vehicleId : null,
-        team_id: type === 'team' ? teamId : null,
-        amount: parseFloat(amount),
-        date: expenseDate,
-        description: description || null,
+        type: data.type,
+        vehicle_id: data.type === 'vehicle' ? data.vehicle_id : null,
+        team_id: data.type === 'team' ? data.team_id : null,
+        amount: data.amount,
+        date: data.date,
+        description: data.description || null,
       });
 
       if (insertError) throw insertError;
@@ -86,7 +78,7 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg border p-6 space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
           {error}
@@ -95,31 +87,39 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="type">
             📁 Тип расхода / Ausgabentyp *
-          </label>
+          </Label>
           <select
-            name="type"
-            required
-            value={expenseType}
-            onChange={(e) => setExpenseType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            id="type"
+            {...register('type')}
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              errors.type ? 'border-red-500' : 'border-gray-300'
+            }`}
           >
             <option value="">Выберите тип</option>
-            <option value="vehicle">🚗 На автомобиль / Fahrzeug</option>
-            <option value="team">👥 На бригаду / Team</option>
+            {EXPENSE_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
+          {errors.type && (
+            <p className="text-sm text-red-600 mt-1">{errors.type.message}</p>
+          )}
         </div>
 
         {expenseType === 'vehicle' && (
           <div className="col-span-2">
-            <label className="block text-sm font-medium mb-2">
+            <Label htmlFor="vehicle_id">
               🚗 Автомобиль / Fahrzeug *
-            </label>
+            </Label>
             <select
-              name="vehicle_id"
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              id="vehicle_id"
+              {...register('vehicle_id')}
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                errors.vehicle_id ? 'border-red-500' : 'border-gray-300'
+              }`}
             >
               <option value="">Выберите автомобиль</option>
               {vehicles.map((vehicle) => (
@@ -128,18 +128,23 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
                 </option>
               ))}
             </select>
+            {errors.vehicle_id && (
+              <p className="text-sm text-red-600 mt-1">{errors.vehicle_id.message}</p>
+            )}
           </div>
         )}
 
         {expenseType === 'team' && (
           <div className="col-span-2">
-            <label className="block text-sm font-medium mb-2">
+            <Label htmlFor="team_id">
               👥 Бригада / Team *
-            </label>
+            </Label>
             <select
-              name="team_id"
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              id="team_id"
+              {...register('team_id')}
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                errors.team_id ? 'border-red-500' : 'border-gray-300'
+              }`}
             >
               <option value="">Выберите бригаду</option>
               {teams.map((team) => (
@@ -148,45 +153,60 @@ export function ExpenseForm({ vehicles, teams }: ExpenseFormProps) {
                 </option>
               ))}
             </select>
+            {errors.team_id && (
+              <p className="text-sm text-red-600 mt-1">{errors.team_id.message}</p>
+            )}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="date">
             📅 Дата / Datum *
-          </label>
+          </Label>
           <Input
+            id="date"
             type="date"
-            name="date"
-            required
-            defaultValue={new Date().toISOString().split('T')[0]}
+            {...register('date')}
+            className={errors.date ? 'border-red-500' : ''}
           />
+          {errors.date && (
+            <p className="text-sm text-red-600 mt-1">{errors.date.message}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="amount">
             💰 Сумма / Betrag (€) *
-          </label>
+          </Label>
           <Input
+            id="amount"
             type="number"
-            name="amount"
-            required
             step="0.01"
-            min="0"
+            {...register('amount', { valueAsNumber: true })}
             placeholder="0.00"
+            className={errors.amount ? 'border-red-500' : ''}
           />
+          {errors.amount && (
+            <p className="text-sm text-red-600 mt-1">{errors.amount.message}</p>
+          )}
         </div>
 
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="description">
             📝 Описание / Beschreibung
-          </label>
+          </Label>
           <textarea
-            name="description"
+            id="description"
+            {...register('description')}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              errors.description ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Дополнительная информация о расходе..."
           />
+          {errors.description && (
+            <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
+          )}
         </div>
       </div>
 

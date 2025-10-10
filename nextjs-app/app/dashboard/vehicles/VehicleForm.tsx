@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +17,7 @@ import {
 import { uploadMultipleFiles } from '@/lib/storage';
 import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
 import { supabase } from '@/lib/supabase/client';
+import { vehicleSchema, VEHICLE_STATUS_OPTIONS, type VehicleFormData } from '@/lib/schemas';
 import Image from 'next/image';
 
 interface VehicleFormProps {
@@ -41,7 +44,33 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
   const [error, setError] = useState('');
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
-  const [isRental, setIsRental] = useState(vehicle?.is_rental || false);
+
+  // Setup react-hook-form with Zod validation
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<VehicleFormData>({
+    resolver: zodResolver(vehicleSchema),
+    defaultValues: {
+      name: vehicle?.name || '',
+      license_plate: vehicle?.license_plate || '',
+      vin: vehicle?.vin || '',
+      model: vehicle?.model || '',
+      year: vehicle?.year || undefined,
+      status: (vehicle?.status as any) || 'active',
+      is_rental: vehicle?.is_rental || false,
+      rental_start_date: vehicle?.rental_start_date || undefined,
+      rental_end_date: vehicle?.rental_end_date || undefined,
+      rental_monthly_price: vehicle?.rental_monthly_price || undefined,
+    },
+  });
+
+  // Watch is_rental to show/hide rental fields
+  const isRental = watch('is_rental');
+  const selectedStatus = watch('status');
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -52,17 +81,13 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
     setPhotoPreview(previews);
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = async (data: VehicleFormData) => {
     setLoading(true);
     setError('');
 
     console.log('🚗 Form submitted - starting vehicle creation...');
 
     try {
-      const formData = new FormData(e.currentTarget);
-      console.log('📋 FormData created');
-
       // Get organization ID (with fallback to users table)
       console.log('🔍 Fetching organization ID...');
       const orgId = await getOrganizationIdClient();
@@ -99,19 +124,17 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
 
       const vehicleData = {
         organization_id: orgId,
-        name: formData.get('name') as string,
-        license_plate: (formData.get('license_plate') as string) || null,
-        vin: (formData.get('vin') as string) || null,
-        model: (formData.get('model') as string) || null,
-        year: formData.get('year') ? parseInt(formData.get('year') as string) : null,
-        status: (formData.get('status') as string) || 'active',
+        name: data.name,
+        license_plate: data.license_plate || null,
+        vin: data.vin || null,
+        model: data.model || null,
+        year: data.year || null,
+        status: data.status,
         photo_url: finalPhotoUrl,
-        is_rental: formData.get('is_rental') === 'on',
-        rental_monthly_price: formData.get('rental_monthly_price')
-          ? parseFloat(formData.get('rental_monthly_price') as string)
-          : null,
-        rental_start_date: (formData.get('rental_start_date') as string) || null,
-        rental_end_date: (formData.get('rental_end_date') as string) || null,
+        is_rental: data.is_rental,
+        rental_monthly_price: data.rental_monthly_price || null,
+        rental_start_date: data.rental_start_date || null,
+        rental_end_date: data.rental_end_date || null,
       };
 
       if (isEdit && vehicle) {
@@ -157,7 +180,7 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
         if (err.message.includes('license_plate')) {
           errorMessage = 'Автомобиль с таким госномером уже существует в вашей организации';
         } else if (err.message.includes('vin')) {
-          errorMessage = 'Автомобиль с таким VIN уже существует в вашей организации';
+          errorMessage = 'Автомобиль с таким VIN уже существует';
         } else {
           errorMessage = 'Автомобиль с такими данными уже существует';
         }
@@ -173,7 +196,7 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-6 space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
           {error}
@@ -189,68 +212,88 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
             <Label htmlFor="name">Название *</Label>
             <Input
               id="name"
-              name="name"
-              required
-              defaultValue={vehicle?.name}
+              {...register('name')}
               placeholder="Автомобиль-1"
+              className={errors.name ? 'border-red-500' : ''}
             />
+            {errors.name && (
+              <p className="text-sm text-red-600 mt-1">{errors.name.message}</p>
+            )}
           </div>
 
           <div>
-            <Label htmlFor="license_plate">Гос. номер</Label>
+            <Label htmlFor="license_plate">Гос. номер *</Label>
             <Input
               id="license_plate"
-              name="license_plate"
-              defaultValue={vehicle?.license_plate || ''}
+              {...register('license_plate')}
               placeholder="B-AB 1234"
+              className={errors.license_plate ? 'border-red-500' : ''}
             />
+            {errors.license_plate && (
+              <p className="text-sm text-red-600 mt-1">{errors.license_plate.message}</p>
+            )}
           </div>
 
           <div>
             <Label htmlFor="vin">VIN</Label>
             <Input
               id="vin"
-              name="vin"
-              defaultValue={vehicle?.vin || ''}
+              {...register('vin')}
               placeholder="WDB9066351L123456"
+              className={errors.vin ? 'border-red-500' : ''}
             />
+            {errors.vin && (
+              <p className="text-sm text-red-600 mt-1">{errors.vin.message}</p>
+            )}
           </div>
 
           <div>
             <Label htmlFor="model">Модель</Label>
             <Input
               id="model"
-              name="model"
-              defaultValue={vehicle?.model || ''}
+              {...register('model')}
               placeholder="Mercedes Sprinter"
+              className={errors.model ? 'border-red-500' : ''}
             />
+            {errors.model && (
+              <p className="text-sm text-red-600 mt-1">{errors.model.message}</p>
+            )}
           </div>
 
           <div>
             <Label htmlFor="year">Год</Label>
             <Input
               id="year"
-              name="year"
               type="number"
-              min="1990"
-              max="2030"
-              defaultValue={vehicle?.year || 2020}
+              {...register('year', { valueAsNumber: true })}
+              placeholder="2020"
+              className={errors.year ? 'border-red-500' : ''}
             />
+            {errors.year && (
+              <p className="text-sm text-red-600 mt-1">{errors.year.message}</p>
+            )}
           </div>
 
           <div>
             <Label htmlFor="status">Статус</Label>
-            <Select name="status" defaultValue={vehicle?.status || 'active'}>
-              <SelectTrigger>
+            <Select
+              value={selectedStatus}
+              onValueChange={(value) => setValue('status', value as any)}
+            >
+              <SelectTrigger className={errors.status ? 'border-red-500' : ''}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">🟢 Активен</SelectItem>
-                <SelectItem value="repair">🔧 Ремонт</SelectItem>
-                <SelectItem value="unavailable">🔴 Недоступен</SelectItem>
-                <SelectItem value="rented">🏢 Аренда</SelectItem>
+                {VEHICLE_STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {errors.status && (
+              <p className="text-sm text-red-600 mt-1">{errors.status.message}</p>
+            )}
           </div>
         </div>
       </div>
@@ -315,9 +358,7 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
           <input
             type="checkbox"
             id="is_rental"
-            name="is_rental"
-            defaultChecked={vehicle?.is_rental || false}
-            onChange={(e) => setIsRental(e.target.checked)}
+            {...register('is_rental')}
             className="h-4 w-4 rounded border-gray-300"
           />
           <Label htmlFor="is_rental" className="cursor-pointer">
@@ -328,36 +369,44 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
         {isRental && (
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="rental_start_date">Дата начала аренды</Label>
+              <Label htmlFor="rental_start_date">Дата начала аренды *</Label>
               <Input
                 id="rental_start_date"
-                name="rental_start_date"
                 type="date"
-                defaultValue={vehicle?.rental_start_date || ''}
+                {...register('rental_start_date')}
+                className={errors.rental_start_date ? 'border-red-500' : ''}
               />
+              {errors.rental_start_date && (
+                <p className="text-sm text-red-600 mt-1">{errors.rental_start_date.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="rental_end_date">Дата окончания аренды</Label>
               <Input
                 id="rental_end_date"
-                name="rental_end_date"
                 type="date"
-                defaultValue={vehicle?.rental_end_date || ''}
+                {...register('rental_end_date')}
+                className={errors.rental_end_date ? 'border-red-500' : ''}
               />
+              {errors.rental_end_date && (
+                <p className="text-sm text-red-600 mt-1">{errors.rental_end_date.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="rental_monthly_price">Ежемесячная стоимость (€)</Label>
               <Input
                 id="rental_monthly_price"
-                name="rental_monthly_price"
                 type="number"
                 step="0.01"
-                min="0"
-                defaultValue={vehicle?.rental_monthly_price || ''}
+                {...register('rental_monthly_price', { valueAsNumber: true })}
                 placeholder="0.00"
+                className={errors.rental_monthly_price ? 'border-red-500' : ''}
               />
+              {errors.rental_monthly_price && (
+                <p className="text-sm text-red-600 mt-1">{errors.rental_monthly_price.message}</p>
+              )}
             </div>
           </div>
         )}

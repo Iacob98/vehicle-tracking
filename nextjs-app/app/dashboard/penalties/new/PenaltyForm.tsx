@@ -2,12 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { uploadFile } from '@/lib/storage';
 import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
 import { supabase } from '@/lib/supabase/client';
+import { penaltySchema, type PenaltyFormData } from '@/lib/schemas';
 
 interface PenaltyFormProps {
   vehicles: Array<{
@@ -28,25 +32,24 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Setup react-hook-form with Zod validation
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PenaltyFormData>({
+    resolver: zodResolver(penaltySchema),
+    defaultValues: {
+      date: new Date().toISOString().split('T')[0],
+      status: 'open',
+    },
+  });
+
+  const onSubmit = async (data: PenaltyFormData) => {
     setLoading(true);
     setError('');
 
     try {
-      const formData = new FormData(e.currentTarget);
-      const vehicleId = formData.get('vehicle_id') as string;
-      const userId = formData.get('user_id') as string;
-      const amount = formData.get('amount') as string;
-      const penaltyDate = formData.get('date') as string;
-      const description = formData.get('description') as string;
-
-      if (!vehicleId || !amount || !penaltyDate) {
-        setError('Заполните все обязательные поля');
-        setLoading(false);
-        return;
-      }
-
       const orgId = await getOrganizationIdClient();
       if (!orgId) {
         throw new Error('Organization ID not found');
@@ -66,13 +69,13 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
       // Create penalty
       const { error: insertError } = await supabase.from('penalties').insert({
         organization_id: orgId,
-        vehicle_id: vehicleId,
-        user_id: userId || null,
-        amount: parseFloat(amount),
-        date: penaltyDate,
-        description: description || null,
+        vehicle_id: data.vehicle_id,
+        user_id: data.user_id || null,
+        amount: data.amount,
+        date: data.date,
+        description: data.description || null,
         photo_url: photoUrl,
-        status: 'open',
+        status: data.status,
       });
 
       if (insertError) throw insertError;
@@ -89,7 +92,7 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg border p-6 space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
           {error}
@@ -98,13 +101,15 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="vehicle_id">
             🚗 Автомобиль / Fahrzeug *
-          </label>
+          </Label>
           <select
-            name="vehicle_id"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            id="vehicle_id"
+            {...register('vehicle_id')}
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              errors.vehicle_id ? 'border-red-500' : 'border-gray-300'
+            }`}
           >
             <option value="">Выберите автомобиль</option>
             {vehicles.map((vehicle) => (
@@ -113,15 +118,21 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
               </option>
             ))}
           </select>
+          {errors.vehicle_id && (
+            <p className="text-sm text-red-600 mt-1">{errors.vehicle_id.message}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="user_id">
             👤 Пользователь / Benutzer
-          </label>
+          </Label>
           <select
-            name="user_id"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            id="user_id"
+            {...register('user_id')}
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              errors.user_id ? 'border-red-500' : 'border-gray-300'
+            }`}
           >
             <option value="">Не указан</option>
             {users.map((user) => (
@@ -130,40 +141,49 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
               </option>
             ))}
           </select>
+          {errors.user_id && (
+            <p className="text-sm text-red-600 mt-1">{errors.user_id.message}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="date">
             📅 Дата / Datum *
-          </label>
+          </Label>
           <Input
+            id="date"
             type="date"
-            name="date"
-            required
-            defaultValue={new Date().toISOString().split('T')[0]}
+            {...register('date')}
+            className={errors.date ? 'border-red-500' : ''}
           />
+          {errors.date && (
+            <p className="text-sm text-red-600 mt-1">{errors.date.message}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="amount">
             💰 Сумма / Betrag (€) *
-          </label>
+          </Label>
           <Input
+            id="amount"
             type="number"
-            name="amount"
-            required
             step="0.01"
-            min="0"
-            defaultValue="100.00"
+            {...register('amount', { valueAsNumber: true })}
             placeholder="0.00"
+            className={errors.amount ? 'border-red-500' : ''}
           />
+          {errors.amount && (
+            <p className="text-sm text-red-600 mt-1">{errors.amount.message}</p>
+          )}
         </div>
 
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="photo">
             📷 Файл штрафа / Strafzettel Datei
-          </label>
+          </Label>
           <Input
+            id="photo"
             type="file"
             accept="image/*,.pdf"
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
@@ -176,15 +196,21 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
         </div>
 
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-2">
+          <Label htmlFor="description">
             📝 Описание / Beschreibung
-          </label>
+          </Label>
           <textarea
-            name="description"
+            id="description"
+            {...register('description')}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              errors.description ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Дополнительная информация о штрафе..."
           />
+          {errors.description && (
+            <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
+          )}
         </div>
       </div>
 
