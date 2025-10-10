@@ -1,15 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
 import { teamSchema, type TeamFormData } from '@/lib/schemas';
 
 interface TeamFormProps {
@@ -23,8 +22,14 @@ interface TeamFormProps {
 
 export function TeamForm({ users }: TeamFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading, error, post } = usePostJSON('/api/teams', {
+    onSuccess: () => {
+      router.push('/dashboard/teams');
+      router.refresh();
+    },
+  });
 
   // Setup react-hook-form with Zod validation
   const {
@@ -36,47 +41,15 @@ export function TeamForm({ users }: TeamFormProps) {
   });
 
   const onSubmit = async (data: TeamFormData) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
-
-      const { error: insertError } = await supabase.from('teams').insert({
-        organization_id: orgId,
-        name: data.name,
-        description: data.description || null,
-        created_at: new Date().toISOString(),
-      });
-
-      if (insertError) {
-        // Handle unique constraint violation
-        if (insertError.code === '23505' && insertError.message.includes('name')) {
-          throw new Error('Бригада с таким названием уже существует в вашей организации');
-        }
-        throw insertError;
-      }
-
-      router.push('/dashboard/teams');
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating team:', err);
-      setError(err.message || 'Ошибка создания бригады');
-    } finally {
-      setLoading(false);
-    }
+    await post({
+      name: data.name,
+      description: data.description || null,
+    });
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert error={error} />}
 
       <div>
         <Label htmlFor="name">

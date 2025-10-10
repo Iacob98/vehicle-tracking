@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-// import { zodResolver } from '@hookform/resolvers/zod'; // TODO: Phase 2
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorAlert } from '@/components/ErrorAlert';
+import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
-import { MAINTENANCE_TYPE_OPTIONS } from '@/lib/schemas';
+import { maintenanceSchema, MAINTENANCE_TYPE_OPTIONS, type MaintenanceFormData } from '@/lib/schemas';
 
 interface MaintenanceFormProps {
   vehicles: Array<{
@@ -22,63 +21,46 @@ interface MaintenanceFormProps {
 
 export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // Используем централизованную обработку ошибок через API hooks
+  const { loading, error, post } = usePostJSON('/api/maintenance', {
+    onSuccess: () => {
+      router.push('/dashboard/maintenance');
+      router.refresh();
+    },
+  });
 
   // Setup react-hook-form with Zod validation
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
-    // TODO: Integrate with maintenanceSchema - Phase 2
-    // resolver: zodResolver(maintenanceSchema),
+  } = useForm<MaintenanceFormData>({
+    resolver: zodResolver(maintenanceSchema),
     defaultValues: {
       scheduled_date: new Date().toISOString().split('T')[0],
       type: 'inspection',
     },
   });
 
-  const onSubmit = async (data: any) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
-
-      const { error: insertError } = await supabase.from('maintenances').insert({
-        organization_id: orgId,
-        vehicle_id: data.vehicle_id,
-        type: data.type,
-        scheduled_date: data.scheduled_date,
-        completed_date: data.completed_date || null,
-        description: data.description || null,
-        notes: data.notes || null,
-        cost: data.cost || null,
-      });
-
-      if (insertError) throw insertError;
-
-      router.push('/dashboard/maintenance');
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating maintenance:', err);
-      setError(err.message || 'Ошибка создания обслуживания');
-    } finally {
-      setLoading(false);
-    }
+  const onSubmit = async (data: MaintenanceFormData) => {
+    await post({
+      vehicle_id: data.vehicle_id,
+      type: data.type,
+      scheduled_date: data.scheduled_date,
+      description: data.description || null,
+      notes: data.notes || null,
+      completed_date: data.completed_date || null,
+      cost: data.cost || null,
+      mileage: data.mileage || null,
+      next_maintenance_date: data.next_maintenance_date || null,
+      next_maintenance_mileage: data.next_maintenance_mileage || null,
+    });
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert error={error} />}
 
       <div className="grid grid-cols-2 gap-4">
         <div>

@@ -42,7 +42,7 @@ export const penaltySchema = z.object({
   date: z.string().min(1, 'Дата обязательна'),
   description: z.string().optional().nullable(),
   photo_url: z.string().optional().nullable(),
-  status: z.enum(['open', 'paid', 'contested', 'cancelled']).default('open'),
+  status: z.enum(['open', 'paid', 'contested', 'cancelled']),
 });
 
 export type PenaltyFormData = z.infer<typeof penaltySchema>;
@@ -110,11 +110,14 @@ export const MAINTENANCE_TYPE_OPTIONS = [
 export const maintenanceSchema = z.object({
   vehicle_id: z.string().min(1, 'Автомобиль обязателен'),
   type: z.enum(['scheduled', 'repair', 'inspection']),
-  description: z.string().min(1, 'Описание обязательно'),
+  description: z.string().optional().nullable(),
   scheduled_date: z.string().min(1, 'Дата обязательна'),
   completed_date: z.string().optional().nullable(),
   cost: z.number().positive().optional().nullable(),
   notes: z.string().optional().nullable(),
+  mileage: z.number().int().positive().optional().nullable(),
+  next_maintenance_date: z.string().optional().nullable(),
+  next_maintenance_mileage: z.number().int().positive().optional().nullable(),
 });
 
 export type MaintenanceFormData = z.infer<typeof maintenanceSchema>;
