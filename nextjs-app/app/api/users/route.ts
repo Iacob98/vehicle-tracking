@@ -17,8 +17,8 @@ import { createHash } from 'crypto';
  * - password: string (required)
  * - first_name: string (required)
  * - last_name: string (required)
+ * - role: string (required) - user role
  * - phone: string (optional)
- * - position: string (optional)
  */
 export async function POST(request: Request) {
   try {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     // Получаем JSON
     const body = await request.json();
-    const { email, password, first_name, last_name, phone, position } = body;
+    const { email, password, first_name, last_name, role, phone } = body;
 
     // Валидация обязательных полей
     if (!email || !password || !first_name || !last_name) {
@@ -59,8 +59,8 @@ export async function POST(request: Request) {
       password_hash: passwordHash,
       first_name,
       last_name,
+      role: role || 'viewer', // Default role if not provided
       phone: phone || null,
-      position: position || null,
       created_at: new Date().toISOString(),
     };
 

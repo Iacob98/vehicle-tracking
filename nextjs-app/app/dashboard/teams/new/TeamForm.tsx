@@ -43,7 +43,6 @@ export function TeamForm({ users }: TeamFormProps) {
   const onSubmit = async (data: TeamFormData) => {
     await post({
       name: data.name,
-      description: data.description || null,
     });
   };
 
@@ -63,24 +62,6 @@ export function TeamForm({ users }: TeamFormProps) {
         />
         {errors.name && (
           <p className="text-sm text-red-600 mt-1">{errors.name.message}</p>
-        )}
-      </div>
-
-      <div>
-        <Label htmlFor="description">
-          Описание
-        </Label>
-        <textarea
-          id="description"
-          {...register('description')}
-          rows={3}
-          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-            errors.description ? 'border-red-500' : 'border-gray-300'
-          }`}
-          placeholder="Краткое описание бригады (необязательно)"
-        />
-        {errors.description && (
-          <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
         )}
       </div>
 

@@ -51,7 +51,6 @@ export function CarExpenseForm({ vehicles }: CarExpenseFormProps) {
       amount: data.amount,
       date: data.date,
       description: data.description || null,
-      mileage: data.mileage || null,
       maintenance_id: data.maintenance_id || null,
       receipt_url: data.receipt_url || null,
     });
@@ -136,22 +135,6 @@ export function CarExpenseForm({ vehicles }: CarExpenseFormProps) {
           />
           {errors.amount && (
             <p className="text-sm text-red-600 mt-1">{errors.amount.message}</p>
-          )}
-        </div>
-
-        <div className="col-span-2">
-          <Label htmlFor="mileage">
-            🛣️ Пробег / Kilometerstand (км)
-          </Label>
-          <Input
-            id="mileage"
-            type="number"
-            {...register('mileage', { valueAsNumber: true })}
-            placeholder="Опционально"
-            className={errors.mileage ? 'border-red-500' : ''}
-          />
-          {errors.mileage && (
-            <p className="text-sm text-red-600 mt-1">{errors.mileage.message}</p>
           )}
         </div>
 

@@ -39,18 +39,6 @@ export const userSchema = z.object({
     .max(20, 'Телефон слишком длинный')
     .nullable()
     .optional(),
-
-  position: z
-    .string()
-    .max(100, 'Должность слишком длинная')
-    .nullable()
-    .optional(),
-
-  photo_url: z
-    .string()
-    .url('Некорректный URL фотографии')
-    .nullable()
-    .optional(),
 });
 
 // Type inference

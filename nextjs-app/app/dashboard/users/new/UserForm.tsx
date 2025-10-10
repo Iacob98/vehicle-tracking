@@ -47,7 +47,6 @@ export function UserForm({ teams }: UserFormProps) {
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       role: 'viewer' as const,
-      position: '',
       phone: '',
     } as Partial<CreateUserFormData>,
   });
@@ -60,7 +59,6 @@ export function UserForm({ teams }: UserFormProps) {
       last_name: data.last_name,
       role: data.role,
       phone: data.phone || null,
-      position: data.position || null,
     });
   };
 
@@ -198,21 +196,6 @@ export function UserForm({ teams }: UserFormProps) {
             />
             {errors.phone && (
               <p className="text-sm text-red-600 mt-1">{errors.phone.message}</p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="position">
-              Должность
-            </Label>
-            <Input
-              id="position"
-              {...register('position')}
-              placeholder="Водитель"
-              className={errors.position ? 'border-red-500' : ''}
-            />
-            {errors.position && (
-              <p className="text-sm text-red-600 mt-1">{errors.position.message}</p>
             )}
           </div>
         </div>

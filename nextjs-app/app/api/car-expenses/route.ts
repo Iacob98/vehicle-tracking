@@ -17,7 +17,6 @@ import {
  * - amount: number (required)
  * - date: string (required)
  * - description: string (optional)
- * - mileage: number (optional)
  * - maintenance_id: string (optional)
  * - receipt_url: string (optional)
  */
@@ -42,7 +41,6 @@ export async function POST(request: Request) {
       amount,
       date,
       description,
-      mileage,
       maintenance_id,
       receipt_url,
     } = body;
@@ -60,7 +58,6 @@ export async function POST(request: Request) {
       amount: parseFloat(amount),
       date,
       description: description || null,
-      mileage: mileage ? parseInt(mileage) : null,
       maintenance_id: maintenance_id || null,
       receipt_url: receipt_url || null,
     };

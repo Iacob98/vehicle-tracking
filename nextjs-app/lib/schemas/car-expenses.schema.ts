@@ -68,14 +68,6 @@ export const carExpenseSchema = z.object({
     .url('Некорректный URL чека')
     .nullable()
     .optional(),
-
-  mileage: z
-    .number()
-    .int('Пробег должен быть целым числом')
-    .positive('Пробег должен быть положительным')
-    .max(9999999, 'Пробег слишком большой')
-    .nullable()
-    .optional(),
 });
 
 // Type inference

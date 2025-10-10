@@ -13,7 +13,6 @@ import {
  *
  * Принимает JSON с полями:
  * - name: string (required)
- * - description: string (optional)
  */
 export async function POST(request: Request) {
   try {
@@ -30,7 +29,7 @@ export async function POST(request: Request) {
 
     // Получаем JSON
     const body = await request.json();
-    const { name, description } = body;
+    const { name } = body;
 
     // Валидация обязательных полей
     if (!name) {
@@ -41,7 +40,6 @@ export async function POST(request: Request) {
     const teamData = {
       organization_id: orgId,
       name,
-      description: description || null,
       created_at: new Date().toISOString(),
     };
 
