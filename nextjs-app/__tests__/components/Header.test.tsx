@@ -26,7 +26,7 @@ describe('Header Component', () => {
 
   it('renders user role as admin', () => {
     render(<Header user={mockUser} />);
-    expect(screen.getByText('Администратор')).toBeInTheDocument();
+    expect(screen.getByText('👑 Админ')).toBeInTheDocument();
   });
 
   it('renders sign out button', () => {
@@ -37,12 +37,18 @@ describe('Header Component', () => {
   it('renders manager role correctly', () => {
     const managerUser = { ...mockUser, role: 'manager' };
     render(<Header user={managerUser} />);
-    expect(screen.getByText('Менеджер')).toBeInTheDocument();
+    expect(screen.getByText('💼 Менеджер')).toBeInTheDocument();
   });
 
-  it('renders default role for unknown roles', () => {
-    const workerUser = { ...mockUser, role: 'worker' };
-    render(<Header user={workerUser} />);
-    expect(screen.getByText('Работник')).toBeInTheDocument();
+  it('renders driver role correctly', () => {
+    const driverUser = { ...mockUser, role: 'driver' };
+    render(<Header user={driverUser} />);
+    expect(screen.getByText('🚗 Водитель')).toBeInTheDocument();
+  });
+
+  it('renders viewer role correctly', () => {
+    const viewerUser = { ...mockUser, role: 'viewer' };
+    render(<Header user={viewerUser} />);
+    expect(screen.getByText('👁️ Просмотр')).toBeInTheDocument();
   });
 });

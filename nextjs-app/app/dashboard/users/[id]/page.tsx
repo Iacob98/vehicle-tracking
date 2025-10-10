@@ -4,26 +4,11 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import UserDocuments from './UserDocuments';
+import { getRoleInfo, type UserRole } from '@/lib/types/roles';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
-
-const ROLE_ICONS = {
-  owner: '👑',
-  admin: '🔧',
-  manager: '💼',
-  team_lead: '👨‍💼',
-  worker: '👷',
-};
-
-const ROLE_NAMES = {
-  owner: 'Владелец',
-  admin: 'Администратор',
-  manager: 'Менеджер',
-  team_lead: 'Бригадир',
-  worker: 'Работник',
-};
 
 export default async function UserDetailPage({ params }: PageProps) {
   const { id } = await params;
@@ -86,7 +71,7 @@ export default async function UserDetailPage({ params }: PageProps) {
             {user.first_name} {user.last_name}
           </h1>
           <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">
-            {ROLE_ICONS[user.role as keyof typeof ROLE_ICONS]} {ROLE_NAMES[user.role as keyof typeof ROLE_NAMES]}
+            {getRoleInfo(user.role as UserRole).label}
           </span>
         </div>
         <div className="mt-2 space-y-1">

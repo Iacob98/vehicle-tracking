@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import { ROLE_OPTIONS } from '@/lib/types/roles';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -67,7 +68,7 @@ export default async function EditUserPage({ params }: PageProps) {
         first_name: firstName,
         last_name: lastName,
         phone: phone || null,
-        role: role || 'worker',
+        role: role || 'viewer',
         team_id: teamId || null,
       })
       .eq('id', id)
@@ -157,10 +158,11 @@ export default async function EditUserPage({ params }: PageProps) {
               defaultValue={user.role}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
             >
-              <option value="worker">👷 Работник</option>
-              <option value="team_lead">👨‍💼 Бригадир</option>
-              <option value="manager">💼 Менеджер</option>
-              <option value="admin">🔧 Администратор</option>
+              {ROLE_OPTIONS.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
             </select>
           </div>
 

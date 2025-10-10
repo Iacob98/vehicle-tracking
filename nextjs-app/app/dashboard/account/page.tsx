@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { ROLES, type UserRole } from '@/lib/types/roles';
 
 export default async function AccountPage() {
   const supabase = await createServerClient();
@@ -46,20 +47,10 @@ export default async function AccountPage() {
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', orgId);
 
-  const ROLE_ICONS = {
-    owner: '👑',
-    admin: '🔧',
-    manager: '💼',
-    team_lead: '👨‍💼',
-    worker: '👷',
-  };
-
-  const ROLE_NAMES = {
-    owner: 'Владелец',
-    admin: 'Администратор',
-    manager: 'Менеджер',
-    team_lead: 'Бригадир',
-    worker: 'Работник',
+  // Используем централизованную систему ролей
+  const getRoleDisplay = (role: string) => {
+    const roleKey = role as UserRole;
+    return ROLES[roleKey] || ROLES.viewer;
   };
 
   return (
@@ -120,12 +111,11 @@ export default async function AccountPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="font-semibold">
-                      {ROLE_ICONS[u.role as keyof typeof ROLE_ICONS]}{' '}
                       {u.first_name} {u.last_name}
                     </h3>
                     <p className="text-sm text-gray-600">📧 {u.email}</p>
                     <p className="text-sm text-gray-600">
-                      Роль: {ROLE_NAMES[u.role as keyof typeof ROLE_NAMES]}
+                      Роль: {getRoleDisplay(u.role).label}
                     </p>
                   </div>
                   <div className="text-sm text-gray-500">
