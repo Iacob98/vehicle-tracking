@@ -38,7 +38,7 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
   } = useForm<MaintenanceFormData>({
     resolver: zodResolver(maintenanceSchema),
     defaultValues: {
-      scheduled_date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split('T')[0],
       type: 'inspection',
     },
   });
@@ -47,14 +47,8 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
     await post({
       vehicle_id: data.vehicle_id,
       type: data.type,
-      scheduled_date: data.scheduled_date,
+      date: data.date,
       description: data.description || null,
-      notes: data.notes || null,
-      completed_date: data.completed_date || null,
-      cost: data.cost || null,
-      mileage: data.mileage || null,
-      next_maintenance_date: data.next_maintenance_date || null,
-      next_maintenance_mileage: data.next_maintenance_mileage || null,
     });
   };
 
@@ -113,29 +107,13 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
             📅 Дата / Datum *
           </Label>
           <Input
-            id="scheduled_date"
+            id="date"
             type="date"
-            {...register('scheduled_date')}
-            className={errors.scheduled_date ? 'border-red-500' : ''}
+            {...register('date')}
+            className={errors.date ? 'border-red-500' : ''}
           />
-          {errors.scheduled_date && (
-            <p className="text-sm text-red-600 mt-1">{errors.scheduled_date.message}</p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="mileage">
-            🛣️ Текущий пробег / Kilometerstand (км)
-          </Label>
-          <Input
-            id="mileage"
-            type="number"
-            {...register('mileage', { valueAsNumber: true })}
-            placeholder="Опционально"
-            className={errors.mileage ? 'border-red-500' : ''}
-          />
-          {errors.mileage && (
-            <p className="text-sm text-red-600 mt-1">{errors.mileage.message}</p>
+          {errors.date && (
+            <p className="text-sm text-red-600 mt-1">{errors.date.message}</p>
           )}
         </div>
 
@@ -155,61 +133,6 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
           {errors.description && (
             <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
           )}
-        </div>
-
-        <div className="col-span-2">
-          <Label htmlFor="notes">
-            📋 Заметки / Notizen
-          </Label>
-          <textarea
-            id="notes"
-            {...register('notes')}
-            rows={2}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-              errors.notes ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Дополнительные заметки, рекомендации..."
-          />
-          {errors.notes && (
-            <p className="text-sm text-red-600 mt-1">{errors.notes.message}</p>
-          )}
-        </div>
-
-        {/* Next maintenance info */}
-        <div className="col-span-2 pt-4 border-t">
-          <h3 className="text-sm font-medium mb-3">🔮 Следующее обслуживание (опционально)</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="next_maintenance_date">
-                📅 Дата следующего ТО
-              </Label>
-              <Input
-                id="next_maintenance_date"
-                type="date"
-                {...register('next_maintenance_date')}
-                className={errors.next_maintenance_date ? 'border-red-500' : ''}
-              />
-              {errors.next_maintenance_date && (
-                <p className="text-sm text-red-600 mt-1">{errors.next_maintenance_date.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="next_maintenance_mileage">
-                🛣️ Пробег следующего ТО (км)
-              </Label>
-              <Input
-                id="next_maintenance_mileage"
-                type="number"
-                {...register('next_maintenance_mileage', { valueAsNumber: true })}
-                placeholder="Например, 150000"
-                className={errors.next_maintenance_mileage ? 'border-red-500' : ''}
-              />
-              {errors.next_maintenance_mileage && (
-                <p className="text-sm text-red-600 mt-1">{errors.next_maintenance_mileage.message}</p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 

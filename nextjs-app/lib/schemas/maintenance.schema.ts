@@ -28,50 +28,13 @@ export const maintenanceSchema = z.object({
 
   date: z
     .string().min(1, 'Дата обслуживания обязательна')
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
-    .refine(
-      (dateStr) => {
-        const date = new Date(dateStr);
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        return date <= today;
-      },
-      { message: 'Дата обслуживания не может быть в будущем' }
-    ),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD'),
 
   type: maintenanceTypeSchema,
 
   description: z
     .string()
     .max(1000, 'Описание слишком длинное (максимум 1000 символов)')
-    .nullable()
-    .optional(),
-
-  notes: z
-    .string()
-    .max(2000, 'Заметки слишком длинные (максимум 2000 символов)')
-    .nullable()
-    .optional(),
-
-  mileage: z
-    .number()
-    .int('Пробег должен быть целым числом')
-    .positive('Пробег должен быть положительным')
-    .max(9999999, 'Пробег слишком большой')
-    .nullable()
-    .optional(),
-
-  next_maintenance_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
-    .nullable()
-    .optional(),
-
-  next_maintenance_mileage: z
-    .number()
-    .int('Пробег должен быть целым числом')
-    .positive('Пробег должен быть положительным')
-    .max(9999999, 'Пробег слишком большой')
     .nullable()
     .optional(),
 });
