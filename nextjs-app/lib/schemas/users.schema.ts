@@ -7,7 +7,11 @@ import { z } from 'zod';
  * - email: NOT NULL, not empty, unique per org
  * - first_name: NOT NULL, not empty
  * - last_name: NOT NULL, not empty
+ * - role: admin | manager | driver | viewer (simplified from migration 008)
  */
+
+// Упрощенные роли (migration 008)
+export const userRoleSchema = z.enum(['admin', 'manager', 'driver', 'viewer']);
 
 export const userSchema = z.object({
   email: z
