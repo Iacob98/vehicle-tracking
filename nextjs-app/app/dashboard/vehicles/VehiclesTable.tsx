@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Image from 'next/image';
+import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 
 interface Vehicle {
   id: string;
@@ -33,14 +34,20 @@ interface Vehicle {
 interface VehiclesTableProps {
   vehicles: Vehicle[];
   totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  itemsPerPage: number;
 }
 
-const ITEMS_PER_PAGE = 20;
-
-export function VehiclesTable({ vehicles, totalCount }: VehiclesTableProps) {
+export function VehiclesTable({
+  vehicles,
+  totalCount,
+  currentPage,
+  totalPages,
+  itemsPerPage,
+}: VehiclesTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentPage = Number(searchParams.get('page')) || 1;
 
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
@@ -101,12 +108,6 @@ export function VehiclesTable({ vehicles, totalCount }: VehiclesTableProps) {
     );
   };
 
-  // Pagination
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalCount);
-  const paginatedVehicles = vehicles.slice(0, ITEMS_PER_PAGE);
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -157,9 +158,9 @@ export function VehiclesTable({ vehicles, totalCount }: VehiclesTableProps) {
       </div>
 
       {/* Vehicles List */}
-      {paginatedVehicles.length > 0 ? (
+      {vehicles.length > 0 ? (
         <div className="space-y-4">
-          {paginatedVehicles.map((vehicle) => {
+          {vehicles.map((vehicle) => {
             const photoUrl = vehicle.photo_url?.split(';')[0]; // Get first photo if multiple
 
             return (
@@ -233,35 +234,16 @@ export function VehiclesTable({ vehicles, totalCount }: VehiclesTableProps) {
           })}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-6">
-              <Button
-                variant="outline"
-                disabled={currentPage === 1}
-                onClick={() => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.set('page', String(currentPage - 1));
-                  router.push(`/dashboard/vehicles?${params.toString()}`);
-                }}
-              >
-                ← Назад
-              </Button>
-              <span className="px-4 py-2 bg-gray-100 rounded">
-                Страница {currentPage} из {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                disabled={currentPage === totalPages}
-                onClick={() => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.set('page', String(currentPage + 1));
-                  router.push(`/dashboard/vehicles?${params.toString()}`);
-                }}
-              >
-                Вперед →
-              </Button>
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            baseUrl="/dashboard/vehicles"
+          />
+          <PaginationInfo
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalCount}
+          />
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow p-12 text-center">

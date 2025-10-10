@@ -3,9 +3,17 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 
-export default async function TeamsPage() {
+const ITEMS_PER_PAGE = 10;
+
+export default async function TeamsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; tab?: string }>;
+}) {
   const supabase = await createServerClient();
+  const params = await searchParams;
 
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -19,16 +27,24 @@ export default async function TeamsPage() {
     return <div>Organization ID not found</div>;
   }
 
-  // Fetch teams
-  const { data: teams, error } = await supabase
+  // Pagination
+  const currentPage = Math.max(1, parseInt(params.page || '1', 10));
+  const from = (currentPage - 1) * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE - 1;
+
+  // Fetch teams with pagination
+  const { data: teams, count: teamsCount, error } = await supabase
     .from('teams')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('organization_id', orgId)
-    .order('name');
+    .order('name')
+    .range(from, to);
 
   if (error) {
     console.error('Error fetching teams:', error);
   }
+
+  const totalPages = Math.ceil((teamsCount || 0) / ITEMS_PER_PAGE);
 
   // Get counts and lead info for each team
   const teamsWithCounts = await Promise.all((teams || []).map(async (team) => {
@@ -116,7 +132,7 @@ export default async function TeamsPage() {
 
       <Tabs defaultValue="teams" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="teams">👥 Бригады ({teamsWithCounts?.length || 0})</TabsTrigger>
+          <TabsTrigger value="teams">👥 Бригады ({teamsCount || 0})</TabsTrigger>
           <TabsTrigger value="members">👷 Участники ({teamMembers?.length || 0})</TabsTrigger>
           <TabsTrigger value="documents">📄 Документы ({documents?.length || 0})</TabsTrigger>
           <TabsTrigger value="expiring">⚠️ Истекающие ({expiringDocs.length})</TabsTrigger>
@@ -124,48 +140,60 @@ export default async function TeamsPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {teamsWithCounts && teamsWithCounts.length > 0 ? (
-            <div className="space-y-4">
-              {teamsWithCounts.map((team) => (
-                <div key={team.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow bg-white">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold">{team.name}</h3>
-                      {team.lead ? (
-                        <p className="text-gray-600">
-                          👤 Лидер: {team.lead.first_name} {team.lead.last_name}
-                        </p>
-                      ) : (
-                        <p className="text-gray-500">👤 Лидер: не назначен</p>
-                      )}
-                    </div>
+            <>
+              <div className="space-y-4">
+                {teamsWithCounts.map((team) => (
+                  <div key={team.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow bg-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold">{team.name}</h3>
+                        {team.lead ? (
+                          <p className="text-gray-600">
+                            👤 Лидер: {team.lead.first_name} {team.lead.last_name}
+                          </p>
+                        ) : (
+                          <p className="text-gray-500">👤 Лидер: не назначен</p>
+                        )}
+                      </div>
 
-                    <div className="flex gap-8 text-sm mr-8">
-                      <div className="text-center">
-                        <p className="text-gray-500">👥 Пользователей</p>
-                        <p className="text-2xl font-semibold">{team.users_count}</p>
+                      <div className="flex gap-8 text-sm mr-8">
+                        <div className="text-center">
+                          <p className="text-gray-500">👥 Пользователей</p>
+                          <p className="text-2xl font-semibold">{team.users_count}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-gray-500">👷 Участников</p>
+                          <p className="text-2xl font-semibold">{team.members_count}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-gray-500">🚗 Автомобилей</p>
+                          <p className="text-2xl font-semibold">{team.vehicles_count}</p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-gray-500">👷 Участников</p>
-                        <p className="text-2xl font-semibold">{team.members_count}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-gray-500">🚗 Автомобилей</p>
-                        <p className="text-2xl font-semibold">{team.vehicles_count}</p>
-                      </div>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <Link href={`/dashboard/teams/${team.id}/edit`}>
-                        <Button variant="outline" size="sm">✏️</Button>
-                      </Link>
-                      <Link href={`/dashboard/teams/${team.id}`}>
-                        <Button variant="outline" size="sm">👁️</Button>
-                      </Link>
+                      <div className="flex gap-2">
+                        <Link href={`/dashboard/teams/${team.id}/edit`}>
+                          <Button variant="outline" size="sm">✏️</Button>
+                        </Link>
+                        <Link href={`/dashboard/teams/${team.id}`}>
+                          <Button variant="outline" size="sm">👁️</Button>
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                baseUrl="/dashboard/teams"
+              />
+              <PaginationInfo
+                currentPage={currentPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+                totalItems={teamsCount || 0}
+              />
+            </>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-white">
               <div className="text-6xl mb-4">👷</div>
