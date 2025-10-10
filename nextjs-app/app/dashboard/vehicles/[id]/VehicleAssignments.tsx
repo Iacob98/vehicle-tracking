@@ -12,8 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { supabase } from '@/lib/supabase/client';
-import { getOrganizationIdClient } from '@/lib/getOrganizationIdClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { usePostJSON } from '@/lib/api-client';
+import { ErrorAlert } from '@/components/ErrorAlert';
 
 interface VehicleAssignmentsProps {
   vehicleId: string;
@@ -41,72 +51,56 @@ export function VehicleAssignments({
 }: VehicleAssignmentsProps) {
   const router = useRouter();
   const [assignments, setAssignments] = useState(initialAssignments);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [assignmentToEnd, setAssignmentToEnd] = useState<string | null>(null);
+
+  const { loading: createLoading, error: createError, post } = usePostJSON('/api/vehicle-assignments', {
+    onSuccess: (data) => {
+      setAssignments([...assignments, data.assignment]);
+      setShowForm(false);
+      router.refresh();
+    },
+  });
+
+  const { loading: endLoading, error: endError, post: endAssignment } = usePostJSON(
+    assignmentToEnd ? `/api/vehicle-assignments/${assignmentToEnd}` : '',
+    {
+      onSuccess: () => {
+        setAssignmentToEnd(null);
+        setEndDialogOpen(false);
+        router.refresh();
+      },
+    }
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    const formData = new FormData(e.currentTarget);
 
-    try {
-      const formData = new FormData(e.currentTarget);
-      const teamId = formData.get('team_id') as string;
-      const startDate = formData.get('start_date') as string;
-      const endDate = formData.get('end_date') as string;
-
-      const orgId = await getOrganizationIdClient();
-      if (!orgId) {
-        throw new Error('Organization ID not found');
-      }
-
-      const { data: newAssignment, error: insertError } = await supabase
-        .from('vehicle_assignments')
-        .insert({
-          vehicle_id: vehicleId,
-          team_id: teamId,
-          start_date: startDate,
-          end_date: endDate || null,
-          organization_id: orgId,
-        })
-        .select(
-          `
-          *,
-          team:teams(name)
-        `
-        )
-        .single();
-
-      if (insertError) throw insertError;
-
-      setAssignments([...assignments, newAssignment as any]);
-      setShowForm(false);
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error creating assignment:', err);
-      setError(err.message || 'Ошибка создания назначения');
-    } finally {
-      setLoading(false);
-    }
+    await post({
+      vehicle_id: vehicleId,
+      team_id: formData.get('team_id') as string,
+      start_date: formData.get('start_date') as string,
+      end_date: formData.get('end_date') as string || null,
+    });
   };
 
-  const handleEndAssignment = async (assignmentId: string) => {
-    if (!confirm('Завершить назначение?')) return;
+  const handleEndClick = (assignmentId: string) => {
+    setAssignmentToEnd(assignmentId);
+    setEndDialogOpen(true);
+  };
 
-    try {
-      const { error: updateError } = await supabase
-        .from('vehicle_assignments')
-        .update({ end_date: new Date().toISOString().split('T')[0] })
-        .eq('id', assignmentId);
+  const handleEndConfirm = async () => {
+    if (!assignmentToEnd) return;
 
-      if (updateError) throw updateError;
+    await fetch(`/api/vehicle-assignments/${assignmentToEnd}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ end_date: new Date().toISOString().split('T')[0] }),
+    });
 
-      router.refresh();
-    } catch (err: any) {
-      console.error('Error ending assignment:', err);
-      setError(err.message || 'Ошибка завершения назначения');
-    }
+    // Обновляем через router.refresh() который вызывается в onSuccess
   };
 
   const activeAssignment = assignments.find((a) => !a.end_date);
@@ -122,11 +116,8 @@ export function VehicleAssignments({
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {createError && <ErrorAlert error={createError} />}
+      {endError && <ErrorAlert error={endError} />}
 
       {/* Current Assignment */}
       {activeAssignment && (
@@ -141,7 +132,7 @@ export function VehicleAssignments({
               </p>
             </div>
             <Button
-              onClick={() => handleEndAssignment(activeAssignment.id)}
+              onClick={() => handleEndClick(activeAssignment.id)}
               variant="outline"
               size="sm"
             >
@@ -189,11 +180,29 @@ export function VehicleAssignments({
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Сохранение...' : '✅ Назначить'}
+          <Button type="submit" disabled={createLoading} className="w-full">
+            {createLoading ? 'Сохранение...' : '✅ Назначить'}
           </Button>
         </form>
       )}
+
+      {/* AlertDialog for ending assignment */}
+      <AlertDialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Завершить назначение?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Автомобиль будет откреплен от бригады. Вы сможете создать новое назначение после завершения текущего.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAssignmentToEnd(null)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEndConfirm} disabled={endLoading}>
+              {endLoading ? 'Завершение...' : '✅ Завершить'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Assignment History */}
       {assignments.length > 0 && (
