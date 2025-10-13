@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { VehicleDocuments } from './VehicleDocuments';
 import { VehicleAssignments } from './VehicleAssignments';
+import { VehicleOwnerCard } from './VehicleOwnerCard';
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerClient();
@@ -46,8 +47,21 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     .eq('vehicle_id', id)
     .order('start_date', { ascending: false });
 
+  // Find current active assignment
+  const currentAssignment = assignments?.find((a) => !a.end_date);
+  const currentTeam = currentAssignment
+    ? {
+        name: currentAssignment.team.name,
+        start_date: currentAssignment.start_date,
+      }
+    : null;
+
   return (
     <div className="max-w-6xl space-y-6">
+      <VehicleOwnerCard
+        vehicleName={`${vehicle.license_plate} (${vehicle.model || vehicle.name})`}
+        currentTeam={currentTeam}
+      />
       <VehicleAssignments
         vehicleId={id}
         vehicleName={`${vehicle.license_plate} (${vehicle.model || vehicle.name})`}
