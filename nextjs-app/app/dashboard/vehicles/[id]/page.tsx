@@ -2,7 +2,6 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { VehicleDocuments } from './VehicleDocuments';
 import { VehicleAssignments } from './VehicleAssignments';
-import { VehicleOwnershipHistory } from './VehicleOwnershipHistory';
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerClient();
@@ -47,20 +46,8 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     .eq('vehicle_id', id)
     .order('start_date', { ascending: false });
 
-  // Get ownership history
-  const { data: ownershipHistory } = await supabase
-    .from('vehicle_ownership_history')
-    .select('*')
-    .eq('vehicle_id', id)
-    .order('start_date', { ascending: false });
-
   return (
     <div className="max-w-6xl space-y-6">
-      <VehicleOwnershipHistory
-        vehicleId={id}
-        vehicleName={`${vehicle.license_plate} (${vehicle.model || vehicle.name})`}
-        initialOwnershipHistory={ownershipHistory || []}
-      />
       <VehicleAssignments
         vehicleId={id}
         vehicleName={`${vehicle.license_plate} (${vehicle.model || vehicle.name})`}
