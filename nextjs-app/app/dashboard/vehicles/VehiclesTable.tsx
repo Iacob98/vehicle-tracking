@@ -193,7 +193,7 @@ export function VehiclesTable({
                   <div className="col-span-5">
                     <h3 className="font-bold text-lg">{vehicle.name}</h3>
                     <p className="text-sm text-gray-600">
-                      📋 {vehicle.license_plate || 'Нет номера'} | VIN: {vehicle.vin || '-'}
+                      📋 {vehicle.license_plate || 'Нет номера'} | VIN: <span className={!vehicle.vin ? 'text-red-600 font-semibold' : ''}>{vehicle.vin || 'Отсутствует'}</span>
                     </p>
                     {vehicle.model && (
                       <p className="text-sm text-gray-500">🚗 {vehicle.model}</p>
