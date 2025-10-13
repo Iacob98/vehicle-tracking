@@ -37,13 +37,25 @@ export default async function VehiclesPage({
     query = query.eq('status', params.status);
   }
 
-  // Smart sorting: numeric names first (1, 2, 10, 11) then alphabetical
-  query = query.order('name', { ascending: true });
+  // Get all vehicles first (without pagination for proper sorting)
+  const { data: allVehicles, count } = await query;
 
-  // Apply pagination
-  query = query.range(from, to);
+  // Smart sorting: numeric names first (1, 2, 3... not 1, 10, 11...)
+  const sortedVehicles = allVehicles?.sort((a, b) => {
+    const aNum = parseInt(a.name);
+    const bNum = parseInt(b.name);
 
-  const { data: vehicles, count } = await query;
+    // If both are numbers, sort numerically
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      return aNum - bNum;
+    }
+
+    // Otherwise, sort alphabetically
+    return a.name.localeCompare(b.name);
+  }) || [];
+
+  // Apply pagination after sorting
+  const vehicles = sortedVehicles.slice(from, to + 1);
 
   const totalPages = Math.ceil((count || 0) / ITEMS_PER_PAGE);
 
