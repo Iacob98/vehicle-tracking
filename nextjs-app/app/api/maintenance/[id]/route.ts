@@ -6,6 +6,7 @@ import {
   checkAuthentication,
   checkOrganizationId,
 } from '@/lib/api-response';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
  * DELETE /api/maintenance/[id]
@@ -32,6 +33,12 @@ export async function DELETE(
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin и manager могут удалять записи обслуживания)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на удаление записей обслуживания');
+    }
 
     // Verify maintenance belongs to user's organization
     const { data: maintenance } = await supabase

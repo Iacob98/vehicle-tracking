@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { RoleGuard } from '@/components/RoleGuard';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -22,6 +25,7 @@ export default async function MaintenancePage({
   }
 
   const orgId = user?.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Pagination
   const currentPage = Math.max(1, parseInt(params.page || '1', 10));
@@ -43,14 +47,23 @@ export default async function MaintenancePage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Обслуживание' },
+        ]}
+      />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">🔧 Обслуживание / Wartung</h1>
           <p className="text-gray-600">История обслуживания автомобилей</p>
         </div>
-        <Link href="/dashboard/maintenance/new">
-          <Button>➕ Добавить обслуживание</Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <Link href="/dashboard/maintenance/new">
+            <Button>➕ Добавить обслуживание</Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       {maintenances && maintenances.length > 0 ? (
@@ -86,13 +99,15 @@ export default async function MaintenancePage({
                         <Link href={`/dashboard/maintenance/${m.id}`}>
                           <Button variant="outline" size="sm">👁️ Просмотр</Button>
                         </Link>
-                        <DeleteItemButton
-                          id={m.id}
-                          baseUrl="/api/maintenance"
-                          itemName={`обслуживание "${m.description || (m.type === 'inspection' ? 'Осмотр' : 'Ремонт')}" для ${m.vehicle?.name} (${m.date})`}
-                          size="sm"
-                          variant="outline"
-                        />
+                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                          <DeleteItemButton
+                            id={m.id}
+                            baseUrl="/api/maintenance"
+                            itemName={`обслуживание "${m.description || (m.type === 'inspection' ? 'Осмотр' : 'Ремонт')}" для ${m.vehicle?.name} (${m.date})`}
+                            size="sm"
+                            variant="outline"
+                          />
+                        </RoleGuard>
                       </div>
                     </td>
                   </tr>
