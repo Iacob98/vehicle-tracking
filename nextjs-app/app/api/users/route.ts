@@ -2,11 +2,13 @@ import { createServerClient } from '@/lib/supabase/server';
 import {
   apiSuccess,
   apiBadRequest,
+  apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
   checkOrganizationId,
 } from '@/lib/api-response';
 import { createHash } from 'crypto';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
  * POST /api/users
@@ -32,6 +34,12 @@ export async function POST(request: Request) {
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin может создавать пользователей)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageUsers(userRole)) {
+      return apiForbidden('У вас нет прав на создание пользователей');
+    }
 
     // Получаем JSON
     const body = await request.json();

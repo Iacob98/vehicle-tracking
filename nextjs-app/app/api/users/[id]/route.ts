@@ -6,6 +6,7 @@ import {
   checkAuthentication,
   checkOrganizationId,
 } from '@/lib/api-response';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
  * DELETE /api/users/[id]
@@ -33,6 +34,12 @@ export async function DELETE(
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin может удалять пользователей)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageUsers(userRole)) {
+      return apiForbidden('У вас нет прав на удаление пользователей');
+    }
 
     // Запрет удаления самого себя
     if (user.id === id) {

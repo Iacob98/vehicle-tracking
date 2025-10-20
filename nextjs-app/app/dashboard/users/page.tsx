@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { ROLES, type UserRole } from '@/lib/types/roles';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { RoleGuard } from '@/components/RoleGuard';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -24,6 +26,7 @@ export default async function UsersPage({
 
   const orgId = user.user_metadata?.organization_id;
   const currentUserId = user.id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   if (!orgId) {
     return <div>Organization ID not found</div>;
@@ -72,14 +75,23 @@ export default async function UsersPage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Пользователи' },
+        ]}
+      />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">👤 Пользователи платформы</h1>
           <p className="text-gray-600">Управление пользователями с аккаунтами в системе</p>
         </div>
-        <Link href="/dashboard/users/new">
-          <Button>➕ Добавить пользователя</Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+          <Link href="/dashboard/users/new">
+            <Button>➕ Добавить пользователя</Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -130,16 +142,20 @@ export default async function UsersPage({
                       <Link href={`/dashboard/users/${u.id}`}>
                         <Button variant="outline" size="sm">👁️ Просмотр</Button>
                       </Link>
-                      <Link href={`/dashboard/users/${u.id}/edit`}>
-                        <Button variant="outline" size="sm">✏️</Button>
-                      </Link>
+                      <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+                        <Link href={`/dashboard/users/${u.id}/edit`}>
+                          <Button variant="outline" size="sm">✏️</Button>
+                        </Link>
+                      </RoleGuard>
                       {u.id !== currentUserId && (
-                        <DeleteItemButton
-                          id={u.id}
-                          baseUrl="/api/users"
-                          itemName={`пользователя "${u.first_name} ${u.last_name}"`}
-                          size="sm"
-                        />
+                        <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+                          <DeleteItemButton
+                            id={u.id}
+                            baseUrl="/api/users"
+                            itemName={`пользователя "${u.first_name} ${u.last_name}"`}
+                            size="sm"
+                          />
+                        </RoleGuard>
                       )}
                     </div>
                   </div>
@@ -162,9 +178,11 @@ export default async function UsersPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">👤</div>
           <p className="text-gray-500 mb-4">Нет пользователей платформы</p>
-          <Link href="/dashboard/users/new">
-            <Button>➕ Добавить первого пользователя</Button>
-          </Link>
+          <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+            <Link href="/dashboard/users/new">
+              <Button>➕ Добавить первого пользователя</Button>
+            </Link>
+          </RoleGuard>
         </div>
       )}
     </div>
