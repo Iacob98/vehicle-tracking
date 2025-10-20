@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { RoleGuard } from '@/components/RoleGuard';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -31,6 +34,7 @@ export default async function PenaltiesPage({
   }
 
   const orgId = user.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   if (!orgId) {
     return <div>Organization ID not found</div>;
@@ -98,14 +102,23 @@ export default async function PenaltiesPage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Штрафы' },
+        ]}
+      />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">🚧 Штрафы / Strafen</h1>
           <p className="text-gray-600">Управление штрафами и их оплатой</p>
         </div>
-        <Link href="/dashboard/penalties/new">
-          <Button>➕ Добавить штраф</Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <Link href="/dashboard/penalties/new">
+            <Button>➕ Добавить штраф</Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       {/* Statistics */}
@@ -171,9 +184,11 @@ export default async function PenaltiesPage({
                       <Link href={`/dashboard/penalties/${penalty.id}`}>
                         <Button variant="outline" size="sm">👁️ Просмотр</Button>
                       </Link>
-                      <Link href={`/dashboard/penalties/${penalty.id}/edit`}>
-                        <Button variant="outline" size="sm">✏️</Button>
-                      </Link>
+                      <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                        <Link href={`/dashboard/penalties/${penalty.id}/edit`}>
+                          <Button variant="outline" size="sm">✏️</Button>
+                        </Link>
+                      </RoleGuard>
                     </div>
                   </div>
                 </div>
@@ -195,9 +210,11 @@ export default async function PenaltiesPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">🚧</div>
           <p className="text-gray-500 mb-4">Нет штрафов / Keine Strafen</p>
-          <Link href="/dashboard/penalties/new">
-            <Button>➕ Добавить первый штраф</Button>
-          </Link>
+          <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+            <Link href="/dashboard/penalties/new">
+              <Button>➕ Добавить первый штраф</Button>
+            </Link>
+          </RoleGuard>
         </div>
       )}
     </div>

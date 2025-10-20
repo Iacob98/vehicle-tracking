@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -19,6 +20,12 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin и manager могут удалять штрафы)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на удаление штрафов');
+    }
 
     // Delete penalty
     const { error: deleteError } = await supabase

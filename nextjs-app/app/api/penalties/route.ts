@@ -2,11 +2,13 @@ import { createServerClient } from '@/lib/supabase/server';
 import {
   apiSuccess,
   apiBadRequest,
+  apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
   checkOrganizationId,
 } from '@/lib/api-response';
 import { uploadFile } from '@/lib/storage';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
  * POST /api/penalties
@@ -33,6 +35,12 @@ export async function POST(request: Request) {
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin и manager могут создавать штрафы)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на создание штрафов');
+    }
 
     // Получаем FormData
     const formData = await request.formData();
