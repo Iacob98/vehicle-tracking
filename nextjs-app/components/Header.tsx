@@ -21,19 +21,19 @@ export default function Header({ user }: HeaderProps) {
   const roleInfo = getRoleInfo(user?.role as UserRole);
 
   return (
-    <header className="bg-white shadow-sm border-b">
-      <div className="px-6 py-4 flex justify-between items-center">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
+    <header className="bg-white shadow-sm border-b fixed lg:relative w-full z-20">
+      <div className="px-4 md:px-6 py-3 md:py-4 flex justify-between items-center ml-0 lg:ml-0">
+        <div className="ml-12 lg:ml-0">
+          <h2 className="text-base md:text-lg font-semibold text-gray-900 truncate">
             Добро пожаловать, {user?.first_name}!
           </h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-xs md:text-sm text-gray-600">
             {roleInfo.label}
           </p>
         </div>
         <button
           onClick={handleSignOut}
-          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition"
+          className="px-3 md:px-4 py-2 text-xs md:text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition whitespace-nowrap"
         >
           Выйти
         </button>

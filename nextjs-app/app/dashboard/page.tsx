@@ -7,15 +7,13 @@ export default async function DashboardPage() {
   
   const orgId = authUser?.user_metadata?.organization_id;
 
-  const now = new Date().toISOString();
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // Fetch stats
-  const [vehiclesCount, teamsCount, penaltiesCount, expensesSum, expiringDocs] = await Promise.all([
+  const [vehiclesCount, teamsCount, penaltiesCount, expiringDocs] = await Promise.all([
     supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase.from('teams').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'open'),
-    supabase.from('expenses').select('amount').eq('organization_id', orgId),
     supabase.from('vehicle_documents').select('id', { count: 'exact', head: true })
       .eq('organization_id', orgId)
       .eq('is_active', true)
@@ -23,16 +21,14 @@ export default async function DashboardPage() {
       .lte('date_expiry', thirtyDaysFromNow),
   ]);
 
-  const totalExpenses = expensesSum.data?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Обзор системы управления автопарком</p>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm md:text-base text-gray-600">Обзор системы управления автопарком</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
