@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { RoleGuard } from '@/components/RoleGuard';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -23,6 +26,7 @@ export default async function TeamsPage({
   }
 
   const orgId = user.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   if (!orgId) {
     return <div>Organization ID not found</div>;
@@ -121,14 +125,23 @@ export default async function TeamsPage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Бригады' },
+        ]}
+      />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">👷 Бригады и участники</h1>
           <p className="text-gray-600">Управление бригадами, участниками и их документами</p>
         </div>
-        <Link href="/dashboard/teams/new">
-          <Button>➕ Добавить бригаду</Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <Link href="/dashboard/teams/new">
+            <Button>➕ Добавить бригаду</Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       <Tabs defaultValue="teams" className="space-y-4">
@@ -173,18 +186,22 @@ export default async function TeamsPage({
                       </div>
 
                       <div className="flex gap-2">
-                        <Link href={`/dashboard/teams/${team.id}/edit`}>
-                          <Button variant="outline" size="sm">✏️</Button>
-                        </Link>
+                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                          <Link href={`/dashboard/teams/${team.id}/edit`}>
+                            <Button variant="outline" size="sm">✏️</Button>
+                          </Link>
+                        </RoleGuard>
                         <Link href={`/dashboard/teams/${team.id}`}>
                           <Button variant="outline" size="sm">👁️</Button>
                         </Link>
-                        <DeleteItemButton
-                          id={team.id}
-                          baseUrl="/api/teams"
-                          itemName={`бригаду "${team.name}"`}
-                          size="sm"
-                        />
+                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                          <DeleteItemButton
+                            id={team.id}
+                            baseUrl="/api/teams"
+                            itemName={`бригаду "${team.name}"`}
+                            size="sm"
+                          />
+                        </RoleGuard>
                       </div>
                     </div>
                   </div>
@@ -205,9 +222,11 @@ export default async function TeamsPage({
             <div className="text-center py-12 border rounded-lg bg-white">
               <div className="text-6xl mb-4">👷</div>
               <p className="text-gray-500 mb-4">Нет созданных бригад</p>
-              <Link href="/dashboard/teams/new">
-                <Button>➕ Создать первую бригаду</Button>
-              </Link>
+              <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                <Link href="/dashboard/teams/new">
+                  <Button>➕ Создать первую бригаду</Button>
+                </Link>
+              </RoleGuard>
             </div>
           )}
         </TabsContent>
