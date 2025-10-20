@@ -12,6 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Image from 'next/image';
+import { RoleGuard } from '@/components/RoleGuard';
+import { type UserRole, Permissions } from '@/lib/types/roles';
+import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 interface Document {
   id: string;
@@ -39,6 +43,7 @@ interface DocumentsTableProps {
   documents: Document[];
   vehicles: Vehicle[];
   totalCount: number;
+  userRole: UserRole;
 }
 
 const DOCUMENT_TYPES = [
@@ -50,7 +55,7 @@ const DOCUMENT_TYPES = [
   { value: 'rental_contract', label: '🏢 Договор аренды' },
 ];
 
-export function DocumentsTable({ documents, vehicles, totalCount }: DocumentsTableProps) {
+export function DocumentsTable({ documents, vehicles, totalCount, userRole }: DocumentsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
@@ -166,6 +171,14 @@ export function DocumentsTable({ documents, vehicles, totalCount }: DocumentsTab
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Документы' },
+        ]}
+      />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">📄 Все документы</h1>
       </div>
@@ -360,13 +373,24 @@ export function DocumentsTable({ documents, vehicles, totalCount }: DocumentsTab
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/dashboard/vehicles/${doc.vehicle_id}`)}
-                    >
-                      👁️ Открыть
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/dashboard/vehicles/${doc.vehicle_id}`)}
+                      >
+                        👁️ Открыть
+                      </Button>
+                      <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                        <DeleteItemButton
+                          id={doc.id}
+                          baseUrl="/api/documents"
+                          itemName={`документ "${doc.title}"`}
+                          size="sm"
+                          variant="outline"
+                        />
+                      </RoleGuard>
+                    </div>
                   </td>
                 </tr>
               );

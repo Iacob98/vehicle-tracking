@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { DocumentsTable } from './DocumentsTable';
+import { type UserRole } from '@/lib/types/roles';
 
 export default async function AllDocumentsPage({
   searchParams,
@@ -11,6 +12,7 @@ export default async function AllDocumentsPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const orgId = user?.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Build query with filters
   let query = supabase
@@ -78,6 +80,7 @@ export default async function AllDocumentsPage({
       documents={documents || []}
       vehicles={vehicles || []}
       totalCount={count || 0}
+      userRole={userRole}
     />
   );
 }
