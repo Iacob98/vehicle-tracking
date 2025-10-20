@@ -8,6 +8,7 @@ import {
   checkOrganizationId,
 } from '@/lib/api-response';
 import { uploadMultipleFiles } from '@/lib/storage';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
  * PUT /api/vehicles/[id]
@@ -34,6 +35,12 @@ export async function PUT(
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin и manager могут редактировать vehicles)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на редактирование автомобилей');
+    }
 
     // Проверка что vehicle принадлежит организации пользователя
     const { data: existingVehicle } = await supabase
@@ -119,7 +126,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -135,6 +142,12 @@ export async function DELETE(
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
+
+    // Проверка прав доступа (только admin и manager могут удалять vehicles)
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на удаление автомобилей');
+    }
 
     // Verify vehicle belongs to user's organization
     const { data: vehicle } = await supabase

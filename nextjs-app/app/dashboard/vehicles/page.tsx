@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { VehiclesTable } from './VehiclesTable';
+import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -13,6 +14,7 @@ export default async function VehiclesPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const orgId = user?.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Pagination
   const currentPage = Math.max(1, parseInt(params.page || '1', 10));
@@ -66,6 +68,7 @@ export default async function VehiclesPage({
       currentPage={currentPage}
       totalPages={totalPages}
       itemsPerPage={ITEMS_PER_PAGE}
+      userRole={userRole}
     />
   );
 }

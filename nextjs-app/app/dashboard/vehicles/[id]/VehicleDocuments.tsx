@@ -27,6 +27,7 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostFormData, useDelete } from '@/lib/api-client';
 import Image from 'next/image';
 import { DocumentViewer } from './DocumentViewer';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 interface VehicleDocumentsProps {
   vehicle: {
@@ -178,16 +179,18 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
       {addError && <ErrorAlert error={addError} />}
       {deleteError && <ErrorAlert error={deleteError} />}
 
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Автомобили', href: '/dashboard/vehicles' },
+          { label: vehicle.name },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Button
-            variant="outline"
-            onClick={() => router.push('/dashboard/vehicles')}
-            className="mb-4"
-          >
-            ← Назад к списку
-          </Button>
           <h1 className="text-2xl font-bold text-gray-900">🚗 {vehicle.name}</h1>
         </div>
         <div className="flex gap-2">

@@ -15,6 +15,8 @@ import {
 import Image from 'next/image';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { RoleGuard } from '@/components/RoleGuard';
+import { type UserRole, Permissions } from '@/lib/types/roles';
 
 interface Vehicle {
   id: string;
@@ -38,6 +40,7 @@ interface VehiclesTableProps {
   currentPage: number;
   totalPages: number;
   itemsPerPage: number;
+  userRole: UserRole;
 }
 
 export function VehiclesTable({
@@ -46,6 +49,7 @@ export function VehiclesTable({
   currentPage,
   totalPages,
   itemsPerPage,
+  userRole,
 }: VehiclesTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -117,11 +121,13 @@ export function VehiclesTable({
           <h1 className="text-2xl font-bold text-gray-900">🚗 Автомобили</h1>
           <p className="text-gray-600">Управление автопарком</p>
         </div>
-        <Link href="/dashboard/vehicles/new">
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            + Добавить автомобиль
-          </Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <Link href="/dashboard/vehicles/new">
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              + Добавить автомобиль
+            </Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       {/* Filters */}
@@ -220,18 +226,22 @@ export function VehiclesTable({
                         📄 Документы
                       </Button>
                     </Link>
-                    <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
-                      <Button variant="outline" size="sm">
-                        ✏️ Редактировать
-                      </Button>
-                    </Link>
-                    <DeleteItemButton
-                      id={vehicle.id}
-                      baseUrl="/api/vehicles"
-                      itemName={`автомобиль "${vehicle.name}" (${vehicle.license_plate || 'без номера'})`}
-                      size="sm"
-                      variant="outline"
-                    />
+                    <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                      <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
+                        <Button variant="outline" size="sm">
+                          ✏️ Редактировать
+                        </Button>
+                      </Link>
+                    </RoleGuard>
+                    <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                      <DeleteItemButton
+                        id={vehicle.id}
+                        baseUrl="/api/vehicles"
+                        itemName={`автомобиль "${vehicle.name}" (${vehicle.license_plate || 'без номера'})`}
+                        size="sm"
+                        variant="outline"
+                      />
+                    </RoleGuard>
                   </div>
                 </div>
               </div>
@@ -260,9 +270,11 @@ export function VehiclesTable({
               : 'Начните с добавления первого автомобиля в ваш автопарк'}
           </p>
           {!searchInput && statusFilter === 'all' && (
-            <Link href="/dashboard/vehicles/new">
-              <Button className="bg-blue-600 hover:bg-blue-700">+ Добавить автомобиль</Button>
-            </Link>
+            <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+              <Link href="/dashboard/vehicles/new">
+                <Button className="bg-blue-600 hover:bg-blue-700">+ Добавить автомобиль</Button>
+              </Link>
+            </RoleGuard>
           )}
         </div>
       )}
