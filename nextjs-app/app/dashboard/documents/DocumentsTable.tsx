@@ -16,6 +16,7 @@ import { RoleGuard } from '@/components/RoleGuard';
 import { type UserRole, Permissions } from '@/lib/types/roles';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 
 interface Document {
   id: string;
@@ -43,6 +44,9 @@ interface DocumentsTableProps {
   documents: Document[];
   vehicles: Vehicle[];
   totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  itemsPerPage: number;
   userRole: UserRole;
 }
 
@@ -55,7 +59,15 @@ const DOCUMENT_TYPES = [
   { value: 'rental_contract', label: '🏢 Договор аренды' },
 ];
 
-export function DocumentsTable({ documents, vehicles, totalCount, userRole }: DocumentsTableProps) {
+export function DocumentsTable({
+  documents,
+  vehicles,
+  totalCount,
+  currentPage,
+  totalPages,
+  itemsPerPage,
+  userRole
+}: DocumentsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
@@ -404,6 +416,22 @@ export function DocumentsTable({ documents, vehicles, totalCount, userRole }: Do
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {documents.length > 0 && (
+        <div className="space-y-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            baseUrl="/dashboard/documents"
+          />
+          <PaginationInfo
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalCount}
+          />
+        </div>
+      )}
     </div>
   );
 }

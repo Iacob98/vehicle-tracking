@@ -2,6 +2,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { DocumentsTable } from './DocumentsTable';
 import { type UserRole } from '@/lib/types/roles';
 
+const ITEMS_PER_PAGE = 20;
+
 export default async function AllDocumentsPage({
   searchParams,
 }: {
@@ -13,6 +15,11 @@ export default async function AllDocumentsPage({
   const { data: { user } } = await supabase.auth.getUser();
   const orgId = user?.user_metadata?.organization_id;
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
+
+  // Pagination
+  const currentPage = Math.max(1, parseInt(params.page || '1', 10));
+  const from = (currentPage - 1) * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE - 1;
 
   // Build query with filters
   let query = supabase
@@ -64,7 +71,9 @@ export default async function AllDocumentsPage({
     }
   }
 
-  query = query.order('date_expiry', { ascending: true, nullsFirst: false });
+  query = query
+    .order('date_expiry', { ascending: true, nullsFirst: false })
+    .range(from, to);
 
   const { data: documents, count } = await query;
 
@@ -75,11 +84,16 @@ export default async function AllDocumentsPage({
     .eq('organization_id', orgId)
     .order('name', { ascending: true });
 
+  const totalPages = Math.ceil((count || 0) / ITEMS_PER_PAGE);
+
   return (
     <DocumentsTable
       documents={documents || []}
       vehicles={vehicles || []}
       totalCount={count || 0}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      itemsPerPage={ITEMS_PER_PAGE}
       userRole={userRole}
     />
   );
