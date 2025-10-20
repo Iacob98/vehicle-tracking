@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
+import { RoleGuard } from '@/components/RoleGuard';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -38,6 +41,7 @@ export default async function CarExpensesPage({
   }
 
   const orgId = user.user_metadata?.organization_id;
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   if (!orgId) {
     return <div>Organization ID not found</div>;
@@ -83,14 +87,23 @@ export default async function CarExpensesPage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Панель управления', href: '/dashboard' },
+          { label: 'Расходы на авто' },
+        ]}
+      />
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">🚗💰 Расходы на авто / Auto-Ausgaben</h1>
           <p className="text-gray-600">Учет расходов на автомобили</p>
         </div>
-        <Link href="/dashboard/car-expenses/new">
-          <Button>➕ Добавить расход</Button>
-        </Link>
+        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <Link href="/dashboard/car-expenses/new">
+            <Button>➕ Добавить расход</Button>
+          </Link>
+        </RoleGuard>
       </div>
 
       {/* Statistics */}
@@ -140,18 +153,20 @@ export default async function CarExpensesPage({
 
                     <div className="flex items-center gap-2 justify-end">
                       {!expense.maintenance_id && (
-                        <>
-                          <Link href={`/dashboard/car-expenses/${expense.id}/edit`}>
-                            <Button variant="outline" size="sm">✏️</Button>
-                          </Link>
-                          <DeleteItemButton
-                            id={expense.id}
-                            baseUrl="/api/car-expenses"
-                            itemName={`расход "${expense.description || CATEGORY_NAMES[expense.category as keyof typeof CATEGORY_NAMES]}" на ${expense.vehicle_name} (€${parseFloat(expense.amount || 0).toFixed(2)})`}
-                            size="sm"
-                            variant="outline"
-                          />
-                        </>
+                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                          <>
+                            <Link href={`/dashboard/car-expenses/${expense.id}/edit`}>
+                              <Button variant="outline" size="sm">✏️</Button>
+                            </Link>
+                            <DeleteItemButton
+                              id={expense.id}
+                              baseUrl="/api/car-expenses"
+                              itemName={`расход "${expense.description || CATEGORY_NAMES[expense.category as keyof typeof CATEGORY_NAMES]}" на ${expense.vehicle_name} (€${parseFloat(expense.amount || 0).toFixed(2)})`}
+                              size="sm"
+                              variant="outline"
+                            />
+                          </>
+                        </RoleGuard>
                       )}
                       {expense.maintenance_id && (
                         <span className="text-sm text-gray-400">🔒 Связан с ТО</span>
@@ -177,9 +192,11 @@ export default async function CarExpensesPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">💰</div>
           <p className="text-gray-500 mb-4">Нет расходов на авто / Keine Auto-Ausgaben</p>
-          <Link href="/dashboard/car-expenses/new">
-            <Button>➕ Добавить первый расход</Button>
-          </Link>
+          <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+            <Link href="/dashboard/car-expenses/new">
+              <Button>➕ Добавить первый расход</Button>
+            </Link>
+          </RoleGuard>
         </div>
       )}
     </div>
