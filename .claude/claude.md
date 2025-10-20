@@ -1,4 +1,8 @@
-# Правила работы Claude для проекта Vehicle Tracking System
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# Vehicle Tracking System - Проект на Next.js + Supabase
 
 ## Обязательная синхронизация с Git/GitHub
 
@@ -200,3 +204,221 @@ git push
 ---
 
 **Главное правило:** После КАЖДОГО завершенного действия - коммит и push на GitHub с подробным описанием на русском языке!
+
+---
+
+## Архитектура и структура проекта
+
+### Технологический стек
+- **Frontend:** Next.js 15 (App Router), React 19, TypeScript
+- **UI:** Tailwind CSS, shadcn/ui (Radix UI components)
+- **Backend:** Supabase (PostgreSQL + Auth + Storage)
+- **Testing:** Jest (unit), Playwright (e2e)
+- **Forms:** React Hook Form + Zod validation
+
+### Структура директорий
+
+```
+nextjs-app/
+├── app/                          # Next.js App Router
+│   ├── api/                      # API Routes
+│   │   ├── auth/                 # Authentication endpoints
+│   │   ├── vehicles/             # Vehicle CRUD
+│   │   ├── upload/               # File upload
+│   │   └── [other resources]/
+│   ├── dashboard/                # Protected dashboard pages
+│   │   ├── vehicles/             # Vehicle management
+│   │   ├── teams/                # Team management
+│   │   ├── users/                # User management
+│   │   ├── documents/            # Document management
+│   │   ├── penalties/            # Penalties
+│   │   ├── expenses/             # Expenses tracking
+│   │   ├── maintenance/          # Maintenance records
+│   │   ├── analytics/            # Analytics dashboard
+│   │   └── [other modules]/
+│   ├── login/                    # Login page
+│   ├── page.tsx                  # Landing page
+│   ├── layout.tsx                # Root layout
+│   └── globals.css               # Global styles
+│
+├── components/
+│   ├── ui/                       # shadcn/ui components
+│   ├── Header.tsx                # Dashboard header with role display
+│   ├── Sidebar.tsx               # Navigation sidebar
+│   ├── RoleGuard.tsx             # Role-based access control
+│   ├── ErrorBoundary.tsx         # Error handling
+│   ├── DeleteButton.tsx          # Delete with confirmation
+│   └── [other shared components]
+│
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts             # Client-side Supabase client
+│   │   ├── server.ts             # Server-side Supabase client
+│   │   └── middleware.ts         # Auth middleware (deprecated)
+│   ├── auth/
+│   │   └── roles.ts              # Role definitions and checks
+│   ├── schemas/                  # Zod validation schemas
+│   ├── types/                    # TypeScript type definitions
+│   ├── database.types.ts         # Supabase generated types
+│   ├── api-client.ts             # API client utilities
+│   ├── api-response.ts           # API response helpers
+│   ├── storage.ts                # Supabase Storage helpers
+│   ├── errors.ts                 # Error handling utilities
+│   └── utils.ts                  # General utilities
+│
+├── migrations/                   # Database migration scripts (numbered)
+├── scripts/                      # Utility scripts (e.g., create driver)
+├── __tests__/                    # Jest unit tests
+├── e2e/                          # Playwright e2e tests
+├── middleware.ts                 # Next.js middleware for auth
+└── [config files]
+```
+
+### Ключевые концепции архитектуры
+
+#### 1. Multi-tenant архитектура
+- **Каждая запись привязана к `organization_id`**
+- Row Level Security (RLS) политики на уровне БД обеспечивают изоляцию данных
+- КРИТИЧНО: Всегда проверяй что новые таблицы имеют `organization_id` и RLS политики
+
+#### 2. Аутентификация и авторизация
+- **Supabase Auth** управляет пользователями и сессиями
+- **Middleware** (`middleware.ts`) защищает роуты `/dashboard/*`
+- **Роли:** owner, admin, manager, team_lead, driver (worker deprecated)
+- **User metadata** содержит `organization_id` и `role`
+- Функция `getOrganizationId()` извлекает organization_id из auth.users.raw_user_meta_data
+
+#### 3. API Routes Pattern
+```typescript
+// Все API routes следуют этому паттерну:
+export async function GET(request: Request) {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const organizationId = await getOrganizationId();
+  if (!organizationId) return NextResponse.json({ error: 'No organization' }, { status: 403 });
+
+  // Query with organization_id filter
+  const { data, error } = await supabase
+    .from('table_name')
+    .select('*')
+    .eq('organization_id', organizationId);
+
+  // Always return standardized responses
+  return NextResponse.json({ data, error });
+}
+```
+
+#### 4. Database Schema
+- См. `lib/database-schema.sql` для полной схемы
+- Основные таблицы: organizations, users, vehicles, teams, team_members, vehicle_assignments, vehicle_documents, penalties, expenses, maintenance
+- Все миграции нумерованы: `00X_description.sql` в папке `migrations/`
+
+#### 5. Storage (Supabase)
+- **Buckets:** `vehicles` (vehicle photos), `documents` (documents), `penalties` (penalty photos)
+- RLS политики защищают файлы по organization_id
+- Используй `lib/storage.ts` для работы с файлами
+
+#### 6. Type Safety
+- `lib/database.types.ts` - сгенерированные типы из Supabase схемы
+- Zod схемы в `lib/schemas/` для валидации форм
+- Все API responses типизированы через `api-response.ts`
+
+### Команды для разработки
+
+```bash
+# Рабочая директория
+cd nextjs-app
+
+# Разработка
+npm run dev              # Dev сервер на localhost:3000
+
+# Тестирование
+npm run lint             # ESLint проверка
+npm test                 # Jest unit tests
+npm run test:watch       # Jest в watch режиме
+npm run test:coverage    # Coverage report
+npm run test:e2e         # Playwright e2e tests
+npm run test:e2e:ui      # Playwright UI mode
+npm run test:all         # Все тесты
+
+# Production
+npm run build            # Production build
+npm start                # Production сервер на localhost:3000
+```
+
+### Database Migrations
+
+```bash
+# Подключение к Supabase PostgreSQL
+PGPASSWORD="Iasaninja1973.." psql -h aws-0-eu-central-1.pooler.supabase.com \
+  -p 6543 -U postgres.wymucemxzhaulibsqdta -d postgres
+
+# Выполнение миграции
+PGPASSWORD="Iasaninja1973.." psql -h aws-0-eu-central-1.pooler.supabase.com \
+  -p 6543 -U postgres.wymucemxzhaulibsqdta -d postgres \
+  -f nextjs-app/migrations/XXX_migration_name.sql
+
+# Проверка таблиц
+PGPASSWORD="Iasaninja1973.." psql -h aws-0-eu-central-1.pooler.supabase.com \
+  -p 6543 -U postgres.wymucemxzhaulibsqdta -d postgres \
+  -c "\d table_name"
+```
+
+### Важные паттерны кода
+
+#### Server Components (по умолчанию)
+```typescript
+// app/dashboard/vehicles/page.tsx
+import { createServerClient } from '@/lib/supabase/server';
+
+export default async function VehiclesPage() {
+  const supabase = await createServerClient();
+  const { data } = await supabase.from('vehicles').select('*');
+  return <VehiclesList vehicles={data} />;
+}
+```
+
+#### Client Components (для интерактивности)
+```typescript
+'use client';
+
+import { createBrowserClient } from '@/lib/supabase/client';
+```
+
+#### RoleGuard использование
+```typescript
+import { RoleGuard } from '@/components/RoleGuard';
+
+<RoleGuard allowedRoles={['owner', 'admin']}>
+  <AdminOnlyContent />
+</RoleGuard>
+```
+
+### Проблемы безопасности
+
+⚠️ **КРИТИЧНО при добавлении новых таблиц:**
+1. Добавь колонку `organization_id UUID REFERENCES organizations(id)`
+2. Создай RLS политики для SELECT/INSERT/UPDATE/DELETE
+3. Убедись что политики проверяют `organization_id`
+4. Тестируй изоляцию данных между организациями
+
+⚠️ **НЕ коммить:**
+- `.env.local` с реальными ключами (проверяй `.gitignore`)
+- `SUPABASE_SERVICE_ROLE_KEY` в коде
+- Пароли и секреты
+
+### Debugging
+
+```typescript
+// Включено логирование в middleware.ts и lib/supabase/server.ts
+// Проверяй консоль браузера (F12) и терминал dev сервера
+```
+
+### Дополнительные ресурсы
+
+- **Миграционный гайд:** `nextjs-app/MIGRATION_GUIDE.md`
+- **Database schema:** `nextjs-app/lib/database-schema.sql`
+- **RLS Security notes:** `nextjs-app/lib/RLS_SECURITY_NOTES.md`
+- **Testing docs:** `nextjs-app/TESTING_DOCUMENTATION.md`
