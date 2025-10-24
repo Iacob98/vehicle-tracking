@@ -42,7 +42,7 @@ export async function DELETE(
     }
 
     // Запрет удаления самого себя
-    if (user.id === id) {
+    if (user!.id === id) {
       return apiForbidden('Вы не можете удалить свою учетную запись');
     }
 
