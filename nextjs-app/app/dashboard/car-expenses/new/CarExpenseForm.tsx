@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
-import { usePostJSON } from '@/lib/api-client';
+import { usePostFormData } from '@/lib/api-client';
 import Link from 'next/link';
 import { carExpenseSchema, CAR_EXPENSE_CATEGORY_OPTIONS, type CarExpenseFormData } from '@/lib/schemas';
 
@@ -22,9 +22,10 @@ interface CarExpenseFormProps {
 
 export function CarExpenseForm({ vehicles }: CarExpenseFormProps) {
   const router = useRouter();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Используем централизованную обработку ошибок через API hooks
-  const { loading, error, post } = usePostJSON('/api/car-expenses', {
+  const { loading, error, post } = usePostFormData('/api/car-expenses', {
     onSuccess: () => {
       router.push('/dashboard/car-expenses');
       router.refresh();
@@ -45,15 +46,23 @@ export function CarExpenseForm({ vehicles }: CarExpenseFormProps) {
   });
 
   const onSubmit = async (data: CarExpenseFormData) => {
-    await post({
-      vehicle_id: data.vehicle_id,
-      category: data.category,
-      amount: data.amount,
-      date: data.date,
-      description: data.description || null,
-      maintenance_id: data.maintenance_id || null,
-      receipt_url: data.receipt_url || null,
-    });
+    // Подготовка FormData для отправки на сервер
+    const formData = new FormData();
+
+    formData.append('vehicle_id', data.vehicle_id);
+    formData.append('category', data.category);
+    formData.append('amount', data.amount.toString());
+    formData.append('date', data.date);
+    formData.append('description', data.description || '');
+    formData.append('maintenance_id', data.maintenance_id || '');
+
+    // Добавляем фото чека если выбрано
+    if (selectedFile) {
+      formData.append('receipt', selectedFile);
+    }
+
+    // Отправляем через API
+    await post(formData);
   };
 
   return (
@@ -153,6 +162,23 @@ export function CarExpenseForm({ vehicles }: CarExpenseFormProps) {
           />
           {errors.description && (
             <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
+          )}
+        </div>
+
+        <div className="col-span-2">
+          <Label htmlFor="receipt">
+            📷 Фото чека / Beleg Foto
+          </Label>
+          <Input
+            id="receipt"
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+          />
+          {selectedFile && (
+            <p className="text-sm text-green-600 mt-1">
+              ✅ Выбран: {selectedFile.name}
+            </p>
           )}
         </div>
       </div>
