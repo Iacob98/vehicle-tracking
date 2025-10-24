@@ -9,15 +9,10 @@ import { z } from 'zod';
  * - type: required
  */
 
-// Maintenance type enum
+// Maintenance type enum (matches database maintenance_type enum)
 export const maintenanceTypeSchema = z.enum([
   'inspection',
-  'oil_change',
-  'tire_change',
-  'brake_service',
-  'filter_replacement',
-  'battery_replacement',
-  'other',
+  'repair',
 ]);
 
 // Main maintenance schema
@@ -48,13 +43,8 @@ export const createMaintenanceSchema = maintenanceSchema;
 // Schema for maintenance update
 export const updateMaintenanceSchema = maintenanceSchema.partial().required({ vehicle_id: true, date: true, type: true });
 
-// Export type options
+// Export type options (matches database maintenance_type enum)
 export const MAINTENANCE_TYPE_OPTIONS = [
   { value: 'inspection', label: '🔍 Техосмотр / TÜV' },
-  { value: 'oil_change', label: '🛢️ Замена масла / Ölwechsel' },
-  { value: 'tire_change', label: '🛞 Замена шин / Reifenwechsel' },
-  { value: 'brake_service', label: '🛑 Обслуживание тормозов / Bremsendienst' },
-  { value: 'filter_replacement', label: '🔧 Замена фильтров / Filterwechsel' },
-  { value: 'battery_replacement', label: '🔋 Замена аккумулятора / Batteriewechsel' },
-  { value: 'other', label: '📦 Прочее / Sonstiges' },
+  { value: 'repair', label: '🔧 Ремонт / Reparatur' },
 ] as const;

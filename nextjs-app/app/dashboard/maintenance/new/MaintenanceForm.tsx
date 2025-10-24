@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { maintenanceSchema, MAINTENANCE_TYPE_OPTIONS, type MaintenanceFormData } from '@/lib/schemas';
+import { maintenanceSchema, MAINTENANCE_TYPE_OPTIONS, type MaintenanceFormData } from '@/lib/schemas/maintenance.schema';
 
 interface MaintenanceFormProps {
   vehicles: Array<{
@@ -38,7 +38,6 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
   } = useForm<MaintenanceFormData>({
     resolver: zodResolver(maintenanceSchema),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
       type: 'inspection',
     },
   });
