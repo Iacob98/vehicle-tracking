@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import {
   apiSuccess,
@@ -7,8 +8,20 @@ import {
   checkAuthentication,
   checkOrganizationId,
 } from '@/lib/api-response';
-import { uploadFile } from '@/lib/storage';
+import { createFileUploadError } from '@/lib/errors';
 import { Permissions, type UserRole } from '@/lib/types/roles';
+
+// Create Supabase client with Service Role key for bypassing RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
 /**
  * POST /api/car-expenses
@@ -61,7 +74,34 @@ export async function POST(request: Request) {
 
     if (receiptFile && receiptFile.size > 0) {
       try {
-        receiptUrl = await uploadFile(receiptFile, 'expenses', orgId);
+        // Generate file path
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `${orgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+        // Upload file using Service Role client (bypasses RLS)
+        const { data, error: uploadError } = await supabaseAdmin.storage
+          .from('expenses')
+          .upload(fileName, receiptFile, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          const fileError = createFileUploadError('Ошибка загрузки фото чека', uploadError.message);
+          return apiErrorFromUnknown(fileError, { context: 'uploading receipt photo', bucket: 'expenses', orgId });
+        }
+
+        // Get signed URL for private bucket (expires in 1 year)
+        const { data: signedData, error: signError } = await supabaseAdmin.storage
+          .from('expenses')
+          .createSignedUrl(data.path, 31536000); // 1 year in seconds
+
+        if (signError) {
+          const fileError = createFileUploadError('Ошибка создания signed URL', signError.message);
+          return apiErrorFromUnknown(fileError, { context: 'creating signed URL', bucket: 'expenses', orgId });
+        }
+
+        receiptUrl = signedData.signedUrl;
       } catch (error) {
         return apiErrorFromUnknown(error, { context: 'uploading receipt photo' });
       }
