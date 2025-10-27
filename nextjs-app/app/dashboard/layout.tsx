@@ -9,9 +9,9 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createServerClient();
-  
+
   const { data: { user: authUser } } = await supabase.auth.getUser();
-  
+
   if (!authUser) {
     redirect('/login');
   }
@@ -21,6 +21,12 @@ export default async function DashboardLayout({
     .select('*, organizations(*)')
     .eq('id', authUser.id)
     .single();
+
+  // Водители используют свой собственный layout в /dashboard/driver/layout.tsx
+  // Просто возвращаем children без sidebar и header
+  if (user?.role === 'driver') {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
