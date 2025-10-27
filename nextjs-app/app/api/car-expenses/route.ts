@@ -128,6 +128,7 @@ export async function POST(request: Request) {
       description: formData.get('description') as string || null,
       maintenance_id: formData.get('maintenance_id') as string || null,
       receipt_url: receiptUrl,
+      created_by_user_id: user.id, // Сохраняем ID пользователя создавшего расход
     };
 
     // Вставка в базу данных
