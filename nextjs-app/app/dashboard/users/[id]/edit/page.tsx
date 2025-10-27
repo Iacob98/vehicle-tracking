@@ -57,6 +57,7 @@ export default async function EditUserPage({ params }: PageProps) {
     const phone = formData.get('phone') as string;
     const role = formData.get('role') as string;
     const teamId = formData.get('team_id') as string;
+    const fuelCardId = formData.get('fuel_card_id') as string;
 
     if (!firstName || !lastName) {
       return;
@@ -70,6 +71,7 @@ export default async function EditUserPage({ params }: PageProps) {
         phone: phone || null,
         role: role || 'viewer',
         team_id: teamId || null,
+        fuel_card_id: fuelCardId || null,
       })
       .eq('id', id)
       .eq('organization_id', orgId);
@@ -147,6 +149,22 @@ export default async function EditUserPage({ params }: PageProps) {
               defaultValue={user.phone || ''}
               placeholder="+7 900 123-45-67"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              ⛽ Номер заправочной карты
+            </label>
+            <Input
+              type="text"
+              name="fuel_card_id"
+              defaultValue={user.fuel_card_id || ''}
+              placeholder="1234-5678-9012"
+              maxLength={50}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Номер карты для идентификации при заправке
+            </p>
           </div>
 
           <div>

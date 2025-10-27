@@ -77,6 +77,9 @@ export default async function UserDetailPage({ params }: PageProps) {
         <div className="mt-2 space-y-1">
           <p className="text-gray-600">✉️ {user.email}</p>
           {user.phone && <p className="text-gray-600">📞 {user.phone}</p>}
+          {user.fuel_card_id && (
+            <p className="text-gray-600">⛽ Заправочная карта: <span className="font-mono font-semibold">{user.fuel_card_id}</span></p>
+          )}
           {teamInfo ? (
             <p className="text-gray-600">
               👥 Бригада:{' '}
