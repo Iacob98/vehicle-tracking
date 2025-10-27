@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { FuelCardForm } from './FuelCardForm';
+import { DriverDocumentsView } from './DriverDocumentsView';
 
 export default async function DriverProfilePage() {
   const supabase = await createServerClient();
@@ -19,6 +20,13 @@ export default async function DriverProfilePage() {
   if (!user || user.role !== 'driver') {
     redirect('/dashboard');
   }
+
+  // Получаем документы водителя
+  const { data: documents } = await supabase
+    .from('user_documents')
+    .select('*')
+    .eq('user_id', authUser.id)
+    .order('created_at', { ascending: false });
 
   return (
     <div className="space-y-6">
@@ -82,6 +90,19 @@ export default async function DriverProfilePage() {
           userId={user.id}
           currentFuelCardId={user.fuel_card_id || ''}
         />
+      </div>
+
+      {/* Мои документы */}
+      <div className="bg-white rounded-lg border p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          📄 Мои документы
+        </h2>
+        <div className="mb-4">
+          <p className="text-sm text-gray-600">
+            Здесь вы можете просматривать свои документы, загруженные администратором.
+          </p>
+        </div>
+        <DriverDocumentsView documents={documents || []} />
       </div>
     </div>
   );
