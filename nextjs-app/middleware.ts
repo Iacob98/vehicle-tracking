@@ -47,7 +47,33 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && request.nextUrl.pathname === '/login') {
-    console.log('✅ User logged in, redirecting to /dashboard');
+    console.log('✅ User logged in, redirecting based on role');
+    const url = request.nextUrl.clone();
+
+    // Redirect based on role
+    const userRole = user.user_metadata?.role;
+    if (userRole === 'driver') {
+      url.pathname = '/dashboard/driver';
+      console.log('🚗 Driver detected, redirecting to /dashboard/driver');
+    } else {
+      url.pathname = '/dashboard';
+      console.log('👔 Admin/Manager detected, redirecting to /dashboard');
+    }
+
+    return NextResponse.redirect(url);
+  }
+
+  // If driver tries to access admin dashboard, redirect to driver panel
+  if (user && request.nextUrl.pathname === '/dashboard' && user.user_metadata?.role === 'driver') {
+    console.log('🚗 Driver accessing /dashboard, redirecting to /dashboard/driver');
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard/driver';
+    return NextResponse.redirect(url);
+  }
+
+  // If non-driver tries to access driver panel, redirect to admin dashboard
+  if (user && request.nextUrl.pathname.startsWith('/dashboard/driver') && user.user_metadata?.role !== 'driver') {
+    console.log('👔 Non-driver accessing /dashboard/driver, redirecting to /dashboard');
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
