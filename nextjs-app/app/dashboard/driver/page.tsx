@@ -24,7 +24,6 @@ export default async function DriverDashboardPage() {
   // Получаем авто водителя через бригаду
   let vehicleName = 'Не назначено';
   let vehicleId: string | null = null;
-  let documentCount = 0;
 
   if (user?.team_id) {
     // Получаем активное назначение авто на бригаду
@@ -39,17 +38,6 @@ export default async function DriverDashboardPage() {
       const vehicle = assignment.vehicles as any;
       vehicleName = vehicle.name;
       vehicleId = assignment.vehicle_id;
-
-      // Подсчитываем документы
-      if (vehicleId) {
-        const { count } = await supabase
-          .from('vehicle_documents')
-          .select('id', { count: 'exact', head: true })
-          .eq('vehicle_id', vehicleId)
-          .eq('is_active', true);
-
-        documentCount = count || 0;
-      }
     }
   }
 
@@ -76,7 +64,7 @@ export default async function DriverDashboardPage() {
       </div>
 
       {/* Карточки быстрых действий */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {/* Мой автомобиль */}
         <Link
           href="/dashboard/driver/my-vehicle"
@@ -89,6 +77,9 @@ export default async function DriverDashboardPage() {
                 Мой автомобиль
               </h2>
               <p className="text-gray-600 text-sm mt-1">{vehicleName}</p>
+              <p className="text-gray-500 text-xs mt-1">
+                Документы и информация
+              </p>
             </div>
           </div>
         </Link>
@@ -106,26 +97,6 @@ export default async function DriverDashboardPage() {
               <h2 className="text-xl font-bold">Заправиться</h2>
               <p className="text-green-100 text-sm mt-1">
                 Добавить расход на топливо
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        {/* Документы авто */}
-        <Link
-          href="/dashboard/driver/my-vehicle#documents"
-          className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition group ${
-            !vehicleId ? 'opacity-50 pointer-events-none' : ''
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-4xl mb-3">📄</div>
-              <h2 className="text-xl font-bold text-gray-900 group-hover:text-green-600 transition">
-                Документы авто
-              </h2>
-              <p className="text-gray-600 text-sm mt-1">
-                {documentCount} {documentCount === 1 ? 'документ' : 'документов'}
               </p>
             </div>
           </div>
