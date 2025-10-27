@@ -1,6 +1,18 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { uploadFile } from '@/lib/storage';
+import { createClient } from '@supabase/supabase-js';
 import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+
+// Create Supabase Admin client for file uploads (bypasses RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
 export async function POST(request: Request) {
   try {
@@ -52,8 +64,31 @@ export async function POST(request: Request) {
     let fileUrl: string | null = null;
     if (file) {
       console.log('📤 Uploading user document file...');
-      fileUrl = await uploadFile(file, 'documents', orgId);
-      console.log('✅ Uploaded URL:', fileUrl);
+
+      // Generate file path
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${orgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+      // Upload file using Service Role client (bypasses RLS)
+      const { data, error } = await supabaseAdmin.storage
+        .from('documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) {
+        console.error('❌ File upload error:', error);
+        // Continue without file - we made file_url nullable
+      } else {
+        // Get public URL
+        const { data: { publicUrl } } = supabaseAdmin.storage
+          .from('documents')
+          .getPublicUrl(data.path);
+
+        fileUrl = publicUrl;
+        console.log('✅ Uploaded URL:', fileUrl);
+      }
     }
 
     // Insert document
