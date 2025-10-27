@@ -38,6 +38,7 @@ export function RefuelForm({ vehicleId, vehicleName }: RefuelFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const {
     register,
@@ -93,9 +94,19 @@ export function RefuelForm({ vehicleId, vehicleName }: RefuelFormProps) {
         throw new Error(result.error || 'Ошибка при добавлении заправки');
       }
 
-      // Успех - перенаправляем
-      router.push('/dashboard/driver/refuel');
-      router.refresh();
+      // Проверяем наличие предупреждений о лимитах
+      if (result.data?.warnings && result.data.warnings.length > 0) {
+        setWarnings(result.data.warnings);
+        // Даем пользователю 5 секунд посмотреть предупреждения
+        setTimeout(() => {
+          router.push('/dashboard/driver/refuel');
+          router.refresh();
+        }, 5000);
+      } else {
+        // Успех без предупреждений - перенаправляем сразу
+        router.push('/dashboard/driver/refuel');
+        router.refresh();
+      }
     } catch (err: any) {
       setError(err.message || 'Произошла ошибка при сохранении');
     } finally {
@@ -106,6 +117,30 @@ export function RefuelForm({ vehicleId, vehicleName }: RefuelFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {error && <ErrorAlert error={{ message: error, type: 'UNKNOWN' }} />}
+
+      {/* Предупреждения о лимитах */}
+      {warnings.length > 0 && (
+        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 space-y-2">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">⚠️</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900 text-lg">
+                Превышен лимит расхода топлива!
+              </h3>
+              <div className="mt-2 space-y-1">
+                {warnings.map((warning, idx) => (
+                  <p key={idx} className="text-yellow-800 text-sm">
+                    {warning}
+                  </p>
+                ))}
+              </div>
+              <p className="text-sm text-yellow-700 mt-3">
+                ✓ Заправка добавлена успешно. Перенаправление через 5 секунд...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Информация об автомобиле */}
       <div className="bg-green-50 border border-green-200 rounded-lg p-4">

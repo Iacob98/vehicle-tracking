@@ -10,6 +10,7 @@ import {
 } from '@/lib/api-response';
 import { createFileUploadError } from '@/lib/errors';
 import { Permissions, type UserRole } from '@/lib/types/roles';
+import { checkFuelLimits } from '@/lib/fuel-limits';
 
 // Create Supabase client with Service Role key for bypassing RLS
 const supabaseAdmin = createClient(
@@ -49,9 +50,9 @@ export async function POST(request: Request) {
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;
 
-    // Проверка прав доступа (только admin и manager могут создавать расходы)
+    // Проверка прав доступа (admin, manager и driver могут создавать расходы)
     const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
-    if (!Permissions.canManageVehicles(userRole)) {
+    if (!Permissions.canAddExpenses(userRole)) {
       return apiForbidden('У вас нет прав на создание расходов');
     }
 
@@ -66,6 +67,16 @@ export async function POST(request: Request) {
 
     if (!vehicleId || !category || !amount || !date) {
       return apiBadRequest('Автомобиль, категория, сумма и дата обязательны');
+    }
+
+    // Проверка лимитов для топлива
+    const amountNum = parseFloat(amount);
+    let limitWarnings: string[] = [];
+
+    if (category === 'fuel') {
+      const limitCheck = await checkFuelLimits(orgId, amountNum);
+      limitWarnings = limitCheck.warnings;
+      // Не блокируем операцию, только предупреждаем
     }
 
     // Загружаем фото чека если есть
@@ -112,7 +123,7 @@ export async function POST(request: Request) {
       organization_id: orgId,
       vehicle_id: vehicleId,
       category,
-      amount: parseFloat(amount),
+      amount: amountNum,
       date,
       description: formData.get('description') as string || null,
       maintenance_id: formData.get('maintenance_id') as string || null,
@@ -134,7 +145,11 @@ export async function POST(request: Request) {
       });
     }
 
-    return apiSuccess({ carExpense });
+    // Возвращаем результат с предупреждениями о лимитах
+    return apiSuccess({
+      carExpense,
+      warnings: limitWarnings.length > 0 ? limitWarnings : undefined
+    });
   } catch (error: any) {
     return apiErrorFromUnknown(error, { context: 'POST /api/car-expenses' });
   }
