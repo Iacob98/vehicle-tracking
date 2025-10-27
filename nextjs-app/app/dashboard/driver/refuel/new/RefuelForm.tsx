@@ -30,9 +30,10 @@ type RefuelFormData = z.infer<typeof refuelSchema>;
 interface RefuelFormProps {
   vehicleId: string;
   vehicleName: string;
+  fuelCardId: string | null;
 }
 
-export function RefuelForm({ vehicleId, vehicleName }: RefuelFormProps) {
+export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormProps) {
   const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,6 +83,9 @@ export function RefuelForm({ vehicleId, vehicleName }: RefuelFormProps) {
       formData.append('date', data.date);
       formData.append('description', `Одометр: ${data.odometer} км${data.description ? `. ${data.description}` : ''}`);
       formData.append('receipt', selectedFile);
+      if (fuelCardId) {
+        formData.append('fuel_card_id', fuelCardId);
+      }
 
       const response = await fetch('/api/car-expenses', {
         method: 'POST',
