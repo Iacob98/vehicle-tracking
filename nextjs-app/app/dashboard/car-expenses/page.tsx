@@ -6,6 +6,7 @@ import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { ExpenseCard } from './ExpenseCard';
+import { FiltersBar } from './FiltersBar';
 import { type UserRole } from '@/lib/types/roles';
 
 const ITEMS_PER_PAGE = 15;
@@ -13,7 +14,13 @@ const ITEMS_PER_PAGE = 15;
 export default async function CarExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    category?: string;
+    vehicle?: string;
+    sort?: string;
+    order?: 'asc' | 'desc';
+  }>;
 }) {
   const supabase = await createServerClient();
   const params = await searchParams;
@@ -31,11 +38,26 @@ export default async function CarExpensesPage({
     return <div>Organization ID not found</div>;
   }
 
-  // Fetch all expenses for total calculation
-  const { data: allExpenses } = await supabase
+  // Get filter parameters
+  const categoryFilter = params.category;
+  const vehicleFilter = params.vehicle;
+  const sortBy = params.sort || 'date';
+  const sortOrder = params.order || 'desc';
+
+  // Fetch all expenses for total calculation (with filters)
+  let allExpensesQuery = supabase
     .from('car_expenses')
     .select('amount')
     .eq('organization_id', orgId);
+
+  if (categoryFilter) {
+    allExpensesQuery = allExpensesQuery.eq('category', categoryFilter);
+  }
+  if (vehicleFilter) {
+    allExpensesQuery = allExpensesQuery.eq('vehicle_id', vehicleFilter);
+  }
+
+  const { data: allExpenses } = await allExpensesQuery;
 
   const totalAmount = allExpenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
 
@@ -44,15 +66,36 @@ export default async function CarExpensesPage({
   const from = (currentPage - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Fetch car expenses with pagination
-  const { data: expenses, count: expensesCount } = await supabase
+  // Fetch car expenses with pagination, filters and sorting
+  let expensesQuery = supabase
     .from('car_expenses')
     .select('*', { count: 'exact' })
-    .eq('organization_id', orgId)
-    .order('date', { ascending: false })
-    .range(from, to);
+    .eq('organization_id', orgId);
+
+  // Apply filters
+  if (categoryFilter) {
+    expensesQuery = expensesQuery.eq('category', categoryFilter);
+  }
+  if (vehicleFilter) {
+    expensesQuery = expensesQuery.eq('vehicle_id', vehicleFilter);
+  }
+
+  // Apply sorting
+  expensesQuery = expensesQuery.order(sortBy, { ascending: sortOrder === 'asc' });
+
+  // Apply pagination
+  expensesQuery = expensesQuery.range(from, to);
+
+  const { data: expenses, count: expensesCount } = await expensesQuery;
 
   const totalPages = Math.ceil((expensesCount || 0) / ITEMS_PER_PAGE);
+
+  // Get all vehicles for filter dropdown
+  const { data: allVehicles } = await supabase
+    .from('vehicles')
+    .select('id, name, license_plate')
+    .eq('organization_id', orgId)
+    .order('name');
 
   // Get vehicle names for each expense
   const expensesWithVehicles = await Promise.all((expenses || []).map(async (expense) => {
@@ -68,6 +111,23 @@ export default async function CarExpensesPage({
       license_plate: vehicle?.license_plate,
     };
   }));
+
+  // Category options
+  const categories = [
+    { value: 'fuel', label: '⛽ Топливо / Kraftstoff' },
+    { value: 'maintenance', label: '🔧 Обслуживание / Wartung' },
+    { value: 'repair', label: '🛠️ Ремонт / Reparatur' },
+    { value: 'insurance', label: '📋 Страховка / Versicherung' },
+    { value: 'tax', label: '💶 Налоги / Steuern' },
+    { value: 'other', label: '📦 Прочее / Sonstiges' },
+  ];
+
+  // Sort options
+  const sortOptions = [
+    { value: 'date', label: 'По дате / Nach Datum' },
+    { value: 'amount', label: 'По сумме / Nach Betrag' },
+    { value: 'category', label: 'По категории / Nach Kategorie' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -92,9 +152,24 @@ export default async function CarExpensesPage({
 
       {/* Statistics */}
       <div className="bg-white border rounded-lg p-6">
-        <p className="text-sm text-gray-600">Общие расходы / Gesamtausgaben</p>
+        <p className="text-sm text-gray-600">
+          Общие расходы / Gesamtausgaben
+          {(categoryFilter || vehicleFilter) && ' (отфильтровано)'}
+        </p>
         <p className="text-3xl font-bold mt-2">€{totalAmount.toFixed(2)}</p>
+        {expensesCount !== undefined && (
+          <p className="text-sm text-gray-500 mt-1">
+            Найдено записей: {expensesCount}
+          </p>
+        )}
       </div>
+
+      {/* Filters and Sorting */}
+      <FiltersBar
+        vehicles={allVehicles || []}
+        categories={categories}
+        sortOptions={sortOptions}
+      />
 
       {/* Expenses List */}
       {expensesWithVehicles && expensesWithVehicles.length > 0 ? (
