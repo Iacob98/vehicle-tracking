@@ -63,12 +63,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If driver tries to access admin dashboard, redirect to driver panel
-  if (user && request.nextUrl.pathname === '/dashboard' && user.user_metadata?.role === 'driver') {
-    console.log('🚗 Driver accessing /dashboard, redirecting to /dashboard/driver');
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard/driver';
-    return NextResponse.redirect(url);
+  // If driver tries to access admin dashboard pages, redirect to driver panel
+  if (user && user.user_metadata?.role === 'driver') {
+    // Allow driver to access their own panel
+    if (request.nextUrl.pathname.startsWith('/dashboard/driver')) {
+      console.log('✅ Driver accessing driver panel');
+      // Continue to driver panel
+    } else if (request.nextUrl.pathname.startsWith('/dashboard')) {
+      // Block access to any admin dashboard page
+      console.log('🚫 Driver blocked from admin page, redirecting to /dashboard/driver');
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard/driver';
+      return NextResponse.redirect(url);
+    }
   }
 
   // If non-driver tries to access driver panel, redirect to admin dashboard
