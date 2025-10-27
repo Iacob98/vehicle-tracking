@@ -21,11 +21,12 @@ export default async function DriverProfilePage() {
     redirect('/dashboard');
   }
 
-  // Получаем документы водителя
+  // Получаем документы водителя (только активные)
   const { data: documents } = await supabase
     .from('user_documents')
     .select('*')
     .eq('user_id', authUser.id)
+    .eq('is_active', true)
     .order('upload_date', { ascending: false });
 
   return (
