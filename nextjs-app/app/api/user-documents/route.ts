@@ -27,6 +27,27 @@ export async function POST(request: Request) {
 
     console.log('📝 User Document API - File received:', file?.name);
 
+    // Verify that the target user belongs to the same organization
+    const { data: targetUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id, organization_id')
+      .eq('id', userId)
+      .single();
+
+    if (userCheckError || !targetUser) {
+      return apiErrorFromUnknown(
+        new Error('Пользователь не найден'),
+        { context: 'checking target user', userId }
+      );
+    }
+
+    if (targetUser.organization_id !== orgId) {
+      return apiErrorFromUnknown(
+        new Error('Вы не можете добавлять документы для пользователей из другой организации'),
+        { context: 'organization mismatch', userId, orgId }
+      );
+    }
+
     // Upload file if provided
     let fileUrl: string | null = null;
     if (file) {
@@ -40,6 +61,7 @@ export async function POST(request: Request) {
       .from('user_documents')
       .insert({
         user_id: userId,
+        organization_id: orgId,
         document_type: documentType,
         title,
         date_issued: issueDate || null,

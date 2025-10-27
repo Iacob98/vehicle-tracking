@@ -26,7 +26,7 @@ export default async function DriverProfilePage() {
     .from('user_documents')
     .select('*')
     .eq('user_id', authUser.id)
-    .order('created_at', { ascending: false });
+    .order('upload_date', { ascending: false });
 
   return (
     <div className="space-y-6">
