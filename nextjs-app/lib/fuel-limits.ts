@@ -25,15 +25,40 @@ export interface LimitCheckResult {
 }
 
 /**
- * Получить лимиты для организации
+ * Получить лимиты для организации или заправочной карты
+ * @param organizationId - ID организации
+ * @param fuelCardId - Номер заправочной карты (опционально)
  */
-export async function getFuelLimits(organizationId: string): Promise<FuelLimits | null> {
+export async function getFuelLimits(
+  organizationId: string,
+  fuelCardId?: string | null
+): Promise<FuelLimits | null> {
   const supabase = await createServerClient();
 
+  // Если указана карта, ищем лимит для неё
+  if (fuelCardId) {
+    const { data: cardLimit } = await supabase
+      .from('fuel_limits')
+      .select('daily_limit, weekly_limit, monthly_limit')
+      .eq('organization_id', organizationId)
+      .eq('fuel_card_id', fuelCardId)
+      .single();
+
+    if (cardLimit) {
+      return {
+        daily_limit: Number(cardLimit.daily_limit),
+        weekly_limit: Number(cardLimit.weekly_limit),
+        monthly_limit: Number(cardLimit.monthly_limit),
+      };
+    }
+  }
+
+  // Если лимит для карты не найден, ищем общий лимит организации
   const { data, error } = await supabase
     .from('fuel_limits')
     .select('daily_limit, weekly_limit, monthly_limit')
     .eq('organization_id', organizationId)
+    .is('fuel_card_id', null)
     .single();
 
   if (error || !data) {
@@ -54,8 +79,13 @@ export async function getFuelLimits(organizationId: string): Promise<FuelLimits 
 
 /**
  * Рассчитать текущий расход топлива за период
+ * @param organizationId - ID организации
+ * @param fuelCardId - Номер заправочной карты (опционально, для фильтрации по карте)
  */
-export async function calculateFuelUsage(organizationId: string): Promise<FuelUsage> {
+export async function calculateFuelUsage(
+  organizationId: string,
+  fuelCardId?: string | null
+): Promise<FuelUsage> {
   const supabase = await createServerClient();
 
   const now = new Date();
@@ -73,32 +103,32 @@ export async function calculateFuelUsage(organizationId: string): Promise<FuelUs
   // Начало текущего месяца (1-е число 00:00:00)
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Базовый запрос
+  const buildQuery = (startDate: Date) => {
+    let query = supabase
+      .from('car_expenses')
+      .select('amount, fuel_card_id')
+      .eq('organization_id', organizationId)
+      .eq('category', 'fuel')
+      .gte('date', startDate.toISOString())
+      .lte('date', now.toISOString());
+
+    // Если указана карта, фильтруем по ней
+    if (fuelCardId) {
+      query = query.eq('fuel_card_id', fuelCardId);
+    }
+
+    return query;
+  };
+
   // Запрос расходов за день
-  const { data: dailyExpenses } = await supabase
-    .from('car_expenses')
-    .select('amount')
-    .eq('organization_id', organizationId)
-    .eq('category', 'fuel')
-    .gte('date', startOfDay.toISOString())
-    .lte('date', now.toISOString());
+  const { data: dailyExpenses } = await buildQuery(startOfDay);
 
   // Запрос расходов за неделю
-  const { data: weeklyExpenses } = await supabase
-    .from('car_expenses')
-    .select('amount')
-    .eq('organization_id', organizationId)
-    .eq('category', 'fuel')
-    .gte('date', startOfWeek.toISOString())
-    .lte('date', now.toISOString());
+  const { data: weeklyExpenses } = await buildQuery(startOfWeek);
 
   // Запрос расходов за месяц
-  const { data: monthlyExpenses } = await supabase
-    .from('car_expenses')
-    .select('amount')
-    .eq('organization_id', organizationId)
-    .eq('category', 'fuel')
-    .gte('date', startOfMonth.toISOString())
-    .lte('date', now.toISOString());
+  const { data: monthlyExpenses } = await buildQuery(startOfMonth);
 
   const sumExpenses = (expenses: { amount: number }[] | null) =>
     expenses?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
@@ -112,13 +142,17 @@ export async function calculateFuelUsage(organizationId: string): Promise<FuelUs
 
 /**
  * Проверить превышение лимитов с учетом новой суммы
+ * @param organizationId - ID организации
+ * @param newAmount - Новая сумма расхода
+ * @param fuelCardId - Номер заправочной карты (опционально)
  */
 export async function checkFuelLimits(
   organizationId: string,
-  newAmount: number
+  newAmount: number,
+  fuelCardId?: string | null
 ): Promise<LimitCheckResult> {
-  const limits = await getFuelLimits(organizationId);
-  const usage = await calculateFuelUsage(organizationId);
+  const limits = await getFuelLimits(organizationId, fuelCardId);
+  const usage = await calculateFuelUsage(organizationId, fuelCardId);
 
   if (!limits) {
     return {
@@ -132,12 +166,14 @@ export async function checkFuelLimits(
   const warnings: string[] = [];
   let exceeded = false;
 
+  const cardInfo = fuelCardId ? ` (карта ${fuelCardId})` : '';
+
   // Проверка дневного лимита
   const newDailyTotal = usage.daily + newAmount;
   if (newDailyTotal > limits.daily_limit) {
     exceeded = true;
     warnings.push(
-      `⚠️ Превышен дневной лимит! Текущий расход: ${newDailyTotal.toFixed(2)}, лимит: ${limits.daily_limit}`
+      `⚠️ Превышен дневной лимит${cardInfo}! Текущий расход: ${newDailyTotal.toFixed(2)}, лимит: ${limits.daily_limit}`
     );
   }
 
@@ -146,7 +182,7 @@ export async function checkFuelLimits(
   if (newWeeklyTotal > limits.weekly_limit) {
     exceeded = true;
     warnings.push(
-      `⚠️ Превышен недельный лимит! Текущий расход: ${newWeeklyTotal.toFixed(2)}, лимит: ${limits.weekly_limit}`
+      `⚠️ Превышен недельный лимит${cardInfo}! Текущий расход: ${newWeeklyTotal.toFixed(2)}, лимит: ${limits.weekly_limit}`
     );
   }
 
@@ -155,7 +191,7 @@ export async function checkFuelLimits(
   if (newMonthlyTotal > limits.monthly_limit) {
     exceeded = true;
     warnings.push(
-      `⚠️ Превышен месячный лимит! Текущий расход: ${newMonthlyTotal.toFixed(2)}, лимит: ${limits.monthly_limit}`
+      `⚠️ Превышен месячный лимит${cardInfo}! Текущий расход: ${newMonthlyTotal.toFixed(2)}, лимит: ${limits.monthly_limit}`
     );
   }
 

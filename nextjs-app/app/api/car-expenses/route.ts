@@ -33,6 +33,7 @@ const supabaseAdmin = createClient(
  * - category: string (required)
  * - amount: number (required)
  * - date: string (required)
+ * - fuel_card_id: string (optional) - для категории fuel
  * - description: string (optional)
  * - maintenance_id: string (optional)
  * - receipt: File (optional)
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
     const category = formData.get('category') as string;
     const amount = formData.get('amount') as string;
     const date = formData.get('date') as string;
+    const fuelCardId = formData.get('fuel_card_id') as string || null;
 
     if (!vehicleId || !category || !amount || !date) {
       return apiBadRequest('Автомобиль, категория, сумма и дата обязательны');
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
     let limitWarnings: string[] = [];
 
     if (category === 'fuel') {
-      const limitCheck = await checkFuelLimits(orgId, amountNum);
+      const limitCheck = await checkFuelLimits(orgId, amountNum, fuelCardId);
       limitWarnings = limitCheck.warnings;
       // Не блокируем операцию, только предупреждаем
     }
@@ -129,6 +131,7 @@ export async function POST(request: Request) {
       maintenance_id: formData.get('maintenance_id') as string || null,
       receipt_url: receiptUrl,
       created_by_user_id: user.id, // Сохраняем ID пользователя создавшего расход
+      fuel_card_id: fuelCardId, // Сохраняем номер заправочной карты
     };
 
     // Вставка в базу данных
