@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
+import { ErrorType } from '@/lib/errors';
 import Link from 'next/link';
 
 // Zod schema для заправки
@@ -120,7 +121,7 @@ export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormPro
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {error && <ErrorAlert error={{ message: error, type: 'UNKNOWN' }} />}
+      {error && <ErrorAlert error={{ message: error, type: ErrorType.UNKNOWN }} />}
 
       {/* Предупреждения о лимитах */}
       {warnings.length > 0 && (

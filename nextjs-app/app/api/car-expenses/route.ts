@@ -47,6 +47,11 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
+    // После проверки авторизации user точно не null
+    if (!user) {
+      return apiForbidden('User not authenticated');
+    }
+
     // Проверка organization_id
     const { orgId, error: orgError } = checkOrganizationId(user);
     if (orgError) return orgError;

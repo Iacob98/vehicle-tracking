@@ -119,7 +119,7 @@ export default async function DriverDashboardPage() {
                   : 'Нет неоплаченных'}
               </p>
             </div>
-            {penaltiesCount > 0 && (
+            {penaltiesCount !== null && penaltiesCount > 0 && (
               <div className="absolute top-4 right-4 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
                 {penaltiesCount}
               </div>

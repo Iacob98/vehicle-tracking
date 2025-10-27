@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
+import { ErrorType } from '@/lib/errors';
 
 interface FuelLimit {
   id: string;
@@ -139,7 +140,7 @@ export function FuelLimitsForm() {
 
   return (
     <div className="space-y-6">
-      {error && <ErrorAlert error={{ message: error, type: 'UNKNOWN' }} />}
+      {error && <ErrorAlert error={{ message: error, type: ErrorType.UNKNOWN }} />}
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">

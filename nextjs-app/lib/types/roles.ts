@@ -1,19 +1,26 @@
 /**
- * User Roles - упрощенная система (4 роли)
+ * User Roles - упрощенная система (5 ролей)
  *
  * @description
- * - admin: Полный доступ (объединяет owner + admin)
+ * - owner: Владелец системы, управление всеми организациями
+ * - admin: Полный доступ в рамках организации
  * - manager: Управление операциями, аналитика
  * - driver: Водители (объединяет team_lead + worker)
  * - viewer: Только чтение данных
  */
 
-export type UserRole = 'admin' | 'manager' | 'driver' | 'viewer';
+export type UserRole = 'owner' | 'admin' | 'manager' | 'driver' | 'viewer';
 
 /**
  * Роли с иконками и описаниями для UI
  */
 export const ROLES = {
+  owner: {
+    value: 'owner' as const,
+    label: '🔑 Владелец',
+    description: 'Управление всеми организациями',
+    color: 'purple',
+  },
   admin: {
     value: 'admin' as const,
     label: '👑 Админ',
@@ -44,6 +51,7 @@ export const ROLES = {
  * Массив всех ролей для Select/Dropdown
  */
 export const ROLE_OPTIONS = [
+  ROLES.owner,
   ROLES.admin,
   ROLES.manager,
   ROLES.driver,
@@ -65,35 +73,35 @@ export const Permissions = {
    * Может ли пользователь управлять пользователями (создавать, удалять, менять роли)
    */
   canManageUsers: (role: UserRole): boolean => {
-    return role === 'admin';
+    return role === 'owner' || role === 'admin';
   },
 
   /**
    * Может ли пользователь управлять бригадами
    */
   canManageTeams: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager';
+    return role === 'owner' || role === 'admin' || role === 'manager';
   },
 
   /**
    * Может ли пользователь управлять автомобилями (CRUD)
    */
   canManageVehicles: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager';
+    return role === 'owner' || role === 'admin' || role === 'manager';
   },
 
   /**
    * Может ли пользователь добавлять расходы (заправки)
    */
   canAddExpenses: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager' || role === 'driver';
+    return role === 'owner' || role === 'admin' || role === 'manager' || role === 'driver';
   },
 
   /**
    * Может ли пользователь добавлять штрафы
    */
   canAddPenalties: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager' || role === 'driver';
+    return role === 'owner' || role === 'admin' || role === 'manager' || role === 'driver';
   },
 
   /**
@@ -114,20 +122,27 @@ export const Permissions = {
    * Может ли пользователь удалять данные
    */
   canDelete: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager';
+    return role === 'owner' || role === 'admin' || role === 'manager';
   },
 
   /**
    * Может ли пользователь настраивать лимиты анти-фрод
    */
   canManageFraudLimits: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager';
+    return role === 'owner' || role === 'admin' || role === 'manager';
   },
 
   /**
    * Может ли пользователь просматривать анти-фрод алерты
    */
   canViewFraudAlerts: (role: UserRole): boolean => {
-    return role === 'admin' || role === 'manager';
+    return role === 'owner' || role === 'admin' || role === 'manager';
+  },
+
+  /**
+   * Может ли пользователь управлять организациями
+   */
+  canManageOrganizations: (role: UserRole): boolean => {
+    return role === 'owner';
   },
 } as const;

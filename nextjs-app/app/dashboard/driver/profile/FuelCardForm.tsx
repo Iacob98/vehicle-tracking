@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
+import { ErrorType } from '@/lib/errors';
 
 const fuelCardSchema = z.object({
   fuel_card_id: z
@@ -78,7 +79,7 @@ export function FuelCardForm({ userId, currentFuelCardId }: FuelCardFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {error && <ErrorAlert error={{ message: error, type: 'UNKNOWN' }} />}
+      {error && <ErrorAlert error={{ message: error, type: ErrorType.UNKNOWN }} />}
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
