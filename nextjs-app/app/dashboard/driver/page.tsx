@@ -64,7 +64,7 @@ export default async function DriverDashboardPage() {
       </div>
 
       {/* Карточки быстрых действий */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Мой автомобиль */}
         <Link
           href="/dashboard/driver/my-vehicle"
@@ -124,6 +124,27 @@ export default async function DriverDashboardPage() {
                 {penaltiesCount}
               </div>
             )}
+          </div>
+        </Link>
+
+        {/* Мой профиль */}
+        <Link
+          href="/dashboard/driver/profile"
+          className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition group"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-4xl mb-3">👤</div>
+              <h2 className="text-xl font-bold text-gray-900 group-hover:text-green-600 transition">
+                Мой профиль
+              </h2>
+              <p className="text-gray-600 text-sm mt-1">
+                Настройки и данные
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Заправочная карта
+              </p>
+            </div>
           </div>
         </Link>
       </div>

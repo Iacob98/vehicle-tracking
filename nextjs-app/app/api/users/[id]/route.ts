@@ -9,6 +9,91 @@ import {
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
+ * PATCH /api/users/[id]
+ * Обновление данных пользователя
+ *
+ * Водители могут обновлять только свой fuel_card_id
+ * Админы могут обновлять любые данные других пользователей
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createServerClient();
+    const { id } = await params;
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
+
+    // Проверка organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
+
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+
+    // Verify user belongs to same organization
+    const { data: targetUser } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', id)
+      .single();
+
+    if (!targetUser || targetUser.organization_id !== orgId) {
+      return apiForbidden('У вас нет доступа к этому пользователю');
+    }
+
+    // Получаем данные для обновления
+    const body = await request.json();
+
+    // Если это водитель, он может обновить только свой fuel_card_id
+    if (userRole === 'driver') {
+      // Водитель может обновлять только свои данные
+      if (user!.id !== id) {
+        return apiForbidden('Водители могут редактировать только свой профиль');
+      }
+
+      // Водитель может обновить только fuel_card_id
+      const allowedFields = ['fuel_card_id'];
+      const updates: any = {};
+
+      for (const field of allowedFields) {
+        if (field in body) {
+          updates[field] = body[field];
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return apiForbidden('Нет разрешенных полей для обновления');
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', id)
+        .eq('organization_id', orgId)
+        .select()
+        .single();
+
+      if (error) {
+        return apiErrorFromUnknown(error, { context: 'updating user fuel_card_id', id, orgId });
+      }
+
+      return apiSuccess({ user: data });
+    }
+
+    // Для админов/менеджеров - могут обновлять больше полей
+    // (здесь можно добавить логику для других ролей)
+    return apiForbidden('У вас нет прав на редактирование данных пользователя');
+  } catch (error: any) {
+    return apiErrorFromUnknown(error, { context: 'PATCH /api/users/[id]' });
+  }
+}
+
+/**
  * DELETE /api/users/[id]
  * Удаление пользователя
  *
