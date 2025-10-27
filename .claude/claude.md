@@ -284,41 +284,109 @@ nextjs-app/
 #### 2. Аутентификация и авторизация
 - **Supabase Auth** управляет пользователями и сессиями
 - **Middleware** (`middleware.ts`) защищает роуты `/dashboard/*`
-- **Роли:** owner, admin, manager, team_lead, driver (worker deprecated)
+- **Упрощенные роли (4 типа):**
+  - `admin` 👑 - Полный доступ (управление пользователями, все операции)
+  - `manager` 💼 - Управление операциями и аналитика
+  - `driver` 🚗 - Заправки, штрафы, документы
+  - `viewer` 👁️ - Только чтение данных
 - **User metadata** содержит `organization_id` и `role`
 - Функция `getOrganizationId()` извлекает organization_id из auth.users.raw_user_meta_data
 
-#### 3. API Routes Pattern
+#### 3. API Routes Pattern (Стандартизированный)
 ```typescript
 // Все API routes следуют этому паттерну:
-export async function GET(request: Request) {
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiForbidden,
+  checkAuthentication,
+  checkOrganizationId
+} from '@/lib/api-response';
+import { Permissions, type UserRole } from '@/lib/types/roles';
 
-  const organizationId = await getOrganizationId();
-  if (!organizationId) return NextResponse.json({ error: 'No organization' }, { status: 403 });
+export async function POST(request: Request) {
+  try {
+    // 1. Создание Supabase клиента
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  // Query with organization_id filter
-  const { data, error } = await supabase
-    .from('table_name')
-    .select('*')
-    .eq('organization_id', organizationId);
+    // 2. Проверка авторизации
+    const authError = checkAuthentication(user);
+    if (authError) return authError;
 
-  // Always return standardized responses
-  return NextResponse.json({ data, error });
+    // 3. Получение organization_id
+    const { orgId, error: orgError } = checkOrganizationId(user);
+    if (orgError) return orgError;
+
+    // 4. Проверка прав доступа
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (!Permissions.canManageVehicles(userRole)) {
+      return apiForbidden('У вас нет прав на создание автомобилей');
+    }
+
+    // 5. Бизнес-логика
+    const data = await request.json();
+    const { data: result, error } = await supabase
+      .from('table_name')
+      .insert({ organization_id: orgId, ...data })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // 6. Стандартизированный ответ
+    return apiSuccess({ item: result });
+  } catch (error) {
+    return apiErrorFromUnknown(error, { context: 'POST /api/resource' });
+  }
 }
 ```
 
+**Ключевые принципы API:**
+- ✅ Всегда используй `checkAuthentication()` и `checkOrganizationId()`
+- ✅ Проверяй права доступа через `Permissions` API
+- ✅ Используй стандартизированные ответы: `apiSuccess()`, `apiBadRequest()`, `apiForbidden()`
+- ✅ Оборачивай в try-catch и используй `apiErrorFromUnknown()`
+- ✅ Всегда добавляй `organization_id` в INSERT/UPDATE операции
+
 #### 4. Database Schema
 - См. `lib/database-schema.sql` для полной схемы
-- Основные таблицы: organizations, users, vehicles, teams, team_members, vehicle_assignments, vehicle_documents, penalties, expenses, maintenance
-- Все миграции нумерованы: `00X_description.sql` в папке `migrations/`
+- **Основные таблицы (12 шт.):**
+  1. `organizations` - организации (компании)
+  2. `users` - пользователи с аккаунтами (связаны с Supabase Auth)
+  3. `teams` - бригады
+  4. `team_members` - работники бригад (без аккаунтов)
+  5. `vehicles` - транспортные средства
+  6. `vehicle_assignments` - назначение авто на бригады
+  7. `vehicle_documents` - документы на авто
+  8. `penalties` - штрафы
+  9. `car_expenses` - расходы на автомобили (fuel, repair, maintenance, insurance, other)
+  10. `maintenances` - обслуживание (inspection, repair)
+  11. `expenses` - общие расходы (устаревшая, использовать car_expenses)
+  12. `rental_contracts` - договоры аренды
+- **Все миграции нумерованы:** `00X_description.sql` в папке `migrations/` (сейчас 012 миграций)
+- **User documents:** `user_documents` - документы пользователей
+- **Team member documents:** `team_member_documents` - документы членов бригад
 
 #### 5. Storage (Supabase)
-- **Buckets:** `vehicles` (vehicle photos), `documents` (documents), `penalties` (penalty photos)
-- RLS политики защищают файлы по organization_id
-- Используй `lib/storage.ts` для работы с файлами
+- **4 Buckets настроены:**
+  1. `vehicles` - фотографии автомобилей (публичный)
+  2. `documents` - документы (приватный)
+  3. `penalties` - фото постановлений о штрафах (приватный)
+  4. `expenses` - чеки расходов (приватный)
+- **RLS политики** защищают файлы по organization_id
+- **API для работы с файлами** (`lib/storage.ts`):
+  ```typescript
+  // Загрузка файла
+  await uploadFile(file, 'vehicles', orgId)
+
+  // Загрузка нескольких файлов
+  await uploadMultipleFiles(files, 'vehicles', orgId)
+
+  // Удаление файла
+  await deleteFile(url, 'vehicles')
+  ```
+- **Важно:** Все загрузки идут через API endpoint `/api/upload` (Service Role Key) для обхода RLS
 
 #### 6. Type Safety
 - `lib/database.types.ts` - сгенерированные типы из Supabase схемы
@@ -391,9 +459,24 @@ import { createBrowserClient } from '@/lib/supabase/client';
 ```typescript
 import { RoleGuard } from '@/components/RoleGuard';
 
-<RoleGuard allowedRoles={['owner', 'admin']}>
+<RoleGuard allowedRoles={['admin', 'manager']} userRole={currentUser.role}>
   <AdminOnlyContent />
 </RoleGuard>
+```
+
+#### Permissions API (проверка прав доступа)
+```typescript
+import { Permissions, type UserRole } from '@/lib/types/roles';
+
+// Проверки в коде:
+Permissions.canManageVehicles(role)      // admin, manager
+Permissions.canManageTeams(role)         // admin, manager
+Permissions.canManageUsers(role)         // только admin
+Permissions.canAddExpenses(role)         // admin, manager, driver
+Permissions.canAddPenalties(role)        // admin, manager, driver
+Permissions.canViewAnalytics(role)       // все кроме viewer
+Permissions.canEdit(role)                // все кроме viewer
+Permissions.canDelete(role)              // admin, manager
 ```
 
 ### Проблемы безопасности
@@ -416,9 +499,131 @@ import { RoleGuard } from '@/components/RoleGuard';
 // Проверяй консоль браузера (F12) и терминал dev сервера
 ```
 
+### Основные модули приложения
+
+#### 1. 🚗 Vehicles (Транспорт)
+**Файлы:** `app/dashboard/vehicles/`, `app/api/vehicles/`
+**Функционал:**
+- ✅ CRUD операции с авто
+- ✅ Поиск по name, license_plate, vin
+- ✅ Фильтр по статусу (active, repair, unavailable, rented)
+- ✅ Smart sorting (1, 2, 3... вместо 1, 10, 11...)
+- ✅ Пагинация (20 на страницу)
+- ✅ Загрузка фотографий (multiple files)
+- ✅ Поддержка аренды (rental contracts)
+
+#### 2. 👷 Teams (Бригады)
+**Файлы:** `app/dashboard/teams/`, `app/api/teams/`
+**Функционал:**
+- ✅ Создание и управление бригадами
+- ✅ Назначение лидера бригады
+- ✅ Управление членами бригады (team_members)
+- ✅ Назначение автомобилей на бригады (vehicle_assignments)
+- ✅ Документы членов бригады
+
+#### 3. 👤 Users (Пользователи)
+**Файлы:** `app/dashboard/users/`, `app/api/users/`
+**Функционал:**
+- ✅ CRUD операции (только admin)
+- ✅ Назначение ролей (admin, manager, driver, viewer)
+- ✅ Привязка к бригадам
+- ✅ Документы пользователей
+- ✅ Синхронизация с Supabase Auth
+
+#### 4. 🚧 Penalties (Штрафы)
+**Файлы:** `app/dashboard/penalties/`, `app/api/penalties/`
+**Функционал:**
+- ✅ Регистрация штрафов
+- ✅ Статусы (open, paid)
+- ✅ Загрузка фото постановлений
+- ✅ Привязка к автомобилю и водителю
+- ✅ Пагинация и поиск
+
+#### 5. 🚗💰 Car Expenses (Расходы на авто)
+**Файлы:** `app/dashboard/car-expenses/`, `app/api/car-expenses/`
+**Функционал:**
+- ✅ Категории (fuel, repair, maintenance, insurance, other)
+- ✅ Загрузка чеков (фото)
+- ✅ Привязка к обслуживанию (maintenance_id)
+- ✅ Статистика по авто
+- ✅ Фильтрация по дате и категории
+
+#### 6. 🔧 Maintenance (Обслуживание)
+**Файлы:** `app/dashboard/maintenance/`, `app/api/maintenance/`
+**Функционал:**
+- ✅ Типы (inspection, repair)
+- ✅ Загрузка актов обслуживания
+- ✅ История обслуживания по авто
+- ✅ Связь с расходами (car_expenses)
+
+#### 7. 📄 Documents (Документы)
+**Файлы:** `app/dashboard/documents/`
+**Функционал:**
+- ✅ Документы на авто (vehicle_documents)
+- ✅ Документы пользователей (user_documents)
+- ✅ Документы членов бригад (team_member_documents)
+- ✅ Отслеживание истекающих документов (30 дней)
+- ✅ Типы документов и сроки действия
+- ✅ Пагинация и фильтрация
+
+#### 8. 📊 Dashboard (Главная панель)
+**Файлы:** `app/dashboard/page.tsx`
+**Функционал:**
+- ✅ Статистика (кол-во авто, бригад, штрафов)
+- ✅ Истекающие документы (предупреждение)
+- ✅ Быстрые действия
+- ✅ Адаптивный дизайн
+
 ### Дополнительные ресурсы
 
 - **Миграционный гайд:** `nextjs-app/MIGRATION_GUIDE.md`
 - **Database schema:** `nextjs-app/lib/database-schema.sql`
 - **RLS Security notes:** `nextjs-app/lib/RLS_SECURITY_NOTES.md`
 - **Testing docs:** `nextjs-app/TESTING_DOCUMENTATION.md`
+
+---
+
+## 📊 Статистика проекта
+
+- **262+** TypeScript файлов
+- **91** dashboard компонентов
+- **18** API модулей
+- **15** dashboard модулей
+- **12** миграций БД
+- **12** основных таблиц
+- **4** роли пользователей
+- **4** storage buckets
+- **~95%** функциональности готово
+
+---
+
+## 🎯 Текущий статус и приоритеты
+
+### ✅ Что работает отлично:
+1. **Безопасность:** RLS на всех таблицах, Storage RLS, multi-tenant изоляция
+2. **Архитектура:** SSR, типобезопасность, централизованная обработка ошибок
+3. **Функционал:** Полный CRUD, поиск, фильтрация, пагинация, загрузка файлов
+4. **DX:** Hot reload, TypeScript, ESLint, документация
+
+### 🔄 В процессе:
+1. **RoleGuard защита** - активно внедряется во все модули
+2. **E2E тесты** - настроены, требуется расширение сценариев
+3. **Analytics** - модуль в разработке
+
+### 📋 TODO (Приоритеты):
+1. **Высокий приоритет:**
+   - [ ] Добавить мониторинг ошибок (Sentry)
+   - [ ] Оптимизировать SQL запросы (индексы)
+   - [ ] Добавить loading states и skeleton loaders
+   - [ ] Toast notifications для действий
+
+2. **Средний приоритет:**
+   - [ ] React Query для кеширования
+   - [ ] Экспорт данных (CSV, PDF)
+   - [ ] Email уведомления (истекающие документы)
+   - [ ] Telegram bot интеграция
+
+3. **Низкий приоритет:**
+   - [ ] Аналитика использования
+   - [ ] Dark mode
+   - [ ] Локализация (i18n)
