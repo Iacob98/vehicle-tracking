@@ -19,7 +19,7 @@ export default async function AnalyticsPage() {
   // Get vehicle expenses statistics
   const { data: carExpenses } = await supabase
     .from('car_expenses')
-    .select('vehicle_id, category, amount')
+    .select('vehicle_id, category, amount, created_by_user_id, liters, date')
     .eq('organization_id', orgId);
 
   // Get penalties statistics
@@ -64,6 +64,38 @@ export default async function AnalyticsPage() {
   const totalCarExpenses = carExpenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
   const totalPenalties = penalties?.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) || 0;
   const openPenalties = penalties?.filter(p => p.status === 'open').reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) || 0;
+
+  // Calculate driver fuel expenses statistics
+  const driverFuelStats = new Map();
+  carExpenses?.forEach(expense => {
+    if (expense.category === 'fuel' && expense.created_by_user_id) {
+      const current = driverFuelStats.get(expense.created_by_user_id) || {
+        totalAmount: 0,
+        totalLiters: 0,
+        count: 0,
+        expenses: []
+      };
+      current.totalAmount += parseFloat(expense.amount || 0);
+      current.totalLiters += parseFloat(expense.liters || 0);
+      current.count += 1;
+      current.expenses.push(expense);
+      driverFuelStats.set(expense.created_by_user_id, current);
+    }
+  });
+
+  // Get driver names
+  const driverIds = Array.from(driverFuelStats.keys()).filter(id => id);
+  const { data: drivers } = driverIds.length > 0
+    ? await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .in('id', driverIds)
+    : { data: [] };
+
+  const driversWithStats = drivers?.map(d => ({
+    ...d,
+    stats: driverFuelStats.get(d.id)
+  })).sort((a, b) => (b.stats?.totalAmount || 0) - (a.stats?.totalAmount || 0));
 
   return (
     <div className="space-y-6">
@@ -141,6 +173,45 @@ export default async function AnalyticsPage() {
             <p className="text-2xl font-bold text-red-600">€{openPenalties.toFixed(2)}</p>
           </div>
         </div>
+      </div>
+
+      {/* Driver Fuel Expenses */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4">⛽ Расходы водителей на топливо / Kraftstoffkosten nach Fahrern</h2>
+        {driversWithStats && driversWithStats.length > 0 ? (
+          <div className="space-y-4">
+            {driversWithStats.map(driver => (
+              <div key={driver.id} className="border-b pb-4 last:border-b-0">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-semibold">
+                      {driver.first_name} {driver.last_name}
+                    </h3>
+                    <p className="text-sm text-gray-600">{driver.email}</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {driver.stats?.count} заправок
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-green-600">
+                      €{driver.stats?.totalAmount.toFixed(2)}
+                    </p>
+                    {driver.stats?.totalLiters > 0 && (
+                      <p className="text-sm text-gray-600">
+                        {driver.stats?.totalLiters.toFixed(2)} л
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-500">
+                      Среднее: €{(driver.stats?.totalAmount / driver.stats?.count).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">Нет данных по расходам водителей на топливо</p>
+        )}
       </div>
     </div>
   );
