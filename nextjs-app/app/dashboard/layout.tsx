@@ -16,11 +16,17 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const { data: user } = await supabase
+  const { data: user, error } = await supabase
     .from('users')
     .select('*, organizations(*)')
     .eq('id', authUser.id)
     .single();
+
+  // Если ошибка получения пользователя
+  if (error || !user) {
+    console.error('Error fetching user:', error);
+    return <div className="p-6">Organization ID not found</div>;
+  }
 
   // Водители используют свой собственный layout в /dashboard/driver/layout.tsx
   // Просто возвращаем children без sidebar и header
