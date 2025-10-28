@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
     // Allow driver to access their own panel
     if (request.nextUrl.pathname.startsWith('/dashboard/driver')) {
       console.log('✅ Driver accessing driver panel');
-      // Continue to driver panel
+      return supabaseResponse; // Important: return here to stop processing
     } else if (request.nextUrl.pathname.startsWith('/dashboard')) {
       // Block access to any admin dashboard page
       console.log('🚫 Driver blocked from admin page, redirecting to /dashboard/driver');
