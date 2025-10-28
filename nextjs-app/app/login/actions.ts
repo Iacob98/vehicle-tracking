@@ -36,12 +36,14 @@ export async function login(formData: FormData) {
 
     if (userError) {
       console.error('❌ Error fetching user organization:', userError);
-    } else if (userData?.organization_id) {
-      console.log('🏢 Organization ID found:', userData.organization_id);
+    } else if (userData) {
+      // For owner users, organization_id will be NULL
+      const orgId = userData.organization_id || null;
+      console.log('🏢 Organization ID:', orgId || '(none - owner user)');
 
-      // Update user metadata with organization_id
+      // Update user metadata with organization_id (or null for owner)
       const { error: updateError } = await supabase.auth.updateUser({
-        data: { organization_id: userData.organization_id },
+        data: { organization_id: orgId },
       });
 
       if (updateError) {
@@ -50,7 +52,7 @@ export async function login(formData: FormData) {
         console.log('✅ User metadata updated with organization_id');
       }
     } else {
-      console.warn('⚠️ No organization_id found in users table for user:', data.user.id);
+      console.warn('⚠️ User not found in users table:', data.user.id);
     }
   }
 
