@@ -12,6 +12,8 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const userRole = user?.user_metadata?.role || 'viewer';
+
   const menuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🚗', label: 'Автомобили', href: '/dashboard/vehicles' },
@@ -23,6 +25,7 @@ export default function Sidebar({ user }: SidebarProps) {
     { icon: '🚗💰', label: 'Расходы на авто', href: '/dashboard/car-expenses' },
     { icon: '💵', label: 'Расходы', href: '/dashboard/expenses' },
     { icon: '📊', label: 'Аналитика', href: '/dashboard/analytics' },
+    ...(userRole === 'owner' ? [{ icon: '🏢', label: 'Организации', href: '/dashboard/organizations' }] : []),
     { icon: '🏢', label: 'Управление аккаунтом', href: '/dashboard/account' },
     { icon: '🐛', label: 'Баг репорт', href: '/dashboard/bug-report' },
   ];
