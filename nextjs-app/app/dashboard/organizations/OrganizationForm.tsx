@@ -63,7 +63,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
 
     if (!result.success) {
       const errors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
+      result.error?.errors?.forEach((err) => {
         const field = err.path.join('.');
         errors[field] = err.message;
       });
