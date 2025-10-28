@@ -40,9 +40,10 @@ export default async function OrganizationsPage({
   }
 
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
+  const userOrgId = user?.user_metadata?.organization_id;
 
-  // Only owner can access this page
-  if (userRole !== 'owner') {
+  // Only owner and admin can access this page
+  if (userRole !== 'owner' && userRole !== 'admin') {
     redirect('/dashboard');
   }
 
@@ -52,11 +53,17 @@ export default async function OrganizationsPage({
   const to = from + ITEMS_PER_PAGE - 1;
 
   // Fetch organizations with pagination
-  const { data: organizations, count: orgsCount } = await supabase
+  // Owner видит все организации, Admin только свою
+  let query = supabase
     .from('organizations')
     .select('*', { count: 'exact' })
-    .order('name')
-    .range(from, to);
+    .order('name');
+
+  if (userRole === 'admin' && userOrgId) {
+    query = query.eq('id', userOrgId);
+  }
+
+  const { data: organizations, count: orgsCount } = await query.range(from, to);
 
   const totalPages = Math.ceil((orgsCount || 0) / ITEMS_PER_PAGE);
 
@@ -100,20 +107,39 @@ export default async function OrganizationsPage({
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">🏢 Организации</h1>
-          <p className="text-gray-600">Управление организациями в системе</p>
+          <p className="text-gray-600">
+            {userRole === 'owner'
+              ? 'Управление всеми организациями в системе'
+              : 'Информация о вашей организации'}
+          </p>
         </div>
-        <Link href="/dashboard/organizations/new">
-          <Button>➕ Добавить организацию</Button>
-        </Link>
+        {userRole === 'owner' && (
+          <Link href="/dashboard/organizations/new">
+            <Button>➕ Добавить организацию</Button>
+          </Link>
+        )}
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
-          ℹ️ На этой странице вы можете управлять всеми организациями в системе.
-        </p>
-        <p className="text-sm text-blue-800 mt-1">
-          Каждая организация имеет свои автомобили, пользователей и расходы.
-        </p>
+        {userRole === 'owner' ? (
+          <>
+            <p className="text-sm text-blue-800">
+              ℹ️ На этой странице вы можете управлять всеми организациями в системе.
+            </p>
+            <p className="text-sm text-blue-800 mt-1">
+              Каждая организация имеет свои автомобили, пользователей и расходы.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-blue-800">
+              ℹ️ Здесь вы можете просмотреть и редактировать информацию о вашей организации.
+            </p>
+            <p className="text-sm text-blue-800 mt-1">
+              Управляйте подпиской, настройками уведомлений и другими параметрами.
+            </p>
+          </>
+        )}
       </div>
 
       {orgsWithCounts && orgsWithCounts.length > 0 ? (
@@ -171,12 +197,14 @@ export default async function OrganizationsPage({
                     <Link href={`/dashboard/organizations/${org.id}/edit`}>
                       <Button variant="outline" size="sm">✏️ Изменить</Button>
                     </Link>
-                    <DeleteItemButton
-                      id={org.id}
-                      baseUrl="/api/organizations"
-                      itemName={`организацию "${org.name}"`}
-                      size="sm"
-                    />
+                    {userRole === 'owner' && (
+                      <DeleteItemButton
+                        id={org.id}
+                        baseUrl="/api/organizations"
+                        itemName={`организацию "${org.name}"`}
+                        size="sm"
+                      />
+                    )}
                   </div>
                 </div>
               </div>
