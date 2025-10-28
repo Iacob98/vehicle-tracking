@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,19 +20,15 @@ export default async function EditCarExpensePage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch car expense
-  const { data: expense, error } = await supabase
+  let expenseQuery = supabase
     .from('car_expenses')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  expenseQuery = applyOrgFilter(expenseQuery, userContext);
+  const { data: expense, error } = await expenseQuery.single();
 
   if (error || !expense) {
     notFound();
@@ -57,18 +54,19 @@ export default async function EditCarExpensePage({ params }: PageProps) {
   }
 
   // Fetch vehicles
-  const { data: vehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name');
+  const { data: vehicles } = await vehiclesQuery;
 
   async function updateCarExpense(formData: FormData) {
     'use server';
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const orgId = user?.user_metadata?.organization_id;
+    const userContext = getUserQueryContext(user);
 
     const vehicleId = formData.get('vehicle_id') as string;
     const category = formData.get('category') as string;
@@ -80,7 +78,7 @@ export default async function EditCarExpensePage({ params }: PageProps) {
       return;
     }
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from('car_expenses')
       .update({
         vehicle_id: vehicleId,
@@ -90,8 +88,9 @@ export default async function EditCarExpensePage({ params }: PageProps) {
         description: description || null,
       })
       .eq('id', id)
-      .eq('organization_id', orgId)
       .is('maintenance_id', null); // Only update if not linked to maintenance
+    updateQuery = applyOrgFilter(updateQuery, userContext);
+    const { error } = await updateQuery;
 
     if (error) {
       console.error('Error updating car expense:', error);

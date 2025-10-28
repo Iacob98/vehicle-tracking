@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -17,15 +18,20 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
+    const userContext = getUserQueryContext(user);
+
     // Soft delete - set is_active to false
-    const { error: deleteError } = await supabase
+    let query = supabase
       .from('user_documents')
       .update({ is_active: false })
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+
+    query = applyOrgFilter(query, userContext);
+
+    const { error: deleteError } = await query;
 
     if (deleteError) {
       return apiErrorFromUnknown(deleteError, { context: 'soft deleting user document', id, orgId });

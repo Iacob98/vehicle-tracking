@@ -1,6 +1,7 @@
 import { PenaltyForm } from './PenaltyForm';
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function NewPenaltyPage() {
   const supabase = await createServerClient();
@@ -11,25 +12,23 @@ export default async function NewPenaltyPage() {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch vehicles
-  const { data: vehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name');
+  const { data: vehicles } = await vehiclesQuery;
 
   // Fetch users
-  const { data: users } = await supabase
+  let usersQuery = supabase
     .from('users')
-    .select('id, first_name, last_name')
-    .eq('organization_id', orgId)
-    .order('first_name');
+    .select('id, first_name, last_name');
+  usersQuery = applyOrgFilter(usersQuery, userContext);
+  usersQuery = usersQuery.order('first_name');
+  const { data: users } = await usersQuery;
 
   return (
     <div className="max-w-2xl">

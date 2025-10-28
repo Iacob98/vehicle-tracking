@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function AnalyticsPage() {
   const supabase = await createServerClient();
@@ -10,23 +11,21 @@ export default async function AnalyticsPage() {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Get vehicle expenses statistics
-  const { data: carExpenses } = await supabase
+  let carExpensesQuery = supabase
     .from('car_expenses')
-    .select('vehicle_id, category, amount, created_by_user_id, liters, date')
-    .eq('organization_id', orgId);
+    .select('vehicle_id, category, amount, created_by_user_id, liters, date');
+  carExpensesQuery = applyOrgFilter(carExpensesQuery, userContext);
+  const { data: carExpenses } = await carExpensesQuery;
 
   // Get penalties statistics
-  const { data: penalties } = await supabase
+  let penaltiesQuery = supabase
     .from('penalties')
-    .select('vehicle_id, amount, status')
-    .eq('organization_id', orgId);
+    .select('vehicle_id, amount, status');
+  penaltiesQuery = applyOrgFilter(penaltiesQuery, userContext);
+  const { data: penalties } = await penaltiesQuery;
 
   // Calculate totals by vehicle
   const vehicleStats = new Map();

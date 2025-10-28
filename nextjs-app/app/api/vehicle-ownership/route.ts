@@ -4,8 +4,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, applyOrgFilter, getOrgIdForCreate, canAccessResource } from '@/lib/query-helpers';
 
 /**
  * GET /api/vehicle-ownership
@@ -19,8 +20,10 @@ export async function GET(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     // Получить vehicle_id из query params
     const { searchParams } = new URL(request.url);
@@ -29,8 +32,9 @@ export async function GET(request: Request) {
     let query = supabase
       .from('vehicle_ownership_history')
       .select('*')
-      .eq('organization_id', orgId)
       .order('start_date', { ascending: false });
+
+    query = applyOrgFilter(query, userContext);
 
     if (vehicleId) {
       query = query.eq('vehicle_id', vehicleId);
@@ -60,8 +64,10 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     const body = await request.json();
     const {
@@ -76,6 +82,7 @@ export async function POST(request: Request) {
       sale_price,
       document_number,
       notes,
+      organization_id,
     } = body;
 
     // Валидация обязательных полей
@@ -89,16 +96,21 @@ export async function POST(request: Request) {
       return apiBadRequest('start_date обязателен');
     }
 
+    const finalOrgId = getOrgIdForCreate(userContext, organization_id);
+
     // Проверить что автомобиль принадлежит организации
     const { data: vehicle } = await supabase
       .from('vehicles')
-      .select('id')
+      .select('id, organization_id')
       .eq('id', vehicle_id)
-      .eq('organization_id', orgId)
       .single();
 
     if (!vehicle) {
       return apiBadRequest('Автомобиль не найден');
+    }
+
+    if (!canAccessResource(userContext, vehicle.organization_id)) {
+      return apiBadRequest('У вас нет доступа к этому автомобилю');
     }
 
     // Если указана end_date, проверить что она >= start_date
@@ -111,7 +123,7 @@ export async function POST(request: Request) {
       .from('vehicle_ownership_history')
       .insert({
         vehicle_id,
-        organization_id: orgId,
+        organization_id: finalOrgId,
         owner_name: owner_name.trim(),
         owner_type: owner_type || 'individual',
         owner_contact: owner_contact || null,

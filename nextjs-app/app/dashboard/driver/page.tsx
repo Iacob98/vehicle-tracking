@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function DriverDashboardPage() {
   const supabase = await createServerClient();
@@ -12,7 +13,7 @@ export default async function DriverDashboardPage() {
     return null;
   }
 
-  const orgId = authUser.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(authUser);
 
   // Получаем информацию о водителе и его авто
   const { data: user } = await supabase
@@ -42,12 +43,14 @@ export default async function DriverDashboardPage() {
   }
 
   // Подсчитываем штрафы водителя
-  const { count: penaltiesCount } = await supabase
+  let penaltiesQuery = supabase
     .from('penalties')
-    .select('id', { count: 'exact', head: true })
-    .eq('organization_id', orgId)
+    .select('id', { count: 'exact', head: true });
+  penaltiesQuery = applyOrgFilter(penaltiesQuery, userContext);
+  penaltiesQuery = penaltiesQuery
     .eq('user_id', authUser.id)
     .eq('status', 'open');
+  const { count: penaltiesCount } = await penaltiesQuery;
 
   return (
     <div className="space-y-6">

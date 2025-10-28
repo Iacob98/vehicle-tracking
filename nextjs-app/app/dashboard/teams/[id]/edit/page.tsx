@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,37 +20,34 @@ export default async function EditTeamPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch team
-  const { data: team, error } = await supabase
+  let teamQuery = supabase
     .from('teams')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  teamQuery = applyOrgFilter(teamQuery, userContext);
+  const { data: team, error } = await teamQuery.single();
 
   if (error || !team) {
     notFound();
   }
 
   // Fetch users for lead selection
-  const { data: users } = await supabase
+  let usersQuery = supabase
     .from('users')
-    .select('id, first_name, last_name, role')
-    .eq('organization_id', orgId)
-    .order('first_name');
+    .select('id, first_name, last_name, role');
+  usersQuery = applyOrgFilter(usersQuery, userContext);
+  usersQuery = usersQuery.order('first_name');
+  const { data: users } = await usersQuery;
 
   async function updateTeam(formData: FormData) {
     'use server';
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const orgId = user?.user_metadata?.organization_id;
+    const userContext = getUserQueryContext(user);
 
     const name = formData.get('name') as string;
     const leadId = formData.get('lead_id') as string;
@@ -58,14 +56,15 @@ export default async function EditTeamPage({ params }: PageProps) {
       return;
     }
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from('teams')
       .update({
         name: name,
         lead_id: leadId || null,
       })
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+    updateQuery = applyOrgFilter(updateQuery, userContext);
+    const { error } = await updateQuery;
 
     if (error) {
       console.error('Error updating team:', error);
@@ -82,13 +81,14 @@ export default async function EditTeamPage({ params }: PageProps) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const orgId = user?.user_metadata?.organization_id;
+    const userContext = getUserQueryContext(user);
 
-    const { error } = await supabase
+    let deleteQuery = supabase
       .from('teams')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+    deleteQuery = applyOrgFilter(deleteQuery, userContext);
+    const { error } = await deleteQuery;
 
     if (error) {
       console.error('Error deleting team:', error);

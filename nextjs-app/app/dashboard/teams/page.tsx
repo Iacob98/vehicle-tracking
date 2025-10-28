@@ -8,6 +8,7 @@ import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -25,25 +26,24 @@ export default async function TeamsPage({
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
 
   // Pagination
   const currentPage = Math.max(1, parseInt(params.page || '1', 10));
   const from = (currentPage - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Fetch teams with pagination
-  const { data: teams, count: teamsCount, error } = await supabase
+  // Fetch teams with pagination - используем applyOrgFilter для owner support
+  let teamsQuery = supabase
     .from('teams')
     .select('*', { count: 'exact' })
-    .eq('organization_id', orgId)
     .order('name')
     .range(from, to);
+
+  teamsQuery = applyOrgFilter(teamsQuery, userContext);
+
+  const { data: teams, count: teamsCount, error } = await teamsQuery;
 
   if (error) {
     console.error('Error fetching teams:', error);
@@ -89,24 +89,29 @@ export default async function TeamsPage({
     };
   }));
 
-  // Fetch all team members
-  const { data: teamMembers } = await supabase
+  // Fetch all team members - используем applyOrgFilter для owner support
+  let teamMembersQuery = supabase
     .from('team_members')
     .select(`
       *,
       team:teams(id, name)
     `)
-    .eq('organization_id', orgId)
     .order('first_name');
 
-  // Fetch team member documents
-  const { data: documents } = await supabase
+  teamMembersQuery = applyOrgFilter(teamMembersQuery, userContext);
+  const { data: teamMembers } = await teamMembersQuery;
+
+  // Fetch team member documents - используем applyOrgFilter для owner support
+  let documentsQuery = supabase
     .from('team_member_documents')
     .select(`
       *,
-      team_member:team_members(first_name, last_name)
+      team_member:team_members(first_name, last_name, organization_id)
     `)
     .order('upload_date', { ascending: false });
+
+  documentsQuery = applyOrgFilter(documentsQuery, userContext);
+  const { data: documents } = await documentsQuery;
 
   // Filter expired and expiring documents
   const today = new Date();

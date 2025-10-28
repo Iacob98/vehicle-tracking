@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { ROLES, type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function AccountPage() {
   const supabase = await createServerClient();
@@ -11,41 +12,45 @@ export default async function AccountPage() {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
+  // Get organization info (only if user has organization_id)
+  let org = null;
+  if (userContext.organizationId) {
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', userContext.organizationId)
+      .single();
+    org = orgData;
   }
 
-  // Get organization info
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('*')
-    .eq('id', orgId)
-    .single();
-
   // Get all users in organization
-  const { data: users } = await supabase
+  let usersQuery = supabase
     .from('users')
-    .select('*')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
+    .select('*');
+  usersQuery = applyOrgFilter(usersQuery, userContext);
+  usersQuery = usersQuery.order('created_at', { ascending: false });
+  const { data: users } = await usersQuery;
 
   // Get statistics
-  const { count: vehiclesCount } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', orgId);
+    .select('*', { count: 'exact', head: true });
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  const { count: vehiclesCount } = await vehiclesQuery;
 
-  const { count: teamsCount } = await supabase
+  let teamsQuery = supabase
     .from('teams')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', orgId);
+    .select('*', { count: 'exact', head: true });
+  teamsQuery = applyOrgFilter(teamsQuery, userContext);
+  const { count: teamsCount } = await teamsQuery;
 
-  const { count: penaltiesCount } = await supabase
+  let penaltiesQuery = supabase
     .from('penalties')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', orgId);
+    .select('*', { count: 'exact', head: true });
+  penaltiesQuery = applyOrgFilter(penaltiesQuery, userContext);
+  const { count: penaltiesCount } = await penaltiesQuery;
 
   // Используем централизованную систему ролей
   const getRoleDisplay = (role: string) => {

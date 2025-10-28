@@ -4,8 +4,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -30,8 +31,8 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять расходы)
@@ -40,6 +41,9 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление расходов');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Verify expense belongs to user's organization
     const { data: expense } = await supabase
       .from('car_expenses')
@@ -47,18 +51,22 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!expense || expense.organization_id !== orgId) {
+    if (!expense) {
+      return apiForbidden('Расход не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, expense.organization_id)) {
       return apiForbidden('У вас нет доступа к этому расходу');
     }
 
     const { error } = await supabase
       .from('car_expenses')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting car expense', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting car expense', id, orgId: expense.organization_id });
     }
 
     return apiSuccess({ success: true });

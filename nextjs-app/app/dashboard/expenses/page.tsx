@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { Pagination, PaginationInfo } from '@/components/ui/pagination';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -13,13 +14,14 @@ export default async function ExpensesPage({
   const params = await searchParams;
 
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
   // Fetch all expenses for statistics
-  const { data: allExpenses } = await supabase
+  let allExpensesQuery = supabase
     .from('expenses')
-    .select('amount, vehicle_id, team_id')
-    .eq('organization_id', orgId);
+    .select('amount, vehicle_id, team_id');
+  allExpensesQuery = applyOrgFilter(allExpensesQuery, userContext);
+  const { data: allExpenses } = await allExpensesQuery;
 
   const totalExpenses = allExpenses?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
   const vehicleExpenses = allExpenses?.filter(e => e.vehicle_id).reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
@@ -31,16 +33,18 @@ export default async function ExpensesPage({
   const to = from + ITEMS_PER_PAGE - 1;
 
   // Fetch paginated expenses with relations
-  const { data: expenses, count: expensesCount } = await supabase
+  let expensesQuery = supabase
     .from('expenses')
     .select(`
       *,
       vehicle:vehicles(name, license_plate),
       team:teams(name)
-    `, { count: 'exact' })
-    .eq('organization_id', orgId)
+    `, { count: 'exact' });
+  expensesQuery = applyOrgFilter(expensesQuery, userContext);
+  expensesQuery = expensesQuery
     .order('date', { ascending: false })
     .range(from, to);
+  const { data: expenses, count: expensesCount } = await expensesQuery;
 
   const totalPages = Math.ceil((expensesCount || 0) / ITEMS_PER_PAGE);
 

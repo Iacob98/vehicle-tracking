@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { ROLE_OPTIONS } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,37 +21,34 @@ export default async function EditUserPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = currentUser.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(currentUser);
 
   // Fetch user details
-  const { data: user, error } = await supabase
+  let userQuery = supabase
     .from('users')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  userQuery = applyOrgFilter(userQuery, userContext);
+  const { data: user, error } = await userQuery.single();
 
   if (error || !user) {
     notFound();
   }
 
   // Fetch teams for assignment
-  const { data: teams } = await supabase
+  let teamsQuery = supabase
     .from('teams')
-    .select('id, name')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name');
+  teamsQuery = applyOrgFilter(teamsQuery, userContext);
+  teamsQuery = teamsQuery.order('name');
+  const { data: teams } = await teamsQuery;
 
   async function updateUser(formData: FormData) {
     'use server';
 
     const supabase = await createServerClient();
     const { data: { user: currentUser } } = await supabase.auth.getUser();
-    const orgId = currentUser?.user_metadata?.organization_id;
+    const userContext = getUserQueryContext(currentUser);
 
     const firstName = formData.get('first_name') as string;
     const lastName = formData.get('last_name') as string;
@@ -63,7 +61,7 @@ export default async function EditUserPage({ params }: PageProps) {
       return;
     }
 
-    const { error: updateError } = await supabase
+    let updateQuery = supabase
       .from('users')
       .update({
         first_name: firstName,
@@ -73,8 +71,9 @@ export default async function EditUserPage({ params }: PageProps) {
         team_id: teamId || null,
         fuel_card_id: fuelCardId || null,
       })
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+    updateQuery = applyOrgFilter(updateQuery, userContext);
+    const { error: updateError } = await updateQuery;
 
     if (updateError) {
       console.error('Error updating user:', updateError);

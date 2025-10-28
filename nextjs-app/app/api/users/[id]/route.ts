@@ -4,8 +4,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -29,11 +30,12 @@ export async function PATCH(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    const userContext = getUserQueryContext(user);
 
     // Verify user belongs to same organization
     const { data: targetUser } = await supabase
@@ -42,7 +44,12 @@ export async function PATCH(
       .eq('id', id)
       .single();
 
-    if (!targetUser || targetUser.organization_id !== orgId) {
+    if (!targetUser) {
+      return apiForbidden('Пользователь не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, targetUser.organization_id)) {
       return apiForbidden('У вас нет доступа к этому пользователю');
     }
 
@@ -74,12 +81,11 @@ export async function PATCH(
         .from('users')
         .update(updates)
         .eq('id', id)
-        .eq('organization_id', orgId)
         .select()
         .single();
 
       if (error) {
-        return apiErrorFromUnknown(error, { context: 'updating user fuel_card_id', id, orgId });
+        return apiErrorFromUnknown(error, { context: 'updating user fuel_card_id', id, orgId: targetUser.organization_id });
       }
 
       return apiSuccess({ user: data });
@@ -116,8 +122,8 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin может удалять пользователей)
@@ -131,6 +137,9 @@ export async function DELETE(
       return apiForbidden('Вы не можете удалить свою учетную запись');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Verify user belongs to same organization
     const { data: targetUser } = await supabase
       .from('users')
@@ -138,18 +147,22 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!targetUser || targetUser.organization_id !== orgId) {
+    if (!targetUser) {
+      return apiForbidden('Пользователь не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, targetUser.organization_id)) {
       return apiForbidden('У вас нет доступа к этому пользователю');
     }
 
     const { error } = await supabase
       .from('users')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting user', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting user', id, orgId: targetUser.organization_id });
     }
 
     return apiSuccess({ success: true });

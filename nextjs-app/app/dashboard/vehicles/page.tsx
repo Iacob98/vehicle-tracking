@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { VehiclesTable } from './VehiclesTable';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -13,7 +14,7 @@ export default async function VehiclesPage({
   const params = await searchParams;
 
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Pagination
@@ -21,11 +22,12 @@ export default async function VehiclesPage({
   const from = (currentPage - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Build query with filters
+  // Build query with filters - используем applyOrgFilter для owner support
   let query = supabase
     .from('vehicles')
-    .select('*', { count: 'exact' })
-    .eq('organization_id', orgId);
+    .select('*', { count: 'exact' });
+
+  query = applyOrgFilter(query, userContext);
 
   // Search filter (name, license_plate, vin)
   if (params.search) {

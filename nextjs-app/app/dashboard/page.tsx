@@ -1,24 +1,38 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function DashboardPage() {
   const supabase = await createServerClient();
-  
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  
-  const orgId = authUser?.user_metadata?.organization_id;
+  const user = await getCurrentUser();
 
+  // Получаем контекст пользователя для правильной фильтрации
+  const userContext = getUserQueryContext(user);
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Fetch stats
+  // Fetch stats - используем applyOrgFilter для автоматической фильтрации
+  // Owner видит все данные всех организаций, остальные только свою организацию
   const [vehiclesCount, teamsCount, penaltiesCount, expiringDocs] = await Promise.all([
-    supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
-    supabase.from('teams').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
-    supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'open'),
-    supabase.from('vehicle_documents').select('id', { count: 'exact', head: true })
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .not('date_expiry', 'is', null)
-      .lte('date_expiry', thirtyDaysFromNow),
+    applyOrgFilter(
+      supabase.from('vehicles').select('id', { count: 'exact', head: true }),
+      userContext
+    ),
+    applyOrgFilter(
+      supabase.from('teams').select('id', { count: 'exact', head: true }),
+      userContext
+    ),
+    applyOrgFilter(
+      supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+      userContext
+    ),
+    applyOrgFilter(
+      supabase.from('vehicle_documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .not('date_expiry', 'is', null)
+        .lte('date_expiry', thirtyDaysFromNow),
+      userContext
+    ),
   ]);
 
   return (

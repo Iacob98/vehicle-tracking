@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { VehicleForm } from '../../VehicleForm';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function EditVehiclePage({
   params,
@@ -11,14 +12,14 @@ export default async function EditVehiclePage({
   const { id } = await params;
 
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
-  const { data: vehicle } = await supabase
+  let vehicleQuery = supabase
     .from('vehicles')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  vehicleQuery = applyOrgFilter(vehicleQuery, userContext);
+  const { data: vehicle } = await vehicleQuery.single();
 
   if (!vehicle) {
     notFound();

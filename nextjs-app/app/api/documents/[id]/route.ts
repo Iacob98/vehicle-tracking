@@ -4,8 +4,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -27,7 +28,7 @@ export async function DELETE(
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять documents)
@@ -36,6 +37,8 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление документов');
     }
 
+    const userContext = getUserQueryContext(user);
+
     // Verify document belongs to user's organization
     const { data: document } = await supabase
       .from('vehicle_documents')
@@ -43,7 +46,7 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!document || document.organization_id !== orgId) {
+    if (!document || !canAccessResource(userContext, document.organization_id)) {
       return apiForbidden('У вас нет доступа к этому документу');
     }
 
@@ -51,8 +54,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('vehicle_documents')
       .update({ is_active: false })
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'deleting document', id, orgId });

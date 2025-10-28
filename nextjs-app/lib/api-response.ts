@@ -161,6 +161,10 @@ export function checkAuthentication(user: any): NextResponse | null {
   return null;
 }
 
+/**
+ * @deprecated Используйте checkOwnerOrOrganizationId вместо этой функции.
+ * Эта функция не поддерживает owner роль с NULL organization_id.
+ */
 export function checkOrganizationId(user: any): { orgId: string; error: NextResponse | null } {
   const orgId = user?.user_metadata?.organization_id;
 
@@ -172,4 +176,39 @@ export function checkOrganizationId(user: any): { orgId: string; error: NextResp
   }
 
   return { orgId, error: null };
+}
+
+/**
+ * Проверяет organization_id с поддержкой owner роли.
+ * Owner может иметь NULL organization_id и видит все данные всех организаций.
+ *
+ * @returns {
+ *   orgId: string | null - ID организации или null для owner
+ *   isOwner: boolean - true если пользователь имеет роль owner
+ *   error: NextResponse | null - ошибка если пользователь не owner и не имеет organization_id
+ * }
+ */
+export function checkOwnerOrOrganizationId(user: any): {
+  orgId: string | null;
+  isOwner: boolean;
+  error: NextResponse | null
+} {
+  const role = user?.user_metadata?.role;
+  const orgId = user?.user_metadata?.organization_id;
+
+  // Owner может быть без organization_id и имеет доступ ко всему
+  if (role === 'owner') {
+    return { orgId: null, isOwner: true, error: null };
+  }
+
+  // Остальные роли должны иметь organization_id
+  if (!orgId) {
+    return {
+      orgId: null,
+      isOwner: false,
+      error: apiBadRequest('Organization ID не найден'),
+    };
+  }
+
+  return { orgId, isOwner: false, error: null };
 }

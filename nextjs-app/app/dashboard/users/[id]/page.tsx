@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import UserDocuments from './UserDocuments';
 import { getRoleInfo, type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,19 +21,15 @@ export default async function UserDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = currentUser.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(currentUser);
 
   // Fetch user details
-  const { data: user, error } = await supabase
+  let userQuery = supabase
     .from('users')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  userQuery = applyOrgFilter(userQuery, userContext);
+  const { data: user, error } = await userQuery.single();
 
   if (error || !user) {
     notFound();

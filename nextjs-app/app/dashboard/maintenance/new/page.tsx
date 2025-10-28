@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { MaintenanceForm } from './MaintenanceForm';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function NewMaintenancePage() {
   const supabase = await createServerClient();
@@ -11,18 +12,15 @@ export default async function NewMaintenancePage() {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch vehicles
-  const { data: vehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name');
+  const { data: vehicles } = await vehiclesQuery;
 
   return (
     <div className="max-w-2xl">

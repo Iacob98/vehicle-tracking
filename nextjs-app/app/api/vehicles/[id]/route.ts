@@ -5,8 +5,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { uploadMultipleFiles } from '@/lib/storage';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
@@ -32,8 +33,8 @@ export async function PUT(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут редактировать vehicles)
@@ -42,6 +43,9 @@ export async function PUT(
       return apiForbidden('У вас нет прав на редактирование автомобилей');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Проверка что vehicle принадлежит организации пользователя
     const { data: existingVehicle } = await supabase
       .from('vehicles')
@@ -49,7 +53,12 @@ export async function PUT(
       .eq('id', id)
       .single();
 
-    if (!existingVehicle || existingVehicle.organization_id !== orgId) {
+    if (!existingVehicle) {
+      return apiForbidden('Автомобиль не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, existingVehicle.organization_id)) {
       return apiForbidden('У вас нет доступа к этому автомобилю');
     }
 
@@ -70,7 +79,7 @@ export async function PUT(
 
     if (photoFiles.length > 0 && photoFiles[0].size > 0) {
       try {
-        newPhotoUrls = await uploadMultipleFiles(photoFiles, 'vehicles', orgId);
+        newPhotoUrls = await uploadMultipleFiles(photoFiles, 'vehicles', existingVehicle.organization_id);
       } catch (error) {
         return apiErrorFromUnknown(error, { context: 'uploading vehicle photos' });
       }
@@ -107,7 +116,6 @@ export async function PUT(
       .from('vehicles')
       .update(updateData)
       .eq('id', id)
-      .eq('organization_id', orgId)
       .select()
       .single();
 
@@ -115,7 +123,7 @@ export async function PUT(
       return apiErrorFromUnknown(error, {
         context: 'updating vehicle',
         id,
-        orgId,
+        orgId: existingVehicle.organization_id,
       });
     }
 
@@ -139,8 +147,8 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять vehicles)
@@ -149,6 +157,9 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление автомобилей');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Verify vehicle belongs to user's organization
     const { data: vehicle } = await supabase
       .from('vehicles')
@@ -156,18 +167,22 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!vehicle || vehicle.organization_id !== orgId) {
+    if (!vehicle) {
+      return apiForbidden('Автомобиль не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, vehicle.organization_id)) {
       return apiForbidden('У вас нет доступа к этому автомобилю');
     }
 
     const { error } = await supabase
       .from('vehicles')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting vehicle', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting vehicle', id, orgId: vehicle.organization_id });
     }
 
     return apiSuccess({ success: true });

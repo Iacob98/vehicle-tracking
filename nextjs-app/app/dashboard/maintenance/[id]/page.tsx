@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -27,19 +28,15 @@ export default async function MaintenanceDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = currentUser.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(currentUser);
 
   // Fetch maintenance details
-  const { data: maintenance, error } = await supabase
+  let maintenanceQuery = supabase
     .from('maintenances')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  maintenanceQuery = applyOrgFilter(maintenanceQuery, userContext);
+  const { data: maintenance, error } = await maintenanceQuery.single();
 
   if (error || !maintenance) {
     notFound();

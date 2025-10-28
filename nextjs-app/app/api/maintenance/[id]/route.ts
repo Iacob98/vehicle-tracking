@@ -4,8 +4,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -30,8 +31,8 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять записи обслуживания)
@@ -40,6 +41,9 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление записей обслуживания');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Verify maintenance belongs to user's organization
     const { data: maintenance } = await supabase
       .from('maintenance')
@@ -47,18 +51,22 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!maintenance || maintenance.organization_id !== orgId) {
+    if (!maintenance) {
+      return apiForbidden('Запись ТО не найдена');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, maintenance.organization_id)) {
       return apiForbidden('У вас нет доступа к этой записи ТО');
     }
 
     const { error } = await supabase
       .from('maintenance')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting maintenance', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting maintenance', id, orgId: maintenance.organization_id });
     }
 
     return apiSuccess({ success: true });

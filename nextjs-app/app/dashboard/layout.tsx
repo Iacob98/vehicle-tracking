@@ -1,5 +1,4 @@
-import { createServerClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/auth-helpers';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
@@ -8,29 +7,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createServerClient();
-
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-
-  if (!authUser) {
-    redirect('/login');
-  }
-
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*, organizations(*)')
-    .eq('id', authUser.id)
-    .single();
-
-  // Если ошибка получения пользователя
-  if (error || !user) {
-    console.error('Error fetching user:', error);
-    return <div className="p-6">Organization ID not found</div>;
-  }
+  const user = await getCurrentUser();
 
   // Водители используют свой собственный layout в /dashboard/driver/layout.tsx
   // Просто возвращаем children без sidebar и header
-  if (user?.role === 'driver') {
+  if (user.role === 'driver') {
     return <>{children}</>;
   }
 

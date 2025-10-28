@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 interface RouteParams {
@@ -17,8 +18,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять штрафы)
@@ -27,15 +28,33 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return apiForbidden('У вас нет прав на удаление штрафов');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
+    // Verify penalty belongs to user's organization
+    const { data: penalty } = await supabase
+      .from('penalties')
+      .select('organization_id')
+      .eq('id', id)
+      .single();
+
+    if (!penalty) {
+      return apiForbidden('Штраф не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, penalty.organization_id)) {
+      return apiForbidden('У вас нет доступа к этому штрафу');
+    }
+
     // Delete penalty
     const { error: deleteError } = await supabase
       .from('penalties')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (deleteError) {
-      return apiErrorFromUnknown(deleteError, { context: 'deleting penalty', id, orgId });
+      return apiErrorFromUnknown(deleteError, { context: 'deleting penalty', id, orgId: penalty.organization_id });
     }
 
     return apiSuccess({ success: true });

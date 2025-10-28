@@ -4,8 +4,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate, applyOrgFilter } from '@/lib/query-helpers';
 
 /**
  * POST /api/vehicle-assignments
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const body = await request.json();
@@ -30,25 +31,36 @@ export async function POST(request: Request) {
       return apiBadRequest('Автомобиль, бригада и дата начала обязательны');
     }
 
-    // Проверка что автомобиль принадлежит организации
-    const { data: vehicle } = await supabase
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания назначения');
+    }
+
+    // Проверка что автомобиль существует (owner может использовать любой автомобиль)
+    let vehicleQuery = supabase
       .from('vehicles')
       .select('id')
-      .eq('id', vehicle_id)
-      .eq('organization_id', orgId)
-      .single();
+      .eq('id', vehicle_id);
+
+    vehicleQuery = applyOrgFilter(vehicleQuery, userContext);
+    const { data: vehicle } = await vehicleQuery.single();
 
     if (!vehicle) {
       return apiBadRequest('Автомобиль не найден');
     }
 
-    // Проверка что бригада принадлежит организации
-    const { data: team } = await supabase
+    // Проверка что бригада существует (owner может использовать любую бригаду)
+    let teamQuery = supabase
       .from('teams')
       .select('id')
-      .eq('id', team_id)
-      .eq('organization_id', orgId)
-      .single();
+      .eq('id', team_id);
+
+    teamQuery = applyOrgFilter(teamQuery, userContext);
+    const { data: team } = await teamQuery.single();
 
     if (!team) {
       return apiBadRequest('Бригада не найдена');
@@ -74,7 +86,7 @@ export async function POST(request: Request) {
         team_id,
         start_date,
         end_date: end_date || null,
-        organization_id: orgId,
+        organization_id: finalOrgId,
       })
       .select(`
         *,

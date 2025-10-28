@@ -6,8 +6,9 @@ import {
   apiNotFound,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { updateOrganizationSchema } from '@/lib/schemas/organizations.schema';
 
@@ -50,7 +51,7 @@ export async function GET(
     }
 
     // Остальные могут получить только свою организацию
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     if (id !== orgId) {
@@ -107,7 +108,7 @@ export async function PUT(
 
     // Admin может редактировать только свою организацию
     if (userRole === 'admin') {
-      const { orgId, error: orgError } = checkOrganizationId(user);
+      const { orgId, error: orgError } = checkOwnerOrOrganizationId(user);
       if (orgError) return orgError;
 
       if (id !== orgId) {

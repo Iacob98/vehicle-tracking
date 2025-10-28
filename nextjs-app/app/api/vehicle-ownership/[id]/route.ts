@@ -5,8 +5,9 @@ import {
   apiNotFound,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 /**
  * PATCH /api/vehicle-ownership/[id]
@@ -23,19 +24,23 @@ export async function PATCH(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     const { id } = await params;
     const body = await request.json();
 
     // Проверить что запись существует и принадлежит организации
-    const { data: existing } = await supabase
+    let query = supabase
       .from('vehicle_ownership_history')
       .select('*')
-      .eq('id', id)
-      .eq('organization_id', orgId)
-      .single();
+      .eq('id', id);
+
+    query = applyOrgFilter(query, userContext);
+
+    const { data: existing } = await query.single();
 
     if (!existing) {
       return apiNotFound('Запись истории владения не найдена');
@@ -80,13 +85,14 @@ export async function PATCH(
     if (document_number !== undefined) updateData.document_number = document_number || null;
     if (notes !== undefined) updateData.notes = notes || null;
 
-    const { data: ownership, error } = await supabase
+    let updateQuery = supabase
       .from('vehicle_ownership_history')
       .update(updateData)
-      .eq('id', id)
-      .eq('organization_id', orgId)
-      .select()
-      .single();
+      .eq('id', id);
+
+    updateQuery = applyOrgFilter(updateQuery, userContext);
+
+    const { data: ownership, error } = await updateQuery.select().single();
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'updating ownership history', id });
@@ -113,29 +119,36 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     const { id } = await params;
 
     // Проверить что запись существует
-    const { data: existing } = await supabase
+    let checkQuery = supabase
       .from('vehicle_ownership_history')
       .select('id')
-      .eq('id', id)
-      .eq('organization_id', orgId)
-      .single();
+      .eq('id', id);
+
+    checkQuery = applyOrgFilter(checkQuery, userContext);
+
+    const { data: existing } = await checkQuery.single();
 
     if (!existing) {
       return apiNotFound('Запись истории владения не найдена');
     }
 
     // Удалить запись
-    const { error } = await supabase
+    let deleteQuery = supabase
       .from('vehicle_ownership_history')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+
+    deleteQuery = applyOrgFilter(deleteQuery, userContext);
+
+    const { error } = await deleteQuery;
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'deleting ownership history', id });

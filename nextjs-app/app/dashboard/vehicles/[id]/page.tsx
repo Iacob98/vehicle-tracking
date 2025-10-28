@@ -3,20 +3,21 @@ import { notFound } from 'next/navigation';
 import { VehicleDocuments } from './VehicleDocuments';
 import { VehicleAssignments } from './VehicleAssignments';
 import { VehicleOwnerCard } from './VehicleOwnerCard';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerClient();
   const { id } = await params;
 
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
-  const { data: vehicle } = await supabase
+  let vehicleQuery = supabase
     .from('vehicles')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  vehicleQuery = applyOrgFilter(vehicleQuery, userContext);
+  const { data: vehicle } = await vehicleQuery.single();
 
   if (!vehicle) {
     notFound();
@@ -31,11 +32,12 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     .order('date_expiry', { ascending: true, nullsFirst: false });
 
   // Get teams for assignment
-  const { data: teams } = await supabase
+  let teamsQuery = supabase
     .from('teams')
-    .select('id, name')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name');
+  teamsQuery = applyOrgFilter(teamsQuery, userContext);
+  teamsQuery = teamsQuery.order('name');
+  const { data: teams } = await teamsQuery;
 
   // Get vehicle assignments
   const { data: assignments } = await supabase

@@ -4,8 +4,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 
 /**
  * POST /api/team-members
@@ -20,8 +21,8 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id (безопасно!)
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const body = await request.json();
@@ -32,11 +33,20 @@ export async function POST(request: Request) {
       return apiBadRequest('Бригада, имя и фамилия обязательны');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания члена бригады');
+    }
+
     const { data: member, error } = await supabase
       .from('team_members')
       .insert({
         team_id,
-        organization_id: orgId, // Используем проверенный orgId с сервера
+        organization_id: finalOrgId,
         first_name,
         last_name,
         phone: phone || null,
@@ -49,7 +59,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating team member',
-        orgId,
+        orgId: finalOrgId,
         team_id,
       });
     }

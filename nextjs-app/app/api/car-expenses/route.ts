@@ -6,8 +6,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { createFileUploadError } from '@/lib/errors';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { checkFuelLimits } from '@/lib/fuel-limits';
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
       return apiForbidden('User not authenticated');
     }
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (admin, manager и driver могут создавать расходы)
@@ -76,12 +77,21 @@ export async function POST(request: Request) {
       return apiBadRequest('Автомобиль, категория, сумма и дата обязательны');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, formData.get('organization_id') as string | null);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания расхода');
+    }
+
     // Проверка лимитов для топлива
     const amountNum = parseFloat(amount);
     let limitWarnings: string[] = [];
 
     if (category === 'fuel') {
-      const limitCheck = await checkFuelLimits(orgId, amountNum, fuelCardId);
+      const limitCheck = await checkFuelLimits(finalOrgId, amountNum, fuelCardId);
       limitWarnings = limitCheck.warnings;
       // Не блокируем операцию, только предупреждаем
     }
@@ -94,7 +104,7 @@ export async function POST(request: Request) {
       try {
         // Generate file path
         const fileExt = receiptFile.name.split('.').pop();
-        const fileName = `${orgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const fileName = `${finalOrgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
         // Upload file using Service Role client (bypasses RLS)
         const { data, error: uploadError } = await supabaseAdmin.storage
@@ -106,7 +116,7 @@ export async function POST(request: Request) {
 
         if (uploadError) {
           const fileError = createFileUploadError('Ошибка загрузки фото чека', uploadError.message);
-          return apiErrorFromUnknown(fileError, { context: 'uploading receipt photo', bucket: 'expenses', orgId });
+          return apiErrorFromUnknown(fileError, { context: 'uploading receipt photo', bucket: 'expenses', orgId: finalOrgId });
         }
 
         // Get signed URL for private bucket (expires in 1 year)
@@ -116,7 +126,7 @@ export async function POST(request: Request) {
 
         if (signError) {
           const fileError = createFileUploadError('Ошибка создания signed URL', signError.message);
-          return apiErrorFromUnknown(fileError, { context: 'creating signed URL', bucket: 'expenses', orgId });
+          return apiErrorFromUnknown(fileError, { context: 'creating signed URL', bucket: 'expenses', orgId: finalOrgId });
         }
 
         receiptUrl = signedData.signedUrl;
@@ -127,7 +137,7 @@ export async function POST(request: Request) {
 
     // Подготовка данных для вставки
     const carExpenseData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       vehicle_id: vehicleId,
       category,
       amount: amountNum,
@@ -149,7 +159,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating car expense',
-        orgId,
+        orgId: finalOrgId,
         vehicleId,
       });
     }

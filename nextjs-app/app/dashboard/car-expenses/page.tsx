@@ -8,6 +8,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { ExpenseCard } from './ExpenseCard';
 import { FiltersBar } from './FiltersBar';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -31,12 +32,8 @@ export default async function CarExpensesPage({
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
 
   // Get filter parameters
   const categoryFilter = params.category;
@@ -47,8 +44,8 @@ export default async function CarExpensesPage({
   // Fetch all expenses for total calculation (with filters)
   let allExpensesQuery = supabase
     .from('car_expenses')
-    .select('amount')
-    .eq('organization_id', orgId);
+    .select('amount');
+  allExpensesQuery = applyOrgFilter(allExpensesQuery, userContext);
 
   if (categoryFilter) {
     allExpensesQuery = allExpensesQuery.eq('category', categoryFilter);
@@ -69,8 +66,8 @@ export default async function CarExpensesPage({
   // Fetch car expenses with pagination, filters and sorting
   let expensesQuery = supabase
     .from('car_expenses')
-    .select('*', { count: 'exact' })
-    .eq('organization_id', orgId);
+    .select('*', { count: 'exact' });
+  expensesQuery = applyOrgFilter(expensesQuery, userContext);
 
   // Apply filters
   if (categoryFilter) {
@@ -91,11 +88,12 @@ export default async function CarExpensesPage({
   const totalPages = Math.ceil((expensesCount || 0) / ITEMS_PER_PAGE);
 
   // Get all vehicles for filter dropdown
-  const { data: allVehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name');
+  const { data: allVehicles } = await vehiclesQuery;
 
   // Get vehicle names for each expense
   const expensesWithVehicles = await Promise.all((expenses || []).map(async (expense) => {

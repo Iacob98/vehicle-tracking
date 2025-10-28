@@ -4,8 +4,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 
 /**
  * PATCH /api/vehicle-assignments/[id]
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const { id } = await params;
@@ -30,16 +31,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return apiBadRequest('Дата окончания обязательна');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Проверка что назначение принадлежит организации
     const { data: existingAssignment } = await supabase
       .from('vehicle_assignments')
-      .select('id, start_date')
+      .select('id, start_date, organization_id')
       .eq('id', id)
-      .eq('organization_id', orgId)
       .single();
 
     if (!existingAssignment) {
       return apiBadRequest('Назначение не найдено');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, existingAssignment.organization_id)) {
+      return apiBadRequest('У вас нет доступа к этому назначению');
     }
 
     // Проверка что end_date >= start_date
@@ -80,21 +88,28 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const { id } = await params;
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Проверка что назначение принадлежит организации
     const { data: existingAssignment } = await supabase
       .from('vehicle_assignments')
-      .select('id')
+      .select('id, organization_id')
       .eq('id', id)
-      .eq('organization_id', orgId)
       .single();
 
     if (!existingAssignment) {
       return apiBadRequest('Назначение не найдено');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, existingAssignment.organization_id)) {
+      return apiBadRequest('У вас нет доступа к этому назначению');
     }
 
     // Удалить назначение

@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { uploadMultipleFilesServer } from '@/lib/storage-server';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const formData = await request.formData();
@@ -24,16 +25,20 @@ export async function POST(request: Request) {
     const title = formData.get('title') as string;
     const dateIssued = formData.get('date_issued') as string;
     const dateExpiry = formData.get('date_expiry') as string;
+    const organizationId = formData.get('organization_id') as string | null;
     const files = formData.getAll('files') as File[];
 
     console.log('📝 API Debug - Files received:', files.length);
     console.log('📝 API Debug - Files:', files.map(f => ({ name: f.name, size: f.size, type: f.type })));
 
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, organizationId);
+
     // Upload files
     let fileUrls: string[] = [];
     if (files.length > 0) {
       console.log('📤 Uploading files...');
-      fileUrls = await uploadMultipleFilesServer(files, 'documents', orgId);
+      fileUrls = await uploadMultipleFilesServer(files, 'documents', finalOrgId);
       console.log('✅ Uploaded URLs:', fileUrls);
     } else {
       console.log('⚠️ No files to upload');
@@ -44,7 +49,7 @@ export async function POST(request: Request) {
       .from('vehicle_documents')
       .insert({
         vehicle_id: vehicleId,
-        organization_id: orgId,
+        organization_id: finalOrgId,
         document_type: documentType,
         title,
         date_issued: dateIssued || null,
@@ -56,7 +61,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      return apiErrorFromUnknown(insertError, { context: 'inserting vehicle document', vehicleId, orgId });
+      return apiErrorFromUnknown(insertError, { context: 'inserting vehicle document', vehicleId, orgId: finalOrgId });
     }
 
     return apiSuccess({ document: newDoc });

@@ -6,6 +6,7 @@ import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -33,18 +34,16 @@ export default async function PenaltiesPage({
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
-
-  // Fetch statistics (all penalties for stats)
-  const { data: allPenalties } = await supabase
+  // Fetch statistics (all penalties for stats) - используем applyOrgFilter для owner support
+  let statsQuery = supabase
     .from('penalties')
-    .select('status, amount')
-    .eq('organization_id', orgId);
+    .select('status, amount');
+
+  statsQuery = applyOrgFilter(statsQuery, userContext);
+  const { data: allPenalties } = await statsQuery;
 
   const stats = {
     total: allPenalties?.length || 0,
@@ -58,13 +57,15 @@ export default async function PenaltiesPage({
   const from = (currentPage - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Fetch penalties with pagination
-  const { data: penalties, count: penaltiesCount } = await supabase
+  // Fetch penalties with pagination - используем applyOrgFilter для owner support
+  let penaltiesQuery = supabase
     .from('penalties')
     .select('*', { count: 'exact' })
-    .eq('organization_id', orgId)
     .order('date', { ascending: false })
     .range(from, to);
+
+  penaltiesQuery = applyOrgFilter(penaltiesQuery, userContext);
+  const { data: penalties, count: penaltiesCount } = await penaltiesQuery;
 
   const totalPages = Math.ceil((penaltiesCount || 0) / ITEMS_PER_PAGE);
 

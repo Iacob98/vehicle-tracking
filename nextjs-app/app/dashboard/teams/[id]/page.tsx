@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TeamMembers from './TeamMembers';
 import TeamVehicles from './TeamVehicles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,19 +21,15 @@ export default async function TeamDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch team details
-  const { data: team, error } = await supabase
+  let teamQuery = supabase
     .from('teams')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  teamQuery = applyOrgFilter(teamQuery, userContext);
+  const { data: team, error } = await teamQuery.single();
 
   if (error || !team) {
     notFound();
@@ -150,11 +147,11 @@ export default async function TeamDetailPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="members" className="space-y-4">
-          <TeamMembers teamId={id} orgId={orgId} initialMembers={teamMembers || []} />
+          <TeamMembers teamId={id} orgId={userContext.organizationId || ''} initialMembers={teamMembers || []} />
         </TabsContent>
 
         <TabsContent value="vehicles" className="space-y-4">
-          <TeamVehicles teamId={id} orgId={orgId} initialAssignments={vehicleAssignments || []} />
+          <TeamVehicles teamId={id} orgId={userContext.organizationId || ''} initialAssignments={vehicleAssignments || []} />
         </TabsContent>
       </Tabs>
     </div>

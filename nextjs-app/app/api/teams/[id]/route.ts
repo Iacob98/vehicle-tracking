@@ -4,8 +4,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -30,8 +31,8 @@ export async function DELETE(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять бригады)
@@ -40,6 +41,9 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление бригад');
     }
 
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
+
     // Verify team belongs to user's organization
     const { data: team } = await supabase
       .from('teams')
@@ -47,18 +51,22 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    if (!team || team.organization_id !== orgId) {
+    if (!team) {
+      return apiForbidden('Бригада не найдена');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, team.organization_id)) {
       return apiForbidden('У вас нет доступа к этой бригаде');
     }
 
     const { error } = await supabase
       .from('teams')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting team', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting team', id, orgId: team.organization_id });
     }
 
     return apiSuccess({ success: true });

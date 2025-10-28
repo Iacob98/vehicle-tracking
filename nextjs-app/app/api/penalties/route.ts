@@ -5,8 +5,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { uploadFile } from '@/lib/storage';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
@@ -32,8 +33,8 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут создавать штрафы)
@@ -54,13 +55,22 @@ export async function POST(request: Request) {
       return apiBadRequest('Автомобиль, сумма и дата обязательны');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, formData.get('organization_id') as string | null);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания штрафа');
+    }
+
     // Загружаем фото если есть
     const photoFile = formData.get('photo') as File | null;
     let photoUrl: string | null = null;
 
     if (photoFile && photoFile.size > 0) {
       try {
-        photoUrl = await uploadFile(photoFile, 'penalties', orgId);
+        photoUrl = await uploadFile(photoFile, 'penalties', finalOrgId);
       } catch (error) {
         return apiErrorFromUnknown(error, { context: 'uploading penalty photo' });
       }
@@ -68,7 +78,7 @@ export async function POST(request: Request) {
 
     // Подготовка данных для вставки
     const penaltyData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       vehicle_id: vehicleId,
       user_id: formData.get('user_id') as string || null,
       amount: parseFloat(amount),
@@ -88,7 +98,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating penalty',
-        orgId,
+        orgId: finalOrgId,
         vehicleId,
       });
     }

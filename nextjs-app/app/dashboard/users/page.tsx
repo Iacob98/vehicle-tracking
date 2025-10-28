@@ -7,6 +7,7 @@ import { ROLES, type UserRole } from '@/lib/types/roles';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -24,26 +25,25 @@ export default async function UsersPage({
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const currentUserId = user.id;
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
 
   // Pagination
   const currentPage = Math.max(1, parseInt(params.page || '1', 10));
   const from = (currentPage - 1) * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE - 1;
 
-  // Fetch users with pagination
-  const { data: users, count: usersCount } = await supabase
+  // Fetch users with pagination - используем applyOrgFilter для owner support
+  let usersQuery = supabase
     .from('users')
     .select('*', { count: 'exact' })
-    .eq('organization_id', orgId)
     .order('first_name')
     .range(from, to);
+
+  usersQuery = applyOrgFilter(usersQuery, userContext);
+
+  const { data: users, count: usersCount } = await usersQuery;
 
   const totalPages = Math.ceil((usersCount || 0) / ITEMS_PER_PAGE);
 

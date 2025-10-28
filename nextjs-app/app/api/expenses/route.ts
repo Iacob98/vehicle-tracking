@@ -4,8 +4,9 @@ import {
   apiBadRequest,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 
 /**
  * POST /api/expenses
@@ -29,12 +30,12 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Получаем JSON
     const body = await request.json();
-    const { type, vehicle_id, team_id, amount, date, description } = body;
+    const { type, vehicle_id, team_id, amount, date, description, organization_id } = body;
 
     // Валидация обязательных полей
     if (!type || !amount || !date) {
@@ -50,9 +51,12 @@ export async function POST(request: Request) {
       return apiBadRequest('Для расхода на бригаду требуется team_id');
     }
 
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, organization_id);
+
     // Подготовка данных для вставки
     const expenseData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       type,
       vehicle_id: type === 'vehicle' ? vehicle_id : null,
       team_id: type === 'team' ? team_id : null,
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating expense',
-        orgId,
+        orgId: finalOrgId,
         type,
       });
     }

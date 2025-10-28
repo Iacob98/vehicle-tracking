@@ -6,8 +6,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, applyOrgFilter, getOrgIdForCreate } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -24,8 +25,10 @@ export async function GET(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     // Получаем URL параметры
     const { searchParams } = new URL(request.url);
@@ -33,12 +36,14 @@ export async function GET(request: Request) {
 
     // Если указана конкретная карта, возвращаем лимит для неё
     if (fuelCardId) {
-      const { data: limit, error } = await supabase
+      let query = supabase
         .from('fuel_limits')
         .select('*')
-        .eq('organization_id', orgId)
-        .eq('fuel_card_id', fuelCardId)
-        .single();
+        .eq('fuel_card_id', fuelCardId);
+
+      query = applyOrgFilter(query, userContext);
+
+      const { data: limit, error } = await query.single();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
         return apiErrorFromUnknown(error, { context: 'fetching fuel limit for card', orgId, fuelCardId });
@@ -46,12 +51,14 @@ export async function GET(request: Request) {
 
       // Если лимита для карты нет, возвращаем общий лимит организации или дефолт
       if (!limit) {
-        const { data: defaultLimit } = await supabase
+        let defaultQuery = supabase
           .from('fuel_limits')
           .select('*')
-          .eq('organization_id', orgId)
-          .is('fuel_card_id', null)
-          .single();
+          .is('fuel_card_id', null);
+
+        defaultQuery = applyOrgFilter(defaultQuery, userContext);
+
+        const { data: defaultLimit } = await defaultQuery.single();
 
         const result = defaultLimit || {
           organization_id: orgId,
@@ -68,11 +75,14 @@ export async function GET(request: Request) {
     }
 
     // Получаем все лимиты организации
-    const { data: limits, error } = await supabase
+    let query = supabase
       .from('fuel_limits')
       .select('*')
-      .eq('organization_id', orgId)
       .order('fuel_card_id', { ascending: true, nullsFirst: true });
+
+    query = applyOrgFilter(query, userContext);
+
+    const { data: limits, error } = await query;
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'fetching fuel limits', orgId });
@@ -98,7 +108,7 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав (только admin и manager)
@@ -109,7 +119,7 @@ export async function POST(request: Request) {
 
     // Получаем данные
     const body = await request.json();
-    const { fuel_card_id, daily_limit, weekly_limit, monthly_limit } = body;
+    const { fuel_card_id, daily_limit, weekly_limit, monthly_limit, organization_id } = body;
 
     // Валидация
     if (!daily_limit || !weekly_limit || !monthly_limit) {
@@ -120,11 +130,14 @@ export async function POST(request: Request) {
       return apiBadRequest('Лимиты не могут быть отрицательными');
     }
 
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, organization_id);
+
     // Создаем новую запись
     const { data, error } = await supabase
       .from('fuel_limits')
       .insert({
-        organization_id: orgId,
+        organization_id: finalOrgId,
         fuel_card_id: fuel_card_id || null,
         daily_limit: parseFloat(daily_limit),
         weekly_limit: parseFloat(weekly_limit),
@@ -134,7 +147,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'creating fuel limit', orgId, fuel_card_id });
+      return apiErrorFromUnknown(error, { context: 'creating fuel limit', orgId: finalOrgId, fuel_card_id });
     }
 
     return apiSuccess({ limit: data });
@@ -157,7 +170,7 @@ export async function PUT(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав (только admin и manager)
@@ -165,6 +178,8 @@ export async function PUT(request: Request) {
     if (!Permissions.canManageFraudLimits(userRole)) {
       return apiForbidden('У вас нет прав на изменение лимитов');
     }
+
+    const userContext = getUserQueryContext(user);
 
     // Получаем данные
     const body = await request.json();
@@ -184,7 +199,7 @@ export async function PUT(request: Request) {
     }
 
     // Обновляем запись
-    const { data, error } = await supabase
+    let query = supabase
       .from('fuel_limits')
       .update({
         fuel_card_id: fuel_card_id || null,
@@ -192,10 +207,11 @@ export async function PUT(request: Request) {
         weekly_limit: parseFloat(weekly_limit),
         monthly_limit: parseFloat(monthly_limit),
       })
-      .eq('id', id)
-      .eq('organization_id', orgId)
-      .select()
-      .single();
+      .eq('id', id);
+
+    query = applyOrgFilter(query, userContext);
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'updating fuel limit', orgId, id });
@@ -221,7 +237,7 @@ export async function DELETE(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав (только admin)
@@ -229,6 +245,8 @@ export async function DELETE(request: Request) {
     if (userRole !== 'admin' && userRole !== 'owner') {
       return apiForbidden('Только администратор может удалять лимиты');
     }
+
+    const userContext = getUserQueryContext(user);
 
     // Получаем параметры
     const { searchParams } = new URL(request.url);
@@ -239,11 +257,14 @@ export async function DELETE(request: Request) {
     }
 
     // Удаляем запись
-    const { error } = await supabase
+    let query = supabase
       .from('fuel_limits')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+
+    query = applyOrgFilter(query, userContext);
+
+    const { error } = await query;
 
     if (error) {
       return apiErrorFromUnknown(error, { context: 'deleting fuel limit', orgId, id });

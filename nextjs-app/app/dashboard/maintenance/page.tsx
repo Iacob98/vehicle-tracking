@@ -7,6 +7,7 @@ import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -24,7 +25,7 @@ export default async function MaintenancePage({
     redirect('/login');
   }
 
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Pagination
@@ -33,15 +34,17 @@ export default async function MaintenancePage({
   const to = from + ITEMS_PER_PAGE - 1;
 
   // Fetch maintenances with pagination and relations
-  const { data: maintenances, count: maintenancesCount } = await supabase
+  let maintenancesQuery = supabase
     .from('maintenances')
     .select(`
       *,
       vehicle:vehicles(name, license_plate)
-    `, { count: 'exact' })
-    .eq('organization_id', orgId)
+    `, { count: 'exact' });
+  maintenancesQuery = applyOrgFilter(maintenancesQuery, userContext);
+  maintenancesQuery = maintenancesQuery
     .order('date', { ascending: false })
     .range(from, to);
+  const { data: maintenances, count: maintenancesCount } = await maintenancesQuery;
 
   const totalPages = Math.ceil((maintenancesCount || 0) / ITEMS_PER_PAGE);
 

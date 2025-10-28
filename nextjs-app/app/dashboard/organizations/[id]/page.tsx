@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext } from '@/lib/query-helpers';
 
 type SubscriptionStatus = 'active' | 'inactive' | 'suspended' | 'trial';
 
@@ -36,10 +37,10 @@ export default async function OrganizationDetailsPage({
   }
 
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
-  const userOrgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
   // Owner can view any organization, others can only view their own
-  if (userRole !== 'owner' && id !== userOrgId) {
+  if (userRole !== 'owner' && id !== userContext.organizationId) {
     redirect('/dashboard');
   }
 

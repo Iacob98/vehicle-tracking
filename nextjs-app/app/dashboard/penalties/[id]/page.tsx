@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PenaltyPaymentForm from './PenaltyPaymentForm';
 import DeletePenaltyButton from './DeletePenaltyButton';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -30,19 +31,15 @@ export default async function PenaltyDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = currentUser.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(currentUser);
 
   // Fetch penalty details
-  const { data: penalty, error } = await supabase
+  let penaltyQuery = supabase
     .from('penalties')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  penaltyQuery = applyOrgFilter(penaltyQuery, userContext);
+  const { data: penalty, error } = await penaltyQuery.single();
 
   if (error || !penalty) {
     notFound();
@@ -169,7 +166,7 @@ export default async function PenaltyDetailPage({ params }: PageProps) {
             <PenaltyPaymentForm
               penaltyId={id}
               amount={parseFloat(penalty.amount || 0)}
-              orgId={orgId}
+              orgId={userContext.organizationId || ''}
             />
           ) : (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">

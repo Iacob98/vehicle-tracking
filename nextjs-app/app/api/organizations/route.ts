@@ -5,8 +5,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { createOrganizationSchema } from '@/lib/schemas/organizations.schema';
 
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     }
 
     // Остальные видят только свою организацию
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const { data: organization, error } = await supabase

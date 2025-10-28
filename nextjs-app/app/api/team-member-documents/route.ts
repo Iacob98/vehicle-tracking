@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { uploadMultipleFiles } from '@/lib/storage';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const formData = await request.formData();
@@ -21,15 +22,19 @@ export async function POST(request: Request) {
     const teamMemberId = formData.get('team_member_id') as string;
     const title = formData.get('title') as string;
     const expiryDate = formData.get('expiry_date') as string;
+    const organizationId = formData.get('organization_id') as string | null;
     const files = formData.getAll('files') as File[];
 
     console.log('📝 Team Member Document API - Files received:', files.length);
+
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, organizationId);
 
     // Upload files
     let fileUrls: string[] = [];
     if (files.length > 0) {
       console.log('📤 Uploading team member document files...');
-      fileUrls = await uploadMultipleFiles(files, 'documents', orgId);
+      fileUrls = await uploadMultipleFiles(files, 'documents', finalOrgId);
       console.log('✅ Uploaded URLs:', fileUrls);
     }
 
@@ -37,7 +42,7 @@ export async function POST(request: Request) {
     const { data: newDoc, error: insertError } = await supabase
       .from('team_member_documents')
       .insert({
-        organization_id: orgId,
+        organization_id: finalOrgId,
         team_member_id: teamMemberId,
         title,
         file_url: fileUrls.length > 0 ? fileUrls.join(';') : null,
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      return apiErrorFromUnknown(insertError, { context: 'inserting team member document', teamMemberId, orgId });
+      return apiErrorFromUnknown(insertError, { context: 'inserting team member document', teamMemberId, orgId: finalOrgId });
     }
 
     return apiSuccess({ document: newDoc });

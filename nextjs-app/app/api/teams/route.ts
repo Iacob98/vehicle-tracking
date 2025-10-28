@@ -5,8 +5,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -25,8 +26,8 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут создавать бригады)
@@ -44,9 +45,18 @@ export async function POST(request: Request) {
       return apiBadRequest('Название бригады обязательно');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания бригады');
+    }
+
     // Подготовка данных для вставки
     const teamData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       name,
       created_at: new Date().toISOString(),
     };
@@ -61,7 +71,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating team',
-        orgId,
+        orgId: finalOrgId,
         name,
       });
     }

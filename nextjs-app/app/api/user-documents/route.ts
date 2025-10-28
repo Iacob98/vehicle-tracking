@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate, canAccessResource } from '@/lib/query-helpers';
 
 // Create Supabase Admin client for file uploads (bypasses RLS)
 const supabaseAdmin = createClient(
@@ -25,8 +26,10 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    const userContext = getUserQueryContext(user);
 
     const formData = await request.formData();
 
@@ -35,9 +38,12 @@ export async function POST(request: Request) {
     const title = formData.get('title') as string;
     const issueDate = formData.get('issue_date') as string;
     const expiryDate = formData.get('expiry_date') as string;
+    const organizationId = formData.get('organization_id') as string | null;
     const file = formData.get('file') as File | null;
 
     console.log('📝 User Document API - File received:', file?.name);
+
+    const finalOrgId = getOrgIdForCreate(userContext, organizationId);
 
     // Verify that the target user belongs to the same organization
     const { data: targetUser, error: userCheckError } = await supabase
@@ -53,7 +59,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (targetUser.organization_id !== orgId) {
+    if (!canAccessResource(userContext, targetUser.organization_id)) {
       return apiErrorFromUnknown(
         new Error('Вы не можете добавлять документы для пользователей из другой организации'),
         { context: 'organization mismatch', userId, orgId }
@@ -67,7 +73,7 @@ export async function POST(request: Request) {
 
       // Generate file path
       const fileExt = file.name.split('.').pop();
-      const fileName = `${orgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const fileName = `${finalOrgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
       // Upload file using Service Role client (bypasses RLS)
       const { data, error } = await supabaseAdmin.storage
@@ -96,7 +102,7 @@ export async function POST(request: Request) {
       .from('user_documents')
       .insert({
         user_id: userId,
-        organization_id: orgId,
+        organization_id: finalOrgId,
         document_type: documentType,
         title,
         date_issued: issueDate || null,
@@ -108,7 +114,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      return apiErrorFromUnknown(insertError, { context: 'inserting user document', userId, orgId });
+      return apiErrorFromUnknown(insertError, { context: 'inserting user document', userId, orgId: finalOrgId });
     }
 
     return apiSuccess({ document: newDoc });

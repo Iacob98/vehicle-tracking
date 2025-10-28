@@ -6,6 +6,7 @@ import { Pagination, PaginationInfo } from '@/components/ui/pagination';
 import { type UserRole } from '@/lib/types/roles';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -40,7 +41,7 @@ export default async function OrganizationsPage({
   }
 
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
-  const userOrgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
 
   // Only owner and admin can access this page
   if (userRole !== 'owner' && userRole !== 'admin') {
@@ -59,8 +60,9 @@ export default async function OrganizationsPage({
     .select('*', { count: 'exact' })
     .order('name');
 
-  if (userRole === 'admin' && userOrgId) {
-    query = query.eq('id', userOrgId);
+  // Admin видит только свою организацию (используем id вместо organization_id)
+  if (userRole === 'admin' && userContext.organizationId) {
+    query = query.eq('id', userContext.organizationId);
   }
 
   const { data: organizations, count: orgsCount } = await query.range(from, to);

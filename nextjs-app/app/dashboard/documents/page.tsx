@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { DocumentsTable } from './DocumentsTable';
 import { type UserRole } from '@/lib/types/roles';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -13,7 +14,7 @@ export default async function AllDocumentsPage({
   const params = await searchParams;
 
   const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const userContext = getUserQueryContext(user);
   const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Pagination
@@ -32,9 +33,9 @@ export default async function AllDocumentsPage({
         license_plate,
         photo_url
       )
-    `, { count: 'exact' })
-    .eq('organization_id', orgId)
-    .eq('is_active', true);
+    `, { count: 'exact' });
+  query = applyOrgFilter(query, userContext);
+  query = query.eq('is_active', true);
 
   // Search filter (title)
   if (params.search) {
@@ -78,11 +79,12 @@ export default async function AllDocumentsPage({
   const { data: documents, count } = await query;
 
   // Get all vehicles for filter dropdown
-  const { data: vehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name', { ascending: true });
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name', { ascending: true });
+  const { data: vehicles } = await vehiclesQuery;
 
   const totalPages = Math.ceil((count || 0) / ITEMS_PER_PAGE);
 

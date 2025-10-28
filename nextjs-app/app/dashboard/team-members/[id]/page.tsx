@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import MemberDocuments from './MemberDocuments';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -18,22 +19,18 @@ export default async function TeamMemberDetailPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch team member details
-  const { data: member, error } = await supabase
+  let memberQuery = supabase
     .from('team_members')
     .select(`
       *,
       team:teams(id, name)
     `)
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  memberQuery = applyOrgFilter(memberQuery, userContext);
+  const { data: member, error } = await memberQuery.single();
 
   if (error || !member) {
     notFound();

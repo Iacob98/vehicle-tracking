@@ -5,8 +5,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { createHash } from 'crypto';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin может создавать пользователей)
@@ -55,6 +56,15 @@ export async function POST(request: Request) {
       return apiBadRequest('Пароль должен содержать минимум 8 символов');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания пользователя');
+    }
+
     // Хешируем пароль на сервере (безопасно!)
     const passwordHash = createHash('sha256')
       .update(password + 'fleet_management_salt_2025')
@@ -62,7 +72,7 @@ export async function POST(request: Request) {
 
     // Подготовка данных для вставки
     const userData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       email,
       password_hash: passwordHash,
       first_name,
@@ -87,7 +97,7 @@ export async function POST(request: Request) {
 
       return apiErrorFromUnknown(error, {
         context: 'creating user',
-        orgId,
+        orgId: finalOrgId,
         email,
       });
     }

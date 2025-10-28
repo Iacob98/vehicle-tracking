@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { UserForm } from './UserForm';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 export default async function NewUserPage() {
   const supabase = await createServerClient();
@@ -11,18 +12,15 @@ export default async function NewUserPage() {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch teams for assignment
-  const { data: teams } = await supabase
+  let teamsQuery = supabase
     .from('teams')
-    .select('id, name')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name');
+  teamsQuery = applyOrgFilter(teamsQuery, userContext);
+  teamsQuery = teamsQuery.order('name');
+  const { data: teams } = await teamsQuery;
 
   return (
     <div className="max-w-2xl">

@@ -298,3 +298,22 @@ export function useDeleteJSON(baseUrl: string, options?: UseApiOptions) {
     del,
   };
 }
+
+/**
+ * Хук для PUT запросов с JSON
+ */
+export function usePutJSON<T, D = any>(url: string, options?: UseApiOptions) {
+  const api = useApi<T>(options);
+
+  const put = useCallback(
+    async (data: D) => {
+      return await api.execute(() => putJSON<T>(url, data));
+    },
+    [url, api]
+  );
+
+  return {
+    ...api,
+    put,
+  };
+}

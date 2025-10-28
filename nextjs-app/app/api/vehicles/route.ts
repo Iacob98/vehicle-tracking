@@ -5,8 +5,9 @@ import {
   apiForbidden,
   apiErrorFromUnknown,
   checkAuthentication,
-  checkOrganizationId,
+  checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { uploadMultipleFiles } from '@/lib/storage';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
@@ -36,8 +37,8 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут создавать vehicles)
@@ -57,13 +58,23 @@ export async function POST(request: Request) {
       return apiBadRequest('Название и гос. номер обязательны');
     }
 
+    // Получаем контекст пользователя и определяем organization_id для создания
+    const userContext = getUserQueryContext(user);
+    const targetOrgId = formData.get('organization_id') as string | null;
+    const finalOrgId = getOrgIdForCreate(userContext, targetOrgId);
+
+    // Owner должен явно указать organization_id
+    if (!finalOrgId) {
+      return apiBadRequest('Organization ID обязателен для создания автомобиля');
+    }
+
     // Загружаем фотографии
     const photoFiles = formData.getAll('photos') as File[];
     let photoUrls: string[] = [];
 
     if (photoFiles.length > 0 && photoFiles[0].size > 0) {
       try {
-        photoUrls = await uploadMultipleFiles(photoFiles, 'vehicles', orgId);
+        photoUrls = await uploadMultipleFiles(photoFiles, 'vehicles', finalOrgId);
       } catch (error) {
         return apiErrorFromUnknown(error, { context: 'uploading vehicle photos' });
       }
@@ -71,7 +82,7 @@ export async function POST(request: Request) {
 
     // Подготовка данных для вставки
     const vehicleData = {
-      organization_id: orgId,
+      organization_id: finalOrgId,
       name,
       license_plate: licensePlate,
       vin: formData.get('vin') as string || null,
@@ -97,7 +108,7 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating vehicle',
-        orgId,
+        orgId: finalOrgId,
         name,
       });
     }

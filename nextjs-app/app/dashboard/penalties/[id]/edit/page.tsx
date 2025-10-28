@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,43 +20,41 @@ export default async function EditPenaltyPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const orgId = user.user_metadata?.organization_id;
-
-  if (!orgId) {
-    return <div>Organization ID not found</div>;
-  }
+  const userContext = getUserQueryContext(user);
 
   // Fetch penalty
-  const { data: penalty, error } = await supabase
+  let penaltyQuery = supabase
     .from('penalties')
     .select('*')
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .single();
+    .eq('id', id);
+  penaltyQuery = applyOrgFilter(penaltyQuery, userContext);
+  const { data: penalty, error } = await penaltyQuery.single();
 
   if (error || !penalty) {
     notFound();
   }
 
   // Fetch vehicles and users
-  const { data: vehicles } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, name, license_plate')
-    .eq('organization_id', orgId)
-    .order('name');
+    .select('id, name, license_plate');
+  vehiclesQuery = applyOrgFilter(vehiclesQuery, userContext);
+  vehiclesQuery = vehiclesQuery.order('name');
+  const { data: vehicles } = await vehiclesQuery;
 
-  const { data: users } = await supabase
+  let usersQuery = supabase
     .from('users')
-    .select('id, first_name, last_name')
-    .eq('organization_id', orgId)
-    .order('first_name');
+    .select('id, first_name, last_name');
+  usersQuery = applyOrgFilter(usersQuery, userContext);
+  usersQuery = usersQuery.order('first_name');
+  const { data: users } = await usersQuery;
 
   async function updatePenalty(formData: FormData) {
     'use server';
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const orgId = user?.user_metadata?.organization_id;
+    const userContext = getUserQueryContext(user);
 
     const vehicleId = formData.get('vehicle_id') as string;
     const userId = formData.get('user_id') as string;
@@ -67,7 +66,7 @@ export default async function EditPenaltyPage({ params }: PageProps) {
       return;
     }
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from('penalties')
       .update({
         vehicle_id: vehicleId,
@@ -76,8 +75,9 @@ export default async function EditPenaltyPage({ params }: PageProps) {
         date: penaltyDate,
         status,
       })
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
+    updateQuery = applyOrgFilter(updateQuery, userContext);
+    const { error } = await updateQuery;
 
     if (error) {
       console.error('Error updating penalty:', error);

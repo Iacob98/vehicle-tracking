@@ -3,7 +3,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiBadRequest, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiBadRequest, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { createFileUploadError } from '@/lib/errors';
 
 // Create Supabase client with Service Role key for bypassing RLS
@@ -31,22 +32,26 @@ export async function POST(request: NextRequest) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId: organizationId, error: orgError } = checkOrganizationId(user);
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Parse form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string;
+    const organizationId = formData.get('organization_id') as string | null;
 
     // Валидация файла и bucket
     if (!file || !bucket) {
       return apiBadRequest('Missing file or bucket');
     }
 
+    const userContext = getUserQueryContext(user);
+    const finalOrgId = getOrgIdForCreate(userContext, organizationId);
+
     // Generate file path
     const fileExt = file.name.split('.').pop();
-    const fileName = `${organizationId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const fileName = `${finalOrgId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
     // Upload file using Service Role client (bypasses RLS)
     const { data, error } = await supabaseAdmin.storage
@@ -58,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       const uploadError = createFileUploadError('Ошибка загрузки файла', error.message);
-      return apiErrorFromUnknown(uploadError, { context: 'uploading file', bucket, organizationId });
+      return apiErrorFromUnknown(uploadError, { context: 'uploading file', bucket, organizationId: finalOrgId });
     }
 
     // Get public URL

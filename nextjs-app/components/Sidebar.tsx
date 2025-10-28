@@ -12,7 +12,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const userRole = user?.user_metadata?.role || 'viewer';
+  const userRole = user?.role || 'viewer';
 
   const menuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },

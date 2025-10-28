@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiForbidden, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { getUserQueryContext, canAccessResource } from '@/lib/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,9 +17,12 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Проверка organization_id
-    const { orgId, error: orgError } = checkOrganizationId(user);
+    // Проверка organization_id с поддержкой owner роли
+    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
+
+    // Получаем контекст пользователя
+    const userContext = getUserQueryContext(user);
 
     // Verify team member belongs to user's organization
     const { data: teamMember } = await supabase
@@ -27,18 +31,22 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .eq('id', id)
       .single();
 
-    if (!teamMember || teamMember.organization_id !== orgId) {
+    if (!teamMember) {
+      return apiForbidden('Член бригады не найден');
+    }
+
+    // Проверка доступа с учетом owner роли
+    if (!canAccessResource(userContext, teamMember.organization_id)) {
       return apiForbidden('У вас нет доступа к этому члену бригады');
     }
 
     const { error } = await supabase
       .from('team_members')
       .delete()
-      .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('id', id);
 
     if (error) {
-      return apiErrorFromUnknown(error, { context: 'deleting team member', id, orgId });
+      return apiErrorFromUnknown(error, { context: 'deleting team member', id, orgId: teamMember.organization_id });
     }
 
     return apiSuccess({ success: true });
