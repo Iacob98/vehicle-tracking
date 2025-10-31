@@ -18,8 +18,9 @@ export interface UserQueryContext {
  * Получает контекст пользователя из user объекта
  */
 export function getUserQueryContext(user: any): UserQueryContext {
-  const role = user?.role || user?.user_metadata?.role || 'viewer';
-  const organizationId = user?.organization_id || user?.user_metadata?.organization_id || null;
+  // Роль всегда берём из user_metadata (user.role - это Supabase роль 'authenticated')
+  const role = user?.user_metadata?.role || 'viewer';
+  const organizationId = user?.user_metadata?.organization_id || null;
   const isOwner = role === 'owner';
 
   return {
