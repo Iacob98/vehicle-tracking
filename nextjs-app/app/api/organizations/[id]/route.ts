@@ -9,6 +9,7 @@ import {
   checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
 import { getUserQueryContext } from '@/lib/query-helpers';
+import { isSuperAdmin } from '@/lib/auth-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { updateOrganizationSchema } from '@/lib/schemas/organizations.schema';
 
@@ -33,10 +34,15 @@ export async function GET(
     }
 
     const { id } = params;
-    const userRole = (user.user_metadata?.role || 'viewer') as UserRole;
 
-    // Owner может получить любую организацию
-    if (userRole === 'owner') {
+    // Проверяем является ли пользователь super admin
+    const userForCheck = {
+      role: user.user_metadata?.role || 'viewer',
+      organization_id: user.user_metadata?.organization_id || null
+    };
+
+    // Super admin может получить любую организацию
+    if (isSuperAdmin(userForCheck)) {
       const { data: organization, error } = await supabase
         .from('organizations')
         .select('*')

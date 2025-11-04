@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id с поддержкой owner роли
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const body = await request.json();

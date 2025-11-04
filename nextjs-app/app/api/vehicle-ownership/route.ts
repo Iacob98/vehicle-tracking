@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const userContext = getUserQueryContext(user);
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const userContext = getUserQueryContext(user);

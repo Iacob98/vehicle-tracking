@@ -11,7 +11,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export interface UserQueryContext {
   role: string;
   organizationId: string | null;
+  /** @deprecated Используйте isSuperAdmin вместо isOwner */
   isOwner: boolean;
+  /** Super admin = owner ИЛИ admin с NULL organization_id */
+  isSuperAdmin: boolean;
 }
 
 /**
@@ -25,18 +28,24 @@ export function getUserQueryContext(user: any): UserQueryContext {
   // Затем проверяем прямые поля (User объект из getCurrentUser)
   const role = user?.user_metadata?.role || user?.role || 'viewer';
   const organizationId = user?.user_metadata?.organization_id ?? user?.organization_id ?? null;
+
+  // Deprecated: используется для обратной совместимости
   const isOwner = role === 'owner';
+
+  // Super admin = owner ИЛИ (admin с NULL organization_id)
+  const isSuperAdmin = role === 'owner' || (role === 'admin' && organizationId === null);
 
   return {
     role,
     organizationId,
     isOwner,
+    isSuperAdmin,
   };
 }
 
 /**
- * Применяет фильтр по organization_id к query, если пользователь не owner.
- * Owner видит все данные всех организаций (RLS политики это разрешают).
+ * Применяет фильтр по organization_id к query, если пользователь не super admin.
+ * Super admin (owner ИЛИ admin с NULL org_id) видит все данные всех организаций.
  *
  * @example
  * ```typescript
@@ -49,8 +58,8 @@ export function applyOrgFilter<T>(
   query: any,
   userContext: UserQueryContext
 ): any {
-  // Owner видит все данные - не применяем фильтр
-  if (userContext.isOwner) {
+  // Super admin видит все данные - не применяем фильтр
+  if (userContext.isSuperAdmin) {
     return query;
   }
 
@@ -59,14 +68,14 @@ export function applyOrgFilter<T>(
     return query.eq('organization_id', userContext.organizationId);
   }
 
-  // Если нет organization_id и не owner - вернём пустой результат
+  // Если нет organization_id и не super admin - вернём пустой результат
   // (такого не должно быть если используется checkOwnerOrOrganizationId)
   return query.eq('organization_id', '00000000-0000-0000-0000-000000000000');
 }
 
 /**
  * Проверяет имеет ли пользователь доступ к ресурсу с указанным organization_id.
- * Owner имеет доступ ко всему.
+ * Super admin (owner ИЛИ admin с NULL org_id) имеет доступ ко всему.
  *
  * @example
  * ```typescript
@@ -80,8 +89,8 @@ export function canAccessResource(
   userContext: UserQueryContext,
   resourceOrgId: string | null
 ): boolean {
-  // Owner имеет доступ ко всему
-  if (userContext.isOwner) {
+  // Super admin имеет доступ ко всему
+  if (userContext.isSuperAdmin) {
     return true;
   }
 
@@ -91,19 +100,19 @@ export function canAccessResource(
 
 /**
  * Получает organization_id для создания нового ресурса.
- * Если пользователь owner, должен быть явно указан targetOrgId.
+ * Если пользователь super admin, должен быть явно указан targetOrgId.
  * Для остальных ролей используется их organization_id.
  *
  * @param userContext - контекст пользователя
- * @param targetOrgId - явно указанный organization_id (требуется для owner)
- * @returns organization_id для нового ресурса или null если targetOrgId не указан для owner
+ * @param targetOrgId - явно указанный organization_id (требуется для super admin)
+ * @returns organization_id для нового ресурса или null если targetOrgId не указан для super admin
  *
  * @example
  * ```typescript
- * // Owner создаёт ресурс для организации
+ * // Super admin создаёт ресурс для организации
  * const orgId = getOrgIdForCreate(userContext, req.body.organization_id);
  * if (!orgId) {
- *   return apiBadRequest('Organization ID обязателен для owner');
+ *   return apiBadRequest('Organization ID обязателен для super admin');
  * }
  *
  * // Admin/Manager создают ресурс для своей организации
@@ -114,8 +123,8 @@ export function getOrgIdForCreate(
   userContext: UserQueryContext,
   targetOrgId?: string | null
 ): string | null {
-  // Owner должен явно указать для какой организации создаёт ресурс
-  if (userContext.isOwner) {
+  // Super admin должен явно указать для какой организации создаёт ресурс
+  if (userContext.isSuperAdmin) {
     return targetOrgId || null;
   }
 
@@ -127,19 +136,19 @@ export function getOrgIdForCreate(
  * Проверяет может ли пользователь создавать ресурсы
  */
 export function canCreate(userContext: UserQueryContext): boolean {
-  return ['owner', 'admin', 'manager'].includes(userContext.role);
+  return userContext.isSuperAdmin || ['admin', 'manager'].includes(userContext.role);
 }
 
 /**
  * Проверяет может ли пользователь обновлять ресурсы
  */
 export function canUpdate(userContext: UserQueryContext): boolean {
-  return ['owner', 'admin', 'manager'].includes(userContext.role);
+  return userContext.isSuperAdmin || ['admin', 'manager'].includes(userContext.role);
 }
 
 /**
  * Проверяет может ли пользователь удалять ресурсы
  */
 export function canDelete(userContext: UserQueryContext): boolean {
-  return ['owner', 'admin'].includes(userContext.role);
+  return userContext.isSuperAdmin || userContext.role === 'admin';
 }

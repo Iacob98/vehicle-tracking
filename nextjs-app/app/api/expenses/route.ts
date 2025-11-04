@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (authError) return authError;
 
     // Проверка organization_id
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Получаем JSON

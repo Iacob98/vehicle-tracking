@@ -7,6 +7,7 @@ import { type UserRole } from '@/lib/types/roles';
 import { DeleteItemButton } from '@/components/DeleteItemButton';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import { getCurrentUser, isSuperAdmin } from '@/lib/auth-helpers';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -40,11 +41,13 @@ export default async function OrganizationsPage({
     redirect('/login');
   }
 
-  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
+  const currentUserData = await getCurrentUser();
+  const userRole = currentUserData.role;
   const userContext = getUserQueryContext(user);
+  const isSuperAdminUser = isSuperAdmin(currentUserData);
 
-  // Only owner and admin can access this page
-  if (userRole !== 'owner' && userRole !== 'admin') {
+  // Only super admin and admin can access this page
+  if (!isSuperAdminUser && userRole !== 'admin') {
     redirect('/dashboard');
   }
 
@@ -54,14 +57,15 @@ export default async function OrganizationsPage({
   const to = from + ITEMS_PER_PAGE - 1;
 
   // Fetch organizations with pagination
-  // Owner видит все организации, Admin только свою
+  // Super admin (owner ИЛИ admin с NULL org_id) видит все организации
+  // Обычный admin видит только свою организацию
   let query = supabase
     .from('organizations')
     .select('*', { count: 'exact' })
     .order('name');
 
-  // Admin видит только свою организацию (используем id вместо organization_id)
-  if (userRole === 'admin' && userContext.organizationId) {
+  // Обычный admin видит только свою организацию (используем id вместо organization_id)
+  if (!isSuperAdminUser && userContext.organizationId) {
     query = query.eq('id', userContext.organizationId);
   }
 

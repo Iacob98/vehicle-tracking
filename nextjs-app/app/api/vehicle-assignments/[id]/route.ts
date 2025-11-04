@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const { id } = await params;
@@ -88,7 +88,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const { id } = await params;

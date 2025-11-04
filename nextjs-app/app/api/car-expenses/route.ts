@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     // Проверка organization_id с поддержкой owner роли
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (admin, manager и driver могут создавать расходы)

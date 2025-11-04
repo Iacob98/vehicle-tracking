@@ -8,6 +8,7 @@ import {
   checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
 import { getUserQueryContext } from '@/lib/query-helpers';
+import { isSuperAdmin } from '@/lib/auth-helpers';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { createOrganizationSchema } from '@/lib/schemas/organizations.schema';
 
@@ -30,10 +31,15 @@ export async function GET(request: Request) {
       return apiForbidden('User not authenticated');
     }
 
-    const userRole = (user.user_metadata?.role || 'viewer') as UserRole;
+    // Проверяем является ли пользователь super admin
+    // Super admin = owner ИЛИ (admin с organization_id = NULL)
+    const userForCheck = {
+      role: user.user_metadata?.role || 'viewer',
+      organization_id: user.user_metadata?.organization_id || null
+    };
 
-    // Owner видит все организации
-    if (userRole === 'owner') {
+    // Super admin видит все организации
+    if (isSuperAdmin(userForCheck)) {
       const { data: organizations, error } = await supabase
         .from('organizations')
         .select('*')
@@ -41,7 +47,7 @@ export async function GET(request: Request) {
 
       if (error) {
         return apiErrorFromUnknown(error, {
-          context: 'fetching all organizations for owner',
+          context: 'fetching all organizations for super admin',
         });
       }
 
@@ -92,10 +98,13 @@ export async function POST(request: Request) {
       return apiForbidden('User not authenticated');
     }
 
-    // Проверка прав - только owner может создавать организации
-    const userRole = (user.user_metadata?.role || 'viewer') as UserRole;
-    if (!Permissions.canManageOrganizations(userRole)) {
-      return apiForbidden('Только owner может создавать организации');
+    // Проверка прав - только super admin может создавать организации
+    const userForCheck = {
+      role: user.user_metadata?.role || 'viewer',
+      organization_id: user.user_metadata?.organization_id || null
+    };
+    if (!isSuperAdmin(userForCheck)) {
+      return apiForbidden('Только super admin может создавать организации');
     }
 
     // Получение и валидация данных

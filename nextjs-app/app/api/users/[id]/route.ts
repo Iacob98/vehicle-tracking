@@ -31,7 +31,7 @@ export async function PATCH(
     if (authError) return authError;
 
     // Проверка organization_id с поддержкой owner роли
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
@@ -123,7 +123,7 @@ export async function DELETE(
     if (authError) return authError;
 
     // Проверка organization_id с поддержкой owner роли
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin может удалять пользователей)

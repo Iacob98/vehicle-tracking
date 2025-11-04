@@ -32,7 +32,7 @@ export async function DELETE(
     if (authError) return authError;
 
     // Проверка organization_id с поддержкой owner роли
-    const { orgId, isOwner, error: orgError } = checkOwnerOrOrganizationId(user);
+    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
     // Проверка прав доступа (только admin и manager могут удалять записи обслуживания)

@@ -179,26 +179,32 @@ export function checkOrganizationId(user: any): { orgId: string; error: NextResp
 }
 
 /**
- * Проверяет organization_id с поддержкой owner роли.
- * Owner может иметь NULL organization_id и видит все данные всех организаций.
+ * Проверяет organization_id с поддержкой super admin роли.
+ * Super admin (owner ИЛИ admin с NULL org_id) видит все данные всех организаций.
  *
  * @returns {
- *   orgId: string | null - ID организации или null для owner
- *   isOwner: boolean - true если пользователь имеет роль owner
- *   error: NextResponse | null - ошибка если пользователь не owner и не имеет organization_id
+ *   orgId: string | null - ID организации или null для super admin
+ *   isOwner: boolean - @deprecated true если пользователь имеет роль owner
+ *   isSuperAdmin: boolean - true если пользователь super admin (owner ИЛИ admin с NULL org_id)
+ *   error: NextResponse | null - ошибка если пользователь не super admin и не имеет organization_id
  * }
  */
 export function checkOwnerOrOrganizationId(user: any): {
   orgId: string | null;
+  /** @deprecated Используйте isSuperAdmin */
   isOwner: boolean;
+  isSuperAdmin: boolean;
   error: NextResponse | null
 } {
   const role = user?.user_metadata?.role;
   const orgId = user?.user_metadata?.organization_id;
 
-  // Owner может быть без organization_id и имеет доступ ко всему
-  if (role === 'owner') {
-    return { orgId: null, isOwner: true, error: null };
+  // Super admin = owner ИЛИ (admin с NULL organization_id)
+  const isSuperAdmin = role === 'owner' || (role === 'admin' && !orgId);
+  const isOwner = role === 'owner';  // Deprecated - для обратной совместимости
+
+  if (isSuperAdmin) {
+    return { orgId: null, isOwner, isSuperAdmin: true, error: null };
   }
 
   // Остальные роли должны иметь organization_id
@@ -206,9 +212,10 @@ export function checkOwnerOrOrganizationId(user: any): {
     return {
       orgId: null,
       isOwner: false,
+      isSuperAdmin: false,
       error: apiBadRequest('Organization ID не найден'),
     };
   }
 
-  return { orgId, isOwner: false, error: null };
+  return { orgId, isOwner: false, isSuperAdmin: false, error: null };
 }
