@@ -233,7 +233,7 @@ export function VehiclesTable({
                         </Button>
                       </Link>
                     </RoleGuard>
-                    <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                    <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                       <DeleteItemButton
                         id={vehicle.id}
                         baseUrl="/api/vehicles"

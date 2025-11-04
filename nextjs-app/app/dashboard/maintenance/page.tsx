@@ -102,7 +102,7 @@ export default async function MaintenancePage({
                         <Link href={`/dashboard/maintenance/${m.id}`}>
                           <Button variant="outline" size="sm">👁️ Просмотр</Button>
                         </Link>
-                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                        <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                           <DeleteItemButton
                             id={m.id}
                             baseUrl="/api/maintenance"

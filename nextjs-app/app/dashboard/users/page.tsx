@@ -148,7 +148,7 @@ export default async function UsersPage({
                         </Link>
                       </RoleGuard>
                       {u.id !== currentUserId && (
-                        <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+                        <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                           <DeleteItemButton
                             id={u.id}
                             baseUrl="/api/users"

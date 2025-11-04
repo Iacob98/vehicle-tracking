@@ -199,7 +199,7 @@ export default async function TeamsPage({
                         <Link href={`/dashboard/teams/${team.id}`}>
                           <Button variant="outline" size="sm">👁️</Button>
                         </Link>
-                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                        <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                           <DeleteItemButton
                             id={team.id}
                             baseUrl="/api/teams"

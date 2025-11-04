@@ -393,7 +393,7 @@ export function DocumentsTable({
                       >
                         👁️ Открыть
                       </Button>
-                      <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                      <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                         <DeleteItemButton
                           id={doc.id}
                           baseUrl="/api/documents"

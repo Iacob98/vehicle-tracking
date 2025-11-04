@@ -92,11 +92,13 @@ export function ExpenseCard({ expense, userRole }: ExpenseCardProps) {
 
           <div className="flex items-center gap-2 justify-end">
             {!expense.maintenance_id && (
-              <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
-                <>
+              <>
+                <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
                   <Link href={`/dashboard/car-expenses/${expense.id}/edit`}>
                     <Button variant="outline" size="sm">✏️</Button>
                   </Link>
+                </RoleGuard>
+                <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                   <DeleteItemButton
                     id={expense.id}
                     baseUrl="/api/car-expenses"
@@ -104,8 +106,8 @@ export function ExpenseCard({ expense, userRole }: ExpenseCardProps) {
                     size="sm"
                     variant="outline"
                   />
-                </>
-              </RoleGuard>
+                </RoleGuard>
+              </>
             )}
             {expense.maintenance_id && (
               <span className="text-sm text-gray-400">🔒 Связан с ТО</span>
