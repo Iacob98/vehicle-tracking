@@ -77,7 +77,7 @@ export function ExpenseCard({ expense, userRole }: ExpenseCardProps) {
                   <img
                     src={expense.receipt_url}
                     alt="Receipt"
-                    className="w-20 h-20 object-cover rounded border cursor-pointer hover:opacity-80"
+                    className="max-w-[120px] max-h-[120px] object-contain rounded border cursor-pointer hover:opacity-80"
                     onClick={() => window.open(expense.receipt_url!, '_blank')}
                   />
                 )}
