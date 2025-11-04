@@ -121,7 +121,7 @@ export function VehiclesTable({
           <h1 className="text-2xl font-bold text-gray-900">🚗 Автомобили</h1>
           <p className="text-gray-600">Управление автопарком</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
           <Link href="/dashboard/vehicles/new">
             <Button className="bg-blue-600 hover:bg-blue-700">
               + Добавить автомобиль
@@ -226,7 +226,7 @@ export function VehiclesTable({
                         📄 Документы
                       </Button>
                     </Link>
-                    <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                    <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
                       <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
                         <Button variant="outline" size="sm">
                           ✏️ Редактировать
@@ -270,7 +270,7 @@ export function VehiclesTable({
               : 'Начните с добавления первого автомобиля в ваш автопарк'}
           </p>
           {!searchInput && statusFilter === 'all' && (
-            <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+            <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
               <Link href="/dashboard/vehicles/new">
                 <Button className="bg-blue-600 hover:bg-blue-700">+ Добавить автомобиль</Button>
               </Link>

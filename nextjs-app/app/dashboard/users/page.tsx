@@ -87,7 +87,7 @@ export default async function UsersPage({
           <h1 className="text-3xl font-bold">👤 Пользователи платформы</h1>
           <p className="text-gray-600">Управление пользователями с аккаунтами в системе</p>
         </div>
-        <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
           <Link href="/dashboard/users/new">
             <Button>➕ Добавить пользователя</Button>
           </Link>
@@ -142,7 +142,7 @@ export default async function UsersPage({
                       <Link href={`/dashboard/users/${u.id}`}>
                         <Button variant="outline" size="sm">👁️ Просмотр</Button>
                       </Link>
-                      <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+                      <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
                         <Link href={`/dashboard/users/${u.id}/edit`}>
                           <Button variant="outline" size="sm">✏️</Button>
                         </Link>
@@ -178,7 +178,7 @@ export default async function UsersPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">👤</div>
           <p className="text-gray-500 mb-4">Нет пользователей платформы</p>
-          <RoleGuard allowedRoles={['admin']} userRole={userRole}>
+          <RoleGuard allowedRoles={['owner', 'admin']} userRole={userRole}>
             <Link href="/dashboard/users/new">
               <Button>➕ Добавить первого пользователя</Button>
             </Link>

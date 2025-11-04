@@ -141,7 +141,7 @@ export default async function CarExpensesPage({
           <h1 className="text-3xl font-bold">🚗💰 Расходы на авто / Auto-Ausgaben</h1>
           <p className="text-gray-600">Учет расходов на автомобили</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
           <Link href="/dashboard/car-expenses/new">
             <Button>➕ Добавить расход</Button>
           </Link>
@@ -192,7 +192,7 @@ export default async function CarExpensesPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">💰</div>
           <p className="text-gray-500 mb-4">Нет расходов на авто / Keine Auto-Ausgaben</p>
-          <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
             <Link href="/dashboard/car-expenses/new">
               <Button>➕ Добавить первый расход</Button>
             </Link>

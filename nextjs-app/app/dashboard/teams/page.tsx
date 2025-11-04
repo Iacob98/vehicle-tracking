@@ -142,7 +142,7 @@ export default async function TeamsPage({
           <h1 className="text-3xl font-bold">👷 Бригады и участники</h1>
           <p className="text-gray-600">Управление бригадами, участниками и их документами</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
           <Link href="/dashboard/teams/new">
             <Button>➕ Добавить бригаду</Button>
           </Link>
@@ -191,7 +191,7 @@ export default async function TeamsPage({
                       </div>
 
                       <div className="flex gap-2">
-                        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
                           <Link href={`/dashboard/teams/${team.id}/edit`}>
                             <Button variant="outline" size="sm">✏️</Button>
                           </Link>
@@ -227,7 +227,7 @@ export default async function TeamsPage({
             <div className="text-center py-12 border rounded-lg bg-white">
               <div className="text-6xl mb-4">👷</div>
               <p className="text-gray-500 mb-4">Нет созданных бригад</p>
-              <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+              <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
                 <Link href="/dashboard/teams/new">
                   <Button>➕ Создать первую бригаду</Button>
                 </Link>

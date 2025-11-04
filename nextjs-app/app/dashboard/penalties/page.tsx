@@ -115,7 +115,7 @@ export default async function PenaltiesPage({
           <h1 className="text-3xl font-bold">🚧 Штрафы / Strafen</h1>
           <p className="text-gray-600">Управление штрафами и их оплатой</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
           <Link href="/dashboard/penalties/new">
             <Button>➕ Добавить штраф</Button>
           </Link>
@@ -185,7 +185,7 @@ export default async function PenaltiesPage({
                       <Link href={`/dashboard/penalties/${penalty.id}`}>
                         <Button variant="outline" size="sm">👁️ Просмотр</Button>
                       </Link>
-                      <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+                      <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
                         <Link href={`/dashboard/penalties/${penalty.id}/edit`}>
                           <Button variant="outline" size="sm">✏️</Button>
                         </Link>
@@ -211,7 +211,7 @@ export default async function PenaltiesPage({
         <div className="text-center py-12 border rounded-lg bg-white">
           <div className="text-6xl mb-4">🚧</div>
           <p className="text-gray-500 mb-4">Нет штрафов / Keine Strafen</p>
-          <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+          <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
             <Link href="/dashboard/penalties/new">
               <Button>➕ Добавить первый штраф</Button>
             </Link>

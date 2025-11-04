@@ -62,7 +62,7 @@ export default async function MaintenancePage({
           <h1 className="text-3xl font-bold">🔧 Обслуживание / Wartung</h1>
           <p className="text-gray-600">История обслуживания автомобилей</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'manager']} userRole={userRole}>
+        <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
           <Link href="/dashboard/maintenance/new">
             <Button>➕ Добавить обслуживание</Button>
           </Link>
