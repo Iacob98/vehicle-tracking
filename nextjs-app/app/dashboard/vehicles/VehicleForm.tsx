@@ -312,14 +312,14 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
           <div>
             <Label htmlFor="vehicle_type_id">Тип автомобиля</Label>
             <Select
-              value={selectedVehicleTypeId || ''}
-              onValueChange={(value) => setValue('vehicle_type_id', value || undefined)}
+              value={selectedVehicleTypeId || 'none'}
+              onValueChange={(value) => setValue('vehicle_type_id', value === 'none' ? undefined : value)}
             >
               <SelectTrigger className={errors.vehicle_type_id ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Не выбран" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Не выбран</SelectItem>
+                <SelectItem value="none">Не выбран</SelectItem>
                 {vehicleTypes.map((type) => (
                   <SelectItem key={type.id} value={type.id}>
                     {type.name} ({type.fuel_consumption_per_100km} л/100км)

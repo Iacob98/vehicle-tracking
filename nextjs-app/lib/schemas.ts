@@ -27,6 +27,7 @@ export const vehicleSchema = z.object({
   rental_start_date: z.string().optional(),
   rental_end_date: z.string().optional(),
   rental_monthly_price: z.number().positive().optional(),
+  vehicle_type_id: z.string().uuid().optional(), // Fuel tracking: link to vehicle type
   organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
