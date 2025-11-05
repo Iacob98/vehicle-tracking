@@ -90,10 +90,132 @@ export async function POST(request: Request) {
     const amountNum = parseFloat(amount);
     let limitWarnings: string[] = [];
 
+    // Variables for fuel consumption tracking
+    let litersNum: number | null = null;
+    let pricePerLiter: number | null = null;
+    let odometerReading: number | null = null;
+    let previousOdometerReading: number | null = null;
+    let distanceTraveled: number | null = null;
+    let expectedConsumption: number | null = null;
+    let actualConsumption: number | null = null;
+    let consumptionDifference: number | null = null;
+    let hasAnomaly = false;
+
     if (category === 'fuel') {
+      // Get liters and odometer reading (required for fuel)
+      const litersStr = formData.get('liters') as string;
+      const odometerStr = formData.get('odometer_reading') as string;
+
+      if (!litersStr || !odometerStr) {
+        return apiBadRequest('Для заправки обязательно указать литры и показания одометра');
+      }
+
+      litersNum = parseFloat(litersStr);
+      odometerReading = parseInt(odometerStr, 10);
+
+      if (isNaN(litersNum) || litersNum <= 0) {
+        return apiBadRequest('Количество литров должно быть положительным числом');
+      }
+
+      if (isNaN(odometerReading) || odometerReading < 0) {
+        return apiBadRequest('Показания одометра должны быть положительным числом');
+      }
+
+      // Calculate price per liter
+      pricePerLiter = amountNum / litersNum;
+
+      // Validate price per liter (sanity check)
+      if (pricePerLiter < 0.5 || pricePerLiter > 5) {
+        limitWarnings.push(`⚠️ Цена за литр ${pricePerLiter.toFixed(2)} EUR кажется необычной (обычно 0.5-5 EUR)`);
+      }
+
+      // Get last refuel for this vehicle to check odometer
+      const { data: lastRefuel, error: lastRefuelError } = await supabase
+        .from('car_expenses')
+        .select('odometer_reading, date')
+        .eq('vehicle_id', vehicleId)
+        .eq('category', 'fuel')
+        .not('odometer_reading', 'is', null)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastRefuelError) {
+        console.error('Error fetching last refuel:', lastRefuelError);
+      }
+
+      // Validate odometer reading
+      if (lastRefuel && lastRefuel.odometer_reading) {
+        previousOdometerReading = lastRefuel.odometer_reading;
+
+        if (odometerReading < previousOdometerReading) {
+          return apiBadRequest(
+            `Показания одометра (${odometerReading} км) не могут быть меньше предыдущего значения (${previousOdometerReading} км)`
+          );
+        }
+
+        distanceTraveled = odometerReading - previousOdometerReading;
+
+        // Sanity check: distance traveled should be reasonable
+        if (distanceTraveled > 5000) {
+          limitWarnings.push(
+            `⚠️ Пройденное расстояние ${distanceTraveled} км кажется очень большим. Проверьте показания одометра.`
+          );
+        }
+      }
+
+      // Get vehicle type to calculate expected consumption
+      if (distanceTraveled !== null && distanceTraveled > 0) {
+        const { data: vehicle, error: vehicleError } = await supabase
+          .from('vehicles')
+          .select(`
+            id,
+            name,
+            vehicle_type_id,
+            vehicle_types (
+              fuel_consumption_per_100km,
+              tank_capacity
+            )
+          `)
+          .eq('id', vehicleId)
+          .single();
+
+        if (vehicleError) {
+          console.error('Error fetching vehicle:', vehicleError);
+        } else if (vehicle && vehicle.vehicle_types) {
+          const vehicleType = vehicle.vehicle_types as any;
+          const fuelConsumptionPer100km = vehicleType.fuel_consumption_per_100km;
+          const tankCapacity = vehicleType.tank_capacity;
+
+          // Calculate expected consumption
+          expectedConsumption = (distanceTraveled / 100) * fuelConsumptionPer100km;
+          actualConsumption = litersNum;
+          consumptionDifference = actualConsumption - expectedConsumption;
+
+          // Check for anomaly (actual > expected * 1.15)
+          const threshold = expectedConsumption * 1.15; // 15% амортизация
+          hasAnomaly = actualConsumption > threshold;
+
+          if (hasAnomaly) {
+            const percentageOver = ((consumptionDifference / expectedConsumption) * 100).toFixed(1);
+            limitWarnings.push(
+              `⚠️ АНОМАЛИЯ: Заправлено ${actualConsumption.toFixed(1)}л, ожидалось ${expectedConsumption.toFixed(1)}л (+${consumptionDifference.toFixed(1)}л, +${percentageOver}%)`
+            );
+          }
+
+          // Check tank capacity if specified
+          if (tankCapacity && litersNum > tankCapacity) {
+            limitWarnings.push(
+              `⚠️ Заправлено ${litersNum}л больше емкости бака (${tankCapacity}л)`
+            );
+          }
+        }
+      }
+
+      // Check fuel spending limits
       const limitCheck = await checkFuelLimits(finalOrgId, amountNum, fuelCardId);
-      limitWarnings = limitCheck.warnings;
-      // Не блокируем операцию, только предупреждаем
+      limitWarnings.push(...limitCheck.warnings);
     }
 
     // Загружаем фото чека если есть
@@ -136,7 +258,7 @@ export async function POST(request: Request) {
     }
 
     // Подготовка данных для вставки
-    const carExpenseData = {
+    const carExpenseData: any = {
       organization_id: finalOrgId,
       vehicle_id: vehicleId,
       category,
@@ -148,6 +270,19 @@ export async function POST(request: Request) {
       created_by_user_id: user.id, // Сохраняем ID пользователя создавшего расход
       fuel_card_id: fuelCardId, // Сохраняем номер заправочной карты
     };
+
+    // Add fuel tracking data if this is a fuel expense
+    if (category === 'fuel') {
+      carExpenseData.liters = litersNum;
+      carExpenseData.price_per_liter = pricePerLiter;
+      carExpenseData.odometer_reading = odometerReading;
+      carExpenseData.previous_odometer_reading = previousOdometerReading;
+      carExpenseData.distance_traveled = distanceTraveled;
+      carExpenseData.expected_consumption = expectedConsumption;
+      carExpenseData.actual_consumption = actualConsumption;
+      carExpenseData.consumption_difference = consumptionDifference;
+      carExpenseData.has_anomaly = hasAnomaly;
+    }
 
     // Вставка в базу данных
     const { data: carExpense, error } = await supabase
@@ -164,10 +299,11 @@ export async function POST(request: Request) {
       });
     }
 
-    // Возвращаем результат с предупреждениями о лимитах
+    // Возвращаем результат с предупреждениями о лимитах и информацией об аномалии
     return apiSuccess({
       carExpense,
-      warnings: limitWarnings.length > 0 ? limitWarnings : undefined
+      warnings: limitWarnings.length > 0 ? limitWarnings : undefined,
+      has_anomaly: hasAnomaly,
     });
   } catch (error: any) {
     return apiErrorFromUnknown(error, { context: 'POST /api/car-expenses' });
