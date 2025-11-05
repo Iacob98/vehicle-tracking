@@ -17,21 +17,12 @@ export default async function NewVehiclePage() {
     organizations = data || [];
   }
 
-  // Загружаем типы автомобилей для организации пользователя
-  let vehicleTypes = [];
-  const orgId = isSuperAdminUser ? null : currentUser.organization_id;
-
-  let query = supabase
+  // Загружаем типы автомобилей (они универсальны для всех организаций)
+  const { data: types } = await supabase
     .from('vehicle_types')
     .select('id, name, fuel_consumption_per_100km')
     .order('name');
-
-  if (orgId) {
-    query = query.eq('organization_id', orgId);
-  }
-
-  const { data: types } = await query;
-  vehicleTypes = types || [];
+  const vehicleTypes = types || [];
 
   return (
     <div className="max-w-4xl">

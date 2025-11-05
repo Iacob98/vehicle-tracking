@@ -16,9 +16,6 @@ async function getCurrentUser() {
     id: user.id,
     email: user.email!,
     role: (user.user_metadata?.role || 'viewer') as 'owner' | 'admin' | 'manager' | 'viewer' | 'driver',
-    first_name: user.user_metadata?.first_name || '',
-    last_name: user.user_metadata?.last_name || '',
-    organization_id: user.user_metadata?.organization_id || null,
   };
 }
 
@@ -36,39 +33,14 @@ export default async function VehicleTypesPage() {
 
   const supabase = await createServerClient();
 
-  // Determine which organization to show types for
-  let organizationId = user.organization_id;
-
-  // For owners (Super Admin), we need to get organization from query or show all
-  const isSuperAdmin = user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
-
-  // Fetch vehicle types
-  let query = supabase
+  // Fetch all vehicle types (they are universal)
+  const { data: vehicleTypes, error } = await supabase
     .from('vehicle_types')
     .select('*')
     .order('name', { ascending: true });
 
-  if (!isSuperAdmin && organizationId) {
-    query = query.eq('organization_id', organizationId);
-  } else if (isSuperAdmin && organizationId) {
-    // For Super Admin, filter by specific org if provided
-    query = query.eq('organization_id', organizationId);
-  }
-
-  const { data: vehicleTypes, error } = await query;
-
   if (error) {
     console.error('Error fetching vehicle types:', error);
-  }
-
-  // Fetch organizations for Super Admin
-  let organizations = [];
-  if (isSuperAdmin) {
-    const { data } = await supabase
-      .from('organizations')
-      .select('id, name')
-      .order('name');
-    organizations = data || [];
   }
 
   return (
@@ -78,6 +50,9 @@ export default async function VehicleTypesPage() {
           <h1 className="text-3xl font-bold">Типы автомобилей</h1>
           <p className="text-gray-600 mt-1">
             Управление типами транспортных средств и их расходом топлива
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            ℹ️ Типы автомобилей универсальны и доступны для всех организаций
           </p>
         </div>
         <Link href="/dashboard/vehicle-types/new">
@@ -107,7 +82,6 @@ export default async function VehicleTypesPage() {
       ) : (
         <VehicleTypesList
           vehicleTypes={vehicleTypes || []}
-          isSuperAdmin={isSuperAdmin}
         />
       )}
     </div>

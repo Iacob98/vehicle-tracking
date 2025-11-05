@@ -13,13 +13,14 @@ Successfully implemented a comprehensive fuel consumption tracking and anomaly d
   - `name`: Vehicle type name (e.g., "Civic", "BMW X5")
   - `fuel_consumption_per_100km`: Expected consumption rate
   - `tank_capacity`: Optional tank capacity for validation
-  - `organization_id`: Multi-tenant support
+  - **UNIVERSAL DATA**: Vehicle types are NOT organization-specific - they are shared across all organizations
 
 **Admin Interface:**
-- [/dashboard/vehicle-types](nextjs-app/app/dashboard/vehicle-types/page.tsx) - List all vehicle types
-- [/dashboard/vehicle-types/new](nextjs-app/app/dashboard/vehicle-types/new/page.tsx) - Create new type
+- [/dashboard/vehicle-types](nextjs-app/app/dashboard/vehicle-types/page.tsx) - List all vehicle types (universal)
+- [/dashboard/vehicle-types/new](nextjs-app/app/dashboard/vehicle-types/new/page.tsx) - Create new universal type
 - [/dashboard/vehicle-types/[id]/edit](nextjs-app/app/dashboard/vehicle-types/[id]/edit/page.tsx) - Edit existing type
-- Super Admin support: Can create types for any organization
+- Accessible to: owner, admin, manager roles
+- **All users see the same vehicle types** - they are NOT organization-specific
 
 ### 2. Enhanced Refuel Form
 
@@ -94,14 +95,21 @@ Successfully implemented a comprehensive fuel consumption tracking and anomaly d
 ```sql
 CREATE TABLE vehicle_types (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL UNIQUE, -- UNIQUE: vehicle types are universal
   fuel_consumption_per_100km DECIMAL(5,2) NOT NULL CHECK (fuel_consumption_per_100km > 0),
   tank_capacity INTEGER CHECK (tank_capacity IS NULL OR tank_capacity > 0),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
+
+**Migration 029: Made Vehicle Types Universal** - [029_make_vehicle_types_universal.sql](nextjs-app/migrations/029_make_vehicle_types_universal.sql)
+- Removed `organization_id` column (vehicle types are now universal)
+- Added UNIQUE constraint on `name` (prevents duplicate types globally)
+- Updated RLS policies to allow universal access:
+  - SELECT: Everyone can view all vehicle types
+  - INSERT/UPDATE: Admin, manager, owner only
+  - DELETE: Admin, owner only
 
 ### Enhanced Table: `car_expenses`
 New columns added:
@@ -123,10 +131,10 @@ Helper function to retrieve the most recent odometer reading for a vehicle.
 ## API Endpoints
 
 ### Vehicle Types
-- `GET /api/vehicle-types` - List all types (filtered by organization)
-- `POST /api/vehicle-types` - Create new type
+- `GET /api/vehicle-types` - List all types (universal - NOT filtered by organization)
+- `POST /api/vehicle-types` - Create new universal type (checks for duplicate names globally)
 - `GET /api/vehicle-types/:id` - Get single type
-- `PUT /api/vehicle-types/:id` - Update type
+- `PUT /api/vehicle-types/:id` - Update type (checks for duplicate names globally)
 - `DELETE /api/vehicle-types/:id` - Delete type (only if not in use)
 
 ### Car Expenses (Enhanced)
@@ -193,11 +201,14 @@ has_anomaly = actual_consumption > threshold
 
 ## Security & Permissions
 
-- **Vehicle Types**: Admin and Manager can create/edit
+- **Vehicle Types**:
+  - View: All authenticated users can view all vehicle types (universal)
+  - Create/Edit: Admin, Manager, Owner only
+  - Delete: Admin, Owner only
+  - **Universal Data**: Vehicle types are NOT organization-specific
 - **Refuel Records**: All roles can create for their vehicles
 - **Anomaly Checking**: Only Admin and Owner can mark as checked
-- **RLS Policies**: Proper organization-level data isolation
-- **Super Admin**: Can manage types for all organizations
+- **RLS Policies**: Proper organization-level data isolation (except vehicle types which are universal)
 
 ## UI/UX Highlights
 
@@ -251,6 +262,7 @@ None identified at this time. The implementation follows established patterns in
 1. **Fuel tracking system: Core implementation** - Database migrations, vehicle types CRUD, API endpoints
 2. **Fuel tracking: Updated refuel form** - Added liters/odometer fields, validation, multiple photos
 3. **Fuel anomalies: Dashboard alerts** - Admin alert card, driver banner, check API
+4. **Made vehicle types universal** - Removed organization_id, added unique constraint, updated all pages to load types universally
 
 ---
 

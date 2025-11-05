@@ -12,9 +12,6 @@ async function getCurrentUser() {
     id: user.id,
     email: user.email!,
     role: (user.user_metadata?.role || 'viewer') as 'owner' | 'admin' | 'manager' | 'viewer' | 'driver',
-    first_name: user.user_metadata?.first_name || '',
-    last_name: user.user_metadata?.last_name || '',
-    organization_id: user.user_metadata?.organization_id || null,
   };
 }
 
@@ -54,10 +51,12 @@ export default async function EditVehicleTypePage({
         <p className="text-gray-600 mt-1">
           Изменение параметров типа "{vehicleType.name}"
         </p>
+        <p className="text-sm text-gray-500 mt-2">
+          ℹ️ Типы автомобилей универсальны и доступны для всех организаций
+        </p>
       </div>
 
       <VehicleTypeForm
-        currentUser={user}
         vehicleType={vehicleType}
       />
     </div>

@@ -3,10 +3,10 @@ import { z } from 'zod';
 /**
  * Vehicle Type Schema
  * Defines expected fuel consumption for a type of vehicle
+ * Note: Vehicle types are universal and not tied to specific organizations
  */
 export const vehicleTypeSchema = z.object({
   id: z.string().uuid().optional(),
-  organization_id: z.string().uuid(),
   name: z.string()
     .min(1, 'Название типа обязательно')
     .max(100, 'Название не должно превышать 100 символов')
@@ -49,7 +49,6 @@ export const createVehicleTypeSchema = vehicleTypeSchema.omit({
 export const updateVehicleTypeSchema = vehicleTypeSchema
   .omit({
     id: true,
-    organization_id: true,
     created_at: true,
     updated_at: true,
   })

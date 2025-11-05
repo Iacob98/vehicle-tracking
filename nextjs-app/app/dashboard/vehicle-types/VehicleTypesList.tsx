@@ -10,7 +10,6 @@ import Link from 'next/link';
 
 interface VehicleType {
   id: string;
-  organization_id: string;
   name: string;
   fuel_consumption_per_100km: number;
   tank_capacity: number | null;
@@ -20,10 +19,9 @@ interface VehicleType {
 
 interface VehicleTypesListProps {
   vehicleTypes: VehicleType[];
-  isSuperAdmin: boolean;
 }
 
-export function VehicleTypesList({ vehicleTypes, isSuperAdmin }: VehicleTypesListProps) {
+export function VehicleTypesList({ vehicleTypes }: VehicleTypesListProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 

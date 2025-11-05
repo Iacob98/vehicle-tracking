@@ -100,18 +100,17 @@ export async function PUT(
 
     const validatedData = validation.data;
 
-    // If name is being changed, check for duplicates
+    // If name is being changed, check for duplicates (universal check)
     if (validatedData.name && validatedData.name !== existing.name) {
       const { data: duplicate } = await supabase
         .from('vehicle_types')
         .select('id')
-        .eq('organization_id', existing.organization_id)
         .ilike('name', validatedData.name)
         .neq('id', id)
         .single();
 
       if (duplicate) {
-        return apiBadRequest(`Тип автомобиля "${validatedData.name}" уже существует в этой организации`);
+        return apiBadRequest(`Тип автомобиля "${validatedData.name}" уже существует`);
       }
     }
 

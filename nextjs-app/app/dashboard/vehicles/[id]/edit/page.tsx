@@ -39,20 +39,12 @@ export default async function EditVehiclePage({
     organizations = data || [];
   }
 
-  // Load vehicle types for user's organization
-  let vehicleTypes = [];
-  const orgId = isSuperAdminUser ? vehicle.organization_id : currentUser.organization_id;
-
-  if (orgId) {
-    let query = supabase
-      .from('vehicle_types')
-      .select('id, name, fuel_consumption_per_100km')
-      .eq('organization_id', orgId)
-      .order('name');
-
-    const { data: types } = await query;
-    vehicleTypes = types || [];
-  }
+  // Загружаем типы автомобилей (они универсальны для всех организаций)
+  const { data: types } = await supabase
+    .from('vehicle_types')
+    .select('id, name, fuel_consumption_per_100km')
+    .order('name');
+  const vehicleTypes = types || [];
 
   return (
     <div className="max-w-4xl">

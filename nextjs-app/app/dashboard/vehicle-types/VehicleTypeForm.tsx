@@ -10,9 +10,7 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON, usePutJSON } from '@/lib/api-client';
 import Link from 'next/link';
 import { z } from 'zod';
-import { OrganizationSelect } from '@/components/OrganizationSelect';
-
-// Client-safe schema
+// Client-safe schema (vehicle types are universal, not organization-specific)
 const vehicleTypeFormSchema = z.object({
   name: z.string()
     .min(1, 'Название типа обязательно')
@@ -27,33 +25,11 @@ const vehicleTypeFormSchema = z.object({
     .max(1000, 'Емкость бака не может превышать 1000 литров')
     .nullable()
     .optional(),
-  organization_id: z.string().uuid().optional(),
 });
 
 type VehicleTypeFormData = z.infer<typeof vehicleTypeFormSchema>;
 
-// User type definition
-type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
-
-interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  organization_id: string | null;
-}
-
-function isSuperAdmin(user: User): boolean {
-  return user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
-}
-
-interface Organization {
-  id: string;
-  name: string;
-}
-
 interface VehicleTypeFormProps {
-  currentUser: User;
-  organizations?: Organization[];
   vehicleType?: {
     id: string;
     name: string;
@@ -63,13 +39,10 @@ interface VehicleTypeFormProps {
 }
 
 export function VehicleTypeForm({
-  currentUser,
-  organizations = [],
   vehicleType,
 }: VehicleTypeFormProps) {
   const router = useRouter();
   const isEditing = !!vehicleType;
-  const showOrgSelect = isSuperAdmin(currentUser);
 
   const {
     register,
@@ -112,28 +85,12 @@ export function VehicleTypeForm({
   const loading = creating || updating;
   const error = createError || updateError;
 
-  const selectedOrgId = watch('organization_id');
-
   const onSubmit = async (data: VehicleTypeFormData) => {
-    // For Super Admin, validate organization_id
-    if (showOrgSelect && !data.organization_id) {
-      setError('organization_id', {
-        type: 'manual',
-        message: 'Organization ID обязателен для создания типа автомобиля',
-      });
-      return;
-    }
-
-    const submitData: any = {
+    const submitData = {
       name: data.name,
       fuel_consumption_per_100km: data.fuel_consumption_per_100km,
       tank_capacity: data.tank_capacity || null,
     };
-
-    // Add organization_id for Super Admin
-    if (showOrgSelect && data.organization_id) {
-      submitData.organization_id = data.organization_id;
-    }
 
     if (isEditing) {
       await put(submitData);
@@ -145,23 +102,6 @@ export function VehicleTypeForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
       {error && <ErrorAlert error={error} />}
-
-      {/* Organization Selection (Super Admin only) */}
-      {showOrgSelect && !isEditing && (
-        <div className="space-y-4 pb-4 border-b">
-          <h2 className="text-lg font-semibold">🏢 Организация</h2>
-          <OrganizationSelect
-            organizations={organizations}
-            value={selectedOrgId}
-            onValueChange={(value) => setValue('organization_id', value)}
-            error={errors.organization_id?.message}
-            required={true}
-          />
-          <p className="text-sm text-gray-500">
-            Выберите организацию, для которой создаётся тип автомобиля
-          </p>
-        </div>
-      )}
 
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Основная информация</h2>

@@ -14,7 +14,7 @@ import { createVehicleTypeSchema } from '@/lib/schemas/vehicle-types.schema';
 
 /**
  * GET /api/vehicle-types
- * Get all vehicle types for the organization
+ * Get all vehicle types (universal, not organization-specific)
  */
 export async function GET(request: Request) {
   try {
@@ -25,38 +25,15 @@ export async function GET(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Check organization_id with support for owner role
-    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
-    if (orgError) return orgError;
-
-    // Get user query context
-    const userContext = getUserQueryContext(user);
-
-    // Build query based on user role
-    let query = supabase
+    // Get all vehicle types (they are universal)
+    const { data: vehicleTypes, error } = await supabase
       .from('vehicle_types')
       .select('*')
       .order('name', { ascending: true });
 
-    // Apply organization filter
-    if (userContext.isSuperAdmin) {
-      // Super admin sees all types, but we still need to filter by org if specified in query params
-      const url = new URL(request.url);
-      const orgIdParam = url.searchParams.get('organization_id');
-      if (orgIdParam) {
-        query = query.eq('organization_id', orgIdParam);
-      }
-    } else {
-      // Regular users see only their organization's types
-      query = query.eq('organization_id', orgId!);
-    }
-
-    const { data: vehicleTypes, error } = await query;
-
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'fetching vehicle types',
-        orgId,
       });
     }
 
@@ -68,7 +45,7 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/vehicle-types
- * Create a new vehicle type
+ * Create a new vehicle type (universal, not organization-specific)
  * Only admin and manager can create vehicle types
  */
 export async function POST(request: Request) {
@@ -80,10 +57,6 @@ export async function POST(request: Request) {
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    // Check organization_id with support for owner role
-    const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
-    if (orgError) return orgError;
-
     // Check permissions (only admin and manager)
     const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
     if (!Permissions.canManageVehicles(userRole)) {
@@ -93,20 +66,8 @@ export async function POST(request: Request) {
     // Get JSON body
     const body = await request.json();
 
-    // Get user query context and determine organization_id for creation
-    const userContext = getUserQueryContext(user);
-    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
-
-    // Owner must explicitly specify organization_id
-    if (!finalOrgId) {
-      return apiBadRequest('Organization ID обязателен для создания типа автомобиля');
-    }
-
     // Validate input
-    const validation = createVehicleTypeSchema.safeParse({
-      ...body,
-      organization_id: finalOrgId,
-    });
+    const validation = createVehicleTypeSchema.safeParse(body);
 
     if (!validation.success) {
       return apiBadRequest(
@@ -116,16 +77,15 @@ export async function POST(request: Request) {
 
     const validatedData = validation.data;
 
-    // Check for duplicate name in the same organization
+    // Check for duplicate name (universal check)
     const { data: existing } = await supabase
       .from('vehicle_types')
       .select('id')
-      .eq('organization_id', finalOrgId)
       .ilike('name', validatedData.name)
       .single();
 
     if (existing) {
-      return apiBadRequest(`Тип автомобиля "${validatedData.name}" уже существует в этой организации`);
+      return apiBadRequest(`Тип автомобиля "${validatedData.name}" уже существует`);
     }
 
     // Insert new vehicle type
@@ -138,7 +98,6 @@ export async function POST(request: Request) {
     if (error) {
       return apiErrorFromUnknown(error, {
         context: 'creating vehicle type',
-        orgId: finalOrgId,
         name: validatedData.name,
       });
     }
