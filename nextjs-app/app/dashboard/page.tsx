@@ -1,6 +1,9 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import { FuelAnomaliesAlert } from '@/components/FuelAnomaliesAlert';
+import { DriverAnomalyBanner } from '@/components/DriverAnomalyBanner';
+import { type UserRole } from '@/lib/types/roles';
 
 export default async function DashboardPage() {
   const supabase = await createServerClient();
@@ -8,7 +11,64 @@ export default async function DashboardPage() {
 
   // Получаем контекст пользователя для правильной фильтрации
   const userContext = getUserQueryContext(user);
+  const userRole = (user?.role || 'viewer') as UserRole;
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Fetch fuel anomalies (unchecked first)
+  let anomaliesQuery = supabase
+    .from('car_expenses')
+    .select(`
+      id,
+      date,
+      amount,
+      liters,
+      odometer_reading,
+      previous_odometer_reading,
+      distance_traveled,
+      expected_consumption,
+      actual_consumption,
+      consumption_difference,
+      vehicle_id,
+      anomaly_checked_by,
+      anomaly_checked_at
+    `)
+    .eq('category', 'fuel')
+    .eq('has_anomaly', true)
+    .order('anomaly_checked_by', { ascending: true, nullsFirst: true })
+    .order('date', { ascending: false });
+  anomaliesQuery = applyOrgFilter(anomaliesQuery, userContext);
+  const { data: anomaliesData } = await anomaliesQuery;
+
+  // Enrich anomalies with vehicle and driver information
+  const anomalies = await Promise.all(
+    (anomaliesData || []).map(async (anomaly) => {
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('name, license_plate, current_driver_id')
+        .eq('id', anomaly.vehicle_id)
+        .single();
+
+      let driverName = null;
+      if (vehicle?.current_driver_id) {
+        const { data: driver } = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', vehicle.current_driver_id)
+          .single();
+
+        if (driver) {
+          driverName = `${driver.first_name} ${driver.last_name}`;
+        }
+      }
+
+      return {
+        ...anomaly,
+        vehicle_name: vehicle?.name || 'Unknown',
+        license_plate: vehicle?.license_plate || 'N/A',
+        driver_name: driverName,
+      };
+    })
+  );
 
   // Fetch stats - используем applyOrgFilter для автоматической фильтрации
   // Owner видит все данные всех организаций, остальные только свою организацию
@@ -41,6 +101,16 @@ export default async function DashboardPage() {
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm md:text-base text-gray-600">Обзор системы управления автопарком</p>
       </div>
+
+      {/* Fuel Anomalies Alert - For Admins and Managers */}
+      {anomalies.length > 0 && ['owner', 'admin', 'manager'].includes(userRole) && (
+        <FuelAnomaliesAlert anomalies={anomalies} userRole={userRole} />
+      )}
+
+      {/* Driver Anomaly Banner - For Drivers */}
+      {userRole === 'driver' && anomalies.length > 0 && (
+        <DriverAnomalyBanner anomalyCount={anomalies.length} />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white rounded-lg shadow p-6">
