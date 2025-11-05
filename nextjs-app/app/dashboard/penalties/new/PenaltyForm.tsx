@@ -11,6 +11,31 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostFormData } from '@/lib/api-client';
 import Link from 'next/link';
 import { penaltySchema, type PenaltyFormData } from '@/lib/schemas';
+import { OrganizationSelect } from '@/components/OrganizationSelect';
+
+// User type definition (client-safe)
+type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  first_name: string;
+  last_name: string;
+  organization_id: string | null;
+  phone?: string;
+  created_at?: string;
+}
+
+// Client-side Super Admin check
+function isSuperAdmin(user: User): boolean {
+  return user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
 
 interface PenaltyFormProps {
   vehicles: Array<{
@@ -23,11 +48,14 @@ interface PenaltyFormProps {
     first_name: string;
     last_name: string;
   }>;
+  currentUser: User;
+  organizations?: Organization[];
 }
 
-export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
+export function PenaltyForm({ vehicles, users, currentUser, organizations = [] }: PenaltyFormProps) {
   const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const showOrgSelect = isSuperAdmin(currentUser);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading, error, post } = usePostFormData('/api/penalties', {
@@ -41,14 +69,19 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PenaltyFormData>({
     resolver: zodResolver(penaltySchema),
     defaultValues: {
       date: new Date().toISOString().split('T')[0],
       status: 'open',
+      organization_id: undefined,
     },
   });
+
+  const selectedOrgId = watch('organization_id');
 
   const onSubmit = async (data: PenaltyFormData) => {
     // Подготовка FormData для отправки на сервер
@@ -60,6 +93,11 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
     formData.append('date', data.date);
     formData.append('description', data.description || '');
     formData.append('status', data.status);
+
+    // Для Super Admin - добавляем organization_id
+    if (showOrgSelect && data.organization_id) {
+      formData.append('organization_id', data.organization_id);
+    }
 
     // Добавляем фото если выбрано
     if (selectedFile) {
@@ -73,6 +111,23 @@ export function PenaltyForm({ vehicles, users }: PenaltyFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
       {error && <ErrorAlert error={error} />}
+
+      {/* Organization Selection (Super Admin only) */}
+      {showOrgSelect && (
+        <div className="space-y-4 pb-4 border-b">
+          <h2 className="text-lg font-semibold">🏢 Организация</h2>
+          <OrganizationSelect
+            organizations={organizations}
+            value={selectedOrgId}
+            onValueChange={(value) => setValue('organization_id', value)}
+            error={errors.organization_id?.message}
+            required={true}
+          />
+          <p className="text-sm text-gray-500">
+            Выберите организацию, для которой создаётся штраф
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>

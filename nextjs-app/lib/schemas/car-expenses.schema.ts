@@ -68,6 +68,28 @@ export const carExpenseSchema = z.object({
     .url('Некорректный URL чека')
     .nullable()
     .optional(),
+
+  // Fuel tracking fields
+  liters: z
+    .number()
+    .positive('Количество литров должно быть положительным')
+    .max(1000, 'Количество литров слишком большое (максимум 1000)')
+    .nullable()
+    .optional(),
+
+  odometer_reading: z
+    .number()
+    .int('Показания одометра должны быть целым числом')
+    .positive('Показания одометра должны быть положительными')
+    .max(9999999, 'Показания одометра слишком большие')
+    .nullable()
+    .optional(),
+
+  organization_id: z
+    .string()
+    .uuid('Некорректный ID организации')
+    .nullable()
+    .optional(),
 });
 
 // Type inference

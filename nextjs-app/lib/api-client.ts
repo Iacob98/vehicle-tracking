@@ -70,6 +70,7 @@ export async function postFormData<T>(
   try {
     const response = await fetch(url, {
       method: 'POST',
+      credentials: 'include',
       body: formData,
     });
 
@@ -91,6 +92,7 @@ export async function postJSON<T>(
   try {
     const response = await fetch(url, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -112,6 +114,7 @@ export async function deleteRequest<T>(url: string): Promise<ApiResponse<T>> {
   try {
     const response = await fetch(url, {
       method: 'DELETE',
+      credentials: 'include',
     });
 
     return await handleApiResponse<T>(response);
@@ -132,6 +135,7 @@ export async function putJSON<T>(
   try {
     const response = await fetch(url, {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -151,7 +155,9 @@ export async function putJSON<T>(
  */
 export async function getRequest<T>(url: string): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      credentials: 'include',
+    });
 
     return await handleApiResponse<T>(response);
   } catch (error) {

@@ -26,9 +26,9 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
 
   const [formData, setFormData] = useState<CreateOrganizationInput>({
     name: organization?.name || '',
-    telegram_chat_id: organization?.telegram_chat_id || '',
+    telegram_chat_id: organization?.telegram_chat_id || undefined,
     subscription_status: organization?.subscription_status || 'active',
-    subscription_expires_at: organization?.subscription_expires_at || '',
+    subscription_expires_at: organization?.subscription_expires_at || undefined,
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -74,7 +74,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
     // Prepare data for submission
     const submitData: any = { ...formData };
 
-    // Convert empty strings to null
+    // Ensure optional fields are null instead of undefined for API submission
     if (!submitData.telegram_chat_id) submitData.telegram_chat_id = null;
     if (!submitData.subscription_expires_at) submitData.subscription_expires_at = null;
 
@@ -119,7 +119,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
         <input
           type="text"
           value={formData.telegram_chat_id || ''}
-          onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value || undefined })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
           placeholder="-1001234567890"
         />
@@ -174,7 +174,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
               ...formData,
               subscription_expires_at: e.target.value
                 ? new Date(e.target.value).toISOString()
-                : '',
+                : undefined,
             })
           }
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"

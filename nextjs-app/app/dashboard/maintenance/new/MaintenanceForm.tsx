@@ -10,6 +10,31 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
 import { maintenanceSchema, MAINTENANCE_TYPE_OPTIONS, type MaintenanceFormData } from '@/lib/schemas/maintenance.schema';
+import { OrganizationSelect } from '@/components/OrganizationSelect';
+
+// User type definition (client-safe)
+type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  first_name: string;
+  last_name: string;
+  organization_id: string | null;
+  phone?: string;
+  created_at?: string;
+}
+
+// Client-side Super Admin check
+function isSuperAdmin(user: User): boolean {
+  return user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
 
 interface MaintenanceFormProps {
   vehicles: Array<{
@@ -17,10 +42,13 @@ interface MaintenanceFormProps {
     name: string;
     license_plate: string;
   }>;
+  currentUser: User;
+  organizations?: Organization[];
 }
 
-export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
+export function MaintenanceForm({ vehicles, currentUser, organizations = [] }: MaintenanceFormProps) {
   const router = useRouter();
+  const showOrgSelect = isSuperAdmin(currentUser);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading, error, post } = usePostJSON('/api/maintenance', {
@@ -34,26 +62,55 @@ export function MaintenanceForm({ vehicles }: MaintenanceFormProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<MaintenanceFormData>({
     resolver: zodResolver(maintenanceSchema),
     defaultValues: {
       type: 'inspection',
+      organization_id: undefined,
     },
   });
 
+  const selectedOrgId = watch('organization_id');
+
   const onSubmit = async (data: MaintenanceFormData) => {
-    await post({
+    const submitData: any = {
       vehicle_id: data.vehicle_id,
       type: data.type,
       date: data.date,
       description: data.description || null,
-    });
+    };
+
+    // Для Super Admin - добавляем organization_id
+    if (showOrgSelect && data.organization_id) {
+      submitData.organization_id = data.organization_id;
+    }
+
+    await post(submitData);
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
       {error && <ErrorAlert error={error} />}
+
+      {/* Organization Selection (Super Admin only) */}
+      {showOrgSelect && (
+        <div className="space-y-4 pb-4 border-b">
+          <h2 className="text-lg font-semibold">🏢 Организация</h2>
+          <OrganizationSelect
+            organizations={organizations}
+            value={selectedOrgId}
+            onValueChange={(value) => setValue('organization_id', value)}
+            error={errors.organization_id?.message}
+            required={true}
+          />
+          <p className="text-sm text-gray-500">
+            Выберите организацию, для которой создаётся обслуживание
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>

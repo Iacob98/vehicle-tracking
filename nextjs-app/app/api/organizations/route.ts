@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import {
   apiSuccess,
+  apiCreated,
   apiBadRequest,
   apiForbidden,
   apiErrorFromUnknown,
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return apiSuccess(organization, 'Организация успешно создана');
+    return apiCreated(organization);
   } catch (error) {
     return apiErrorFromUnknown(error, {
       context: 'POST /api/organizations',

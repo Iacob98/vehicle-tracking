@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import {
   apiSuccess,
   apiBadRequest,
@@ -8,7 +9,6 @@ import {
   checkOwnerOrOrganizationId,
 } from '@/lib/api-response';
 import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
-import { createHash } from 'crypto';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 
 /**
@@ -65,44 +65,89 @@ export async function POST(request: Request) {
       return apiBadRequest('Organization ID обязателен для создания пользователя');
     }
 
-    // Хешируем пароль на сервере (безопасно!)
-    const passwordHash = createHash('sha256')
-      .update(password + 'fleet_management_salt_2025')
-      .digest('hex');
+    // Создаем Supabase Admin client для создания пользователя в auth.users
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
 
-    // Подготовка данных для вставки
-    const userData = {
-      organization_id: finalOrgId,
+    // Создаем пользователя через Supabase Auth Admin API
+    // Это создаст пользователя в auth.users с правильным bcrypt хешем пароля
+    const { data: authUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password_hash: passwordHash,
-      first_name,
-      last_name,
-      role: role || 'viewer', // Default role if not provided
-      phone: phone || null,
-      created_at: new Date().toISOString(),
-    };
+      password,
+      email_confirm: true, // Автоматически подтверждаем email
+      user_metadata: {
+        first_name,
+        last_name,
+        role: role || 'viewer',
+        organization_id: finalOrgId,
+        phone: phone || null,
+      }
+    });
 
-    // Вставка в базу данных
-    const { data: newUser, error } = await supabase
-      .from('users')
-      .insert(userData)
-      .select()
-      .single();
+    if (createUserError) {
+      console.error('❌ Error creating auth user:', createUserError);
 
-    if (error) {
-      // Обработка уникального ограничения email
-      if (error.code === '23505' && error.message.includes('email')) {
-        return apiBadRequest('Пользователь с таким email уже существует в вашей организации');
+      // Обработка ошибки дублирования email
+      if (createUserError.message?.includes('already registered') || createUserError.message?.includes('User already registered')) {
+        return apiBadRequest('Пользователь с таким email уже существует');
       }
 
-      return apiErrorFromUnknown(error, {
-        context: 'creating user',
-        orgId: finalOrgId,
+      return apiErrorFromUnknown(createUserError, {
+        context: 'creating auth user',
         email,
       });
     }
 
-    return apiSuccess({ user: newUser });
+    console.log('✅ User created successfully in auth.users:', authUser.user.id);
+
+    // Теперь создаем запись в public.users
+    // Trigger sync_auth_users_to_public должен автоматически создать запись,
+    // но мы можем создать её явно для надежности
+    const { data: publicUser, error: publicError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.user.id)
+      .single();
+
+    if (publicError) {
+      // Если trigger не сработал, создаем вручную
+      console.log('⚠️  Public user not found, creating manually...');
+
+      const { data: newPublicUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: authUser.user.id,
+          organization_id: finalOrgId,
+          email,
+          first_name,
+          last_name,
+          role: role || 'viewer',
+          phone: phone || null,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('❌ Error creating public user:', insertError);
+        return apiErrorFromUnknown(insertError, {
+          context: 'creating public user record',
+          authUserId: authUser.user.id,
+        });
+      }
+
+      return apiSuccess({ user: newPublicUser });
+    }
+
+    return apiSuccess({ user: publicUser });
   } catch (error: any) {
     return apiErrorFromUnknown(error, { context: 'POST /api/users' });
   }

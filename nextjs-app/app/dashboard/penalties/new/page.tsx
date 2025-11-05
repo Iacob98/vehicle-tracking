@@ -2,9 +2,12 @@ import { PenaltyForm } from './PenaltyForm';
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import { getCurrentUser, isSuperAdmin } from '@/lib/auth-helpers';
 
 export default async function NewPenaltyPage() {
   const supabase = await createServerClient();
+  const currentUser = await getCurrentUser();
+  const isSuperAdminUser = isSuperAdmin(currentUser);
 
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -30,6 +33,16 @@ export default async function NewPenaltyPage() {
   usersQuery = usersQuery.order('first_name');
   const { data: users } = await usersQuery;
 
+  // Загружаем организации только для Super Admin
+  let organizations = [];
+  if (isSuperAdminUser) {
+    const { data } = await supabase
+      .from('organizations')
+      .select('id, name')
+      .order('name');
+    organizations = data || [];
+  }
+
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
@@ -37,7 +50,12 @@ export default async function NewPenaltyPage() {
         <p className="text-gray-600">Зарегистрировать новый штраф</p>
       </div>
 
-      <PenaltyForm vehicles={vehicles || []} users={users || []} />
+      <PenaltyForm
+        vehicles={vehicles || []}
+        users={users || []}
+        currentUser={currentUser}
+        organizations={organizations}
+      />
     </div>
   );
 }

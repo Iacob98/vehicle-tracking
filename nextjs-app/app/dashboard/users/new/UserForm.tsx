@@ -18,16 +18,44 @@ import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
 import { createUserSchema, type CreateUserFormData } from '@/lib/schemas/users.schema';
 import { ROLE_OPTIONS } from '@/lib/types/roles';
+import { OrganizationSelect } from '@/components/OrganizationSelect';
+
+// User type definition (client-safe)
+type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  first_name: string;
+  last_name: string;
+  organization_id: string | null;
+  phone?: string;
+  created_at?: string;
+}
+
+// Client-side Super Admin check
+function isSuperAdmin(user: User): boolean {
+  return user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
 
 interface UserFormProps {
   teams: Array<{
     id: string;
     name: string;
   }>;
+  currentUser: User;
+  organizations?: Organization[];
 }
 
-export function UserForm({ teams }: UserFormProps) {
+export function UserForm({ teams, currentUser, organizations = [] }: UserFormProps) {
   const router = useRouter();
+  const showOrgSelect = isSuperAdmin(currentUser);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading, error, post } = usePostJSON('/api/users', {
@@ -42,24 +70,46 @@ export function UserForm({ teams }: UserFormProps) {
     register,
     handleSubmit,
     control,
+    watch,
+    setValue,
+    setError,
     formState: { errors },
   } = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       role: 'viewer' as const,
       phone: '',
+      organization_id: undefined,
     } as Partial<CreateUserFormData>,
   });
 
+  const selectedOrgId = watch('organization_id');
+
   const onSubmit = async (data: CreateUserFormData) => {
-    await post({
+    // Для Super Admin проверяем обязательность organization_id
+    if (showOrgSelect && !data.organization_id) {
+      setError('organization_id', {
+        type: 'manual',
+        message: 'Organization ID обязателен для создания пользователя',
+      });
+      return;
+    }
+
+    const submitData: any = {
       email: data.email,
       password: data.password,
       first_name: data.first_name,
       last_name: data.last_name,
       role: data.role,
       phone: data.phone || null,
-    });
+    };
+
+    // Для Super Admin - добавляем organization_id
+    if (showOrgSelect && data.organization_id) {
+      submitData.organization_id = data.organization_id;
+    }
+
+    await post(submitData);
   };
 
   return (
@@ -72,6 +122,23 @@ export function UserForm({ teams }: UserFormProps) {
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg border p-6 space-y-6">
         {error && <ErrorAlert error={error} />}
+
+        {/* Organization Selection (Super Admin only) */}
+        {showOrgSelect && (
+          <div className="space-y-4 pb-4 border-b">
+            <h2 className="text-lg font-semibold">🏢 Организация</h2>
+            <OrganizationSelect
+              organizations={organizations}
+              value={selectedOrgId}
+              onValueChange={(value) => setValue('organization_id', value)}
+              error={errors.organization_id?.message}
+              required={true}
+            />
+            <p className="text-sm text-gray-500">
+              Выберите организацию, для которой создаётся пользователь
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

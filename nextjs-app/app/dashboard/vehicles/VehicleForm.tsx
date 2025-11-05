@@ -18,7 +18,38 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostFormData, useApi } from '@/lib/api-client';
 import { putJSON } from '@/lib/api-client';
 import { vehicleSchema, VEHICLE_STATUS_OPTIONS, type VehicleFormData } from '@/lib/schemas';
+import { OrganizationSelect } from '@/components/OrganizationSelect';
 import Image from 'next/image';
+
+// User type definition (client-safe, без server-only зависимостей)
+type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  first_name: string;
+  last_name: string;
+  organization_id: string | null;
+  phone?: string;
+  created_at?: string;
+}
+
+// Client-side Super Admin check (не требует server-only функций)
+function isSuperAdmin(user: User): boolean {
+  return user.role === 'owner' || (user.role === 'admin' && user.organization_id === null);
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
+
+interface VehicleType {
+  id: string;
+  name: string;
+  fuel_consumption_per_100km: number;
+}
 
 interface VehicleFormProps {
   vehicle?: {
@@ -34,14 +65,19 @@ interface VehicleFormProps {
     rental_start_date: string | null;
     rental_end_date: string | null;
     rental_monthly_price: number | null;
+    vehicle_type_id: string | null;
   };
   isEdit?: boolean;
+  currentUser: User;
+  organizations?: Organization[];
+  vehicleTypes?: VehicleType[];
 }
 
-export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
+export function VehicleForm({ vehicle, isEdit = false, currentUser, organizations = [], vehicleTypes = [] }: VehicleFormProps) {
   const router = useRouter();
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
+  const showOrgSelect = isSuperAdmin(currentUser);
 
   // Используем централизованную обработку ошибок через API hooks
   const createVehicleApi = usePostFormData('/api/vehicles', {
@@ -81,12 +117,16 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
       rental_start_date: vehicle?.rental_start_date || undefined,
       rental_end_date: vehicle?.rental_end_date || undefined,
       rental_monthly_price: vehicle?.rental_monthly_price || undefined,
+      organization_id: undefined,
+      vehicle_type_id: vehicle?.vehicle_type_id || undefined,
     },
   });
 
   // Watch is_rental to show/hide rental fields
   const isRental = watch('is_rental');
   const selectedStatus = watch('status');
+  const selectedOrgId = watch('organization_id');
+  const selectedVehicleTypeId = watch('vehicle_type_id');
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -112,6 +152,16 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
     formData.append('rental_monthly_price', data.rental_monthly_price?.toString() || '');
     formData.append('rental_start_date', data.rental_start_date || '');
     formData.append('rental_end_date', data.rental_end_date || '');
+
+    // Добавляем vehicle_type_id если выбран
+    if (data.vehicle_type_id) {
+      formData.append('vehicle_type_id', data.vehicle_type_id);
+    }
+
+    // Для Super Admin - добавляем organization_id
+    if (showOrgSelect && data.organization_id) {
+      formData.append('organization_id', data.organization_id);
+    }
 
     // Добавляем фотографии
     photoFiles.forEach((file) => {
@@ -148,6 +198,23 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-6 space-y-6">
       {error && <ErrorAlert error={error} />}
+
+      {/* Organization Selection (Super Admin only) */}
+      {showOrgSelect && (
+        <div className="space-y-4 pb-4 border-b">
+          <h2 className="text-lg font-semibold">🏢 Организация</h2>
+          <OrganizationSelect
+            organizations={organizations}
+            value={selectedOrgId}
+            onValueChange={(value) => setValue('organization_id', value)}
+            error={errors.organization_id?.message}
+            required={true}
+          />
+          <p className="text-sm text-gray-500">
+            Выберите организацию, для которой создаётся автомобиль
+          </p>
+        </div>
+      )}
 
       {/* Basic Information */}
       <div className="space-y-4">
@@ -240,6 +307,32 @@ export function VehicleForm({ vehicle, isEdit = false }: VehicleFormProps) {
             {errors.status && (
               <p className="text-sm text-red-600 mt-1">{errors.status.message}</p>
             )}
+          </div>
+
+          <div>
+            <Label htmlFor="vehicle_type_id">Тип автомобиля</Label>
+            <Select
+              value={selectedVehicleTypeId || ''}
+              onValueChange={(value) => setValue('vehicle_type_id', value || undefined)}
+            >
+              <SelectTrigger className={errors.vehicle_type_id ? 'border-red-500' : ''}>
+                <SelectValue placeholder="Не выбран" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Не выбран</SelectItem>
+                {vehicleTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name} ({type.fuel_consumption_per_100km} л/100км)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.vehicle_type_id && (
+              <p className="text-sm text-red-600 mt-1">{errors.vehicle_type_id.message}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              Выберите тип для отслеживания расхода топлива
+            </p>
           </div>
         </div>
       </div>

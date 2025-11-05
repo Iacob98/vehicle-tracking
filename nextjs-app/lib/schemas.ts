@@ -27,6 +27,7 @@ export const vehicleSchema = z.object({
   rental_start_date: z.string().optional(),
   rental_end_date: z.string().optional(),
   rental_monthly_price: z.number().positive().optional(),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
 export type VehicleFormData = z.infer<typeof vehicleSchema>;
@@ -43,6 +44,7 @@ export const penaltySchema = z.object({
   description: z.string().optional().nullable(),
   photo_url: z.string().optional().nullable(),
   status: z.enum(['open', 'paid', 'contested', 'cancelled']),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
 export type PenaltyFormData = z.infer<typeof penaltySchema>;
@@ -93,6 +95,7 @@ export const carExpenseSchema = z.object({
   mileage: z.number().int().positive().optional().nullable(),
   maintenance_id: z.string().optional().nullable(),
   receipt_url: z.string().optional().nullable(),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
 export type CarExpenseFormData = z.infer<typeof carExpenseSchema>;
@@ -118,6 +121,7 @@ export const maintenanceSchema = z.object({
   mileage: z.number().int().positive().optional().nullable(),
   next_maintenance_date: z.string().optional().nullable(),
   next_maintenance_mileage: z.number().int().positive().optional().nullable(),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
 export type MaintenanceFormData = z.infer<typeof maintenanceSchema>;
@@ -129,6 +133,7 @@ export type MaintenanceFormData = z.infer<typeof maintenanceSchema>;
 export const teamSchema = z.object({
   name: z.string().min(1, 'Название бригады обязательно'),
   description: z.string().optional().nullable(),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 });
 
 export type TeamFormData = z.infer<typeof teamSchema>;
@@ -145,6 +150,7 @@ export const createUserSchema = z.object({
   last_name: z.string().min(1, 'Фамилия обязательна'),
   phone: z.string().optional().nullable(),
   position: z.string().optional().nullable(),
+  organization_id: z.string().uuid().optional(), // For Super Admin
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
   path: ['confirmPassword'],

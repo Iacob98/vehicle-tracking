@@ -57,6 +57,9 @@ export const createUserSchema = userSchema.extend({
     .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру'),
 
   confirmPassword: z.string().min(1),
+
+  // Organization ID - optional field for Super Admin to create users for specific organization
+  organization_id: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
   path: ['confirmPassword'],
