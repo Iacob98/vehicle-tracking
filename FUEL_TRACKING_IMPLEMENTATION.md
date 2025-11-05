@@ -111,6 +111,12 @@ CREATE TABLE vehicle_types (
   - INSERT/UPDATE: Admin, manager, owner only
   - DELETE: Admin, owner only
 
+**Migration 030: Fixed Vehicle Types RLS Policies** - [030_fix_vehicle_types_rls_policies.sql](nextjs-app/migrations/030_fix_vehicle_types_rls_policies.sql)
+- Fixed RLS policies to use `public.users` table instead of `auth.jwt()`
+- Problem: User roles stored in `user_metadata` aren't available in JWT by default
+- Solution: JOIN with `public.users` table to check roles
+- Added index `idx_users_id_role` for performance
+
 ### Enhanced Table: `car_expenses`
 New columns added:
 - `liters` - Amount of fuel (DECIMAL 10,2)
