@@ -17,6 +17,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const menuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🚗', label: 'Автомобили', href: '/dashboard/vehicles' },
+    ...(userRole === 'owner' || userRole === 'admin' || userRole === 'manager' ? [{ icon: '⛽', label: 'Типы автомобилей', href: '/dashboard/vehicle-types' }] : []),
     { icon: '📄', label: 'Документы', href: '/dashboard/documents' },
     { icon: '👷', label: 'Бригады', href: '/dashboard/teams' },
     { icon: '👤', label: 'Пользователи', href: '/dashboard/users' },
