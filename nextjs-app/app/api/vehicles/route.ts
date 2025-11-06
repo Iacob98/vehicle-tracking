@@ -26,6 +26,8 @@ import { Permissions, type UserRole } from '@/lib/types/roles';
  * - rental_start_date: string
  * - rental_end_date: string
  * - rental_monthly_price: number
+ * - annual_tax_amount: number
+ * - tax_due_date: string
  * - photos: File[] (multiple files)
  */
 export async function POST(request: Request) {
@@ -106,6 +108,11 @@ export async function POST(request: Request) {
         : null,
       rental_start_date: formData.get('rental_start_date') as string || null,
       rental_end_date: formData.get('rental_end_date') as string || null,
+      annual_tax_amount: formData.get('annual_tax_amount')
+        ? parseFloat(formData.get('annual_tax_amount') as string)
+        : null,
+      tax_due_date: formData.get('tax_due_date') as string || null,
+      vehicle_type_id: formData.get('vehicle_type_id') as string || null,
     };
 
     // Вставка в базу данных

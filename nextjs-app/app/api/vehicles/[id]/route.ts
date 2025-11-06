@@ -18,6 +18,7 @@ import { Permissions, type UserRole } from '@/lib/types/roles';
  * Принимает FormData с полями (все опциональные):
  * - name, license_plate, vin, model, year, status
  * - is_rental, rental_start_date, rental_end_date, rental_monthly_price
+ * - annual_tax_amount, tax_due_date
  * - photos: File[] (новые фотографии для добавления)
  */
 export async function PUT(
@@ -109,6 +110,10 @@ export async function PUT(
         : null,
       rental_start_date: formData.get('rental_start_date') as string || null,
       rental_end_date: formData.get('rental_end_date') as string || null,
+      annual_tax_amount: formData.get('annual_tax_amount')
+        ? parseFloat(formData.get('annual_tax_amount') as string)
+        : null,
+      tax_due_date: formData.get('tax_due_date') as string || null,
     };
 
     // Обработка vehicle_type_id - пустая строка означает сброс (NULL)

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/create-annual-taxes",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

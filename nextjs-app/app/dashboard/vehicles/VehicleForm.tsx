@@ -65,6 +65,9 @@ interface VehicleFormProps {
     rental_start_date: string | null;
     rental_end_date: string | null;
     rental_monthly_price: number | null;
+    annual_tax_amount: number | null;
+    tax_due_date: string | null;
+    last_tax_created_date: string | null;
     vehicle_type_id: string | null;
     organization_id: string | null;
   };
@@ -118,6 +121,9 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
       rental_start_date: vehicle?.rental_start_date || undefined,
       rental_end_date: vehicle?.rental_end_date || undefined,
       rental_monthly_price: vehicle?.rental_monthly_price || undefined,
+      annual_tax_amount: vehicle?.annual_tax_amount || undefined,
+      tax_due_date: vehicle?.tax_due_date || undefined,
+      last_tax_created_date: vehicle?.last_tax_created_date || undefined,
       organization_id: vehicle?.organization_id || undefined,
       vehicle_type_id: vehicle?.vehicle_type_id || undefined,
     },
@@ -153,6 +159,10 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     formData.append('rental_monthly_price', data.rental_monthly_price?.toString() || '');
     formData.append('rental_start_date', data.rental_start_date || '');
     formData.append('rental_end_date', data.rental_end_date || '');
+
+    // Добавляем налоговые поля
+    formData.append('annual_tax_amount', data.annual_tax_amount?.toString() || '');
+    formData.append('tax_due_date', data.tax_due_date || '');
 
     // Добавляем vehicle_type_id (пустая строка если не выбран для сброса значения)
     formData.append('vehicle_type_id', data.vehicle_type_id || '');
@@ -461,6 +471,59 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
                 <p className="text-sm text-red-600 mt-1">{errors.rental_monthly_price.message}</p>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Annual Tax Information */}
+      <div className="space-y-4 border-t pt-6">
+        <h2 className="text-lg font-semibold">💶 Налоговая информация</h2>
+        <p className="text-sm text-gray-600">
+          Если автомобиль облагается ежегодным налогом, укажите сумму и дату платежа.
+          Система автоматически создаст записи расходов каждый год.
+        </p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="annual_tax_amount">Ежегодный налог (€)</Label>
+            <Input
+              id="annual_tax_amount"
+              type="number"
+              step="0.01"
+              {...register('annual_tax_amount', { valueAsNumber: true })}
+              placeholder="0.00"
+              className={errors.annual_tax_amount ? 'border-red-500' : ''}
+            />
+            {errors.annual_tax_amount && (
+              <p className="text-sm text-red-600 mt-1">{errors.annual_tax_amount.message}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              Опционально. Сумма налога в год.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="tax_due_date">Дата платежа налога</Label>
+            <Input
+              id="tax_due_date"
+              type="date"
+              {...register('tax_due_date')}
+              className={errors.tax_due_date ? 'border-red-500' : ''}
+            />
+            {errors.tax_due_date && (
+              <p className="text-sm text-red-600 mt-1">{errors.tax_due_date.message}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              Дата, когда налог должен быть уплачен
+            </p>
+          </div>
+        </div>
+
+        {vehicle?.last_tax_created_date && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-900">
+              ℹ️ <strong>Последняя запись о налоге создана:</strong> {new Date(vehicle.last_tax_created_date).toLocaleDateString('ru-RU')}
+            </p>
           </div>
         )}
       </div>
