@@ -95,6 +95,10 @@ export function CarExpenseForm({ vehicles, currentUser, organizations = [] }: Ca
     : null;
 
   const onSubmit = async (data: CarExpenseFormData) => {
+    console.log('Form submitted with data:', data);
+    console.log('Current user:', currentUser);
+    console.log('Show org select:', showOrgSelect);
+
     // Validate odometer for fuel expenses
     if (data.category === 'fuel') {
       if (!data.liters || !data.odometer_reading) {
@@ -355,7 +359,11 @@ export function CarExpenseForm({ vehicles, currentUser, organizations = [] }: Ca
       </div>
 
       <div className="flex gap-4 pt-4">
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={loading}
+          onClick={() => console.log('Button clicked, form errors:', errors)}
+        >
           {loading ? 'Сохранение...' : '💾 Добавить расход'}
         </Button>
         <Link href="/dashboard/car-expenses">

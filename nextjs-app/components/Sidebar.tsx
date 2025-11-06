@@ -24,7 +24,6 @@ export default function Sidebar({ user }: SidebarProps) {
     { icon: '🚧', label: 'Штрафы', href: '/dashboard/penalties' },
     { icon: '🔧', label: 'Обслуживание', href: '/dashboard/maintenance' },
     { icon: '🚗💰', label: 'Расходы на авто', href: '/dashboard/car-expenses' },
-    { icon: '💵', label: 'Расходы', href: '/dashboard/expenses' },
     { icon: '📊', label: 'Аналитика', href: '/dashboard/analytics' },
     ...(userRole === 'owner' || userRole === 'admin' ? [{ icon: '🏢', label: 'Организации', href: '/dashboard/organizations' }] : []),
     { icon: '🏢', label: 'Управление аккаунтом', href: '/dashboard/account' },

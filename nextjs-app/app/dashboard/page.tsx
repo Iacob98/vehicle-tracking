@@ -264,13 +264,6 @@ export default async function DashboardPage() {
             <div className="text-3xl mb-2">💰</div>
             <p className="text-sm font-medium">Добавить штраф</p>
           </a>
-          <a
-            href="/dashboard/expenses"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-center"
-          >
-            <div className="text-3xl mb-2">💵</div>
-            <p className="text-sm font-medium">Добавить расход</p>
-          </a>
         </div>
       </div>
     </div>
