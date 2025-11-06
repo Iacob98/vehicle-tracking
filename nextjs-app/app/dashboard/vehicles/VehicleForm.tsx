@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -107,6 +107,7 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleSchema),
@@ -118,22 +119,49 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
       year: vehicle?.year || undefined,
       status: (vehicle?.status as any) || 'active',
       is_rental: vehicle?.is_rental || false,
-      rental_start_date: vehicle?.rental_start_date || undefined,
-      rental_end_date: vehicle?.rental_end_date || undefined,
-      rental_monthly_price: vehicle?.rental_monthly_price || undefined,
-      annual_tax_amount: vehicle?.annual_tax_amount || undefined,
-      tax_due_date: vehicle?.tax_due_date || undefined,
-      last_tax_created_date: vehicle?.last_tax_created_date || undefined,
+      rental_start_date: vehicle?.rental_start_date || '',
+      rental_end_date: vehicle?.rental_end_date || '',
+      rental_monthly_price: vehicle?.rental_monthly_price ?? undefined,
+      annual_tax_amount: vehicle?.annual_tax_amount ?? undefined,
+      tax_due_date: vehicle?.tax_due_date ?? '',
+      last_tax_created_date: vehicle?.last_tax_created_date ?? undefined,
       organization_id: vehicle?.organization_id || undefined,
       vehicle_type_id: vehicle?.vehicle_type_id || undefined,
     },
   });
+
+  // Update form when vehicle data changes (for edit mode)
+  useEffect(() => {
+    if (vehicle && isEdit) {
+      reset({
+        name: vehicle.name || '',
+        license_plate: vehicle.license_plate || '',
+        vin: vehicle.vin || '',
+        model: vehicle.model || '',
+        year: vehicle.year || undefined,
+        status: vehicle.status as any,
+        is_rental: vehicle.is_rental || false,
+        rental_start_date: vehicle.rental_start_date || '',
+        rental_end_date: vehicle.rental_end_date || '',
+        rental_monthly_price: vehicle.rental_monthly_price ?? undefined,
+        annual_tax_amount: vehicle.annual_tax_amount ?? undefined,
+        tax_due_date: vehicle.tax_due_date ?? '',
+        last_tax_created_date: vehicle.last_tax_created_date ?? undefined,
+        organization_id: vehicle.organization_id || undefined,
+        vehicle_type_id: vehicle.vehicle_type_id || undefined,
+      });
+    }
+  }, [vehicle, isEdit, reset]);
 
   // Watch is_rental to show/hide rental fields
   const isRental = watch('is_rental');
   const selectedStatus = watch('status');
   const selectedOrgId = watch('organization_id');
   const selectedVehicleTypeId = watch('vehicle_type_id');
+
+  // Watch tax fields (workaround: get values directly since Zod validation removes them)
+  const watchedTaxAmount = watch('annual_tax_amount');
+  const watchedTaxDate = watch('tax_due_date');
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -145,6 +173,10 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
   };
 
   const onSubmit = async (data: VehicleFormData) => {
+    // WORKAROUND: Get tax fields directly from watch() since they're not coming through validation
+    const taxAmount = watchedTaxAmount;
+    const taxDate = watchedTaxDate;
+
     // Подготовка FormData для отправки на сервер
     const formData = new FormData();
 
@@ -160,25 +192,16 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     formData.append('rental_start_date', data.rental_start_date || '');
     formData.append('rental_end_date', data.rental_end_date || '');
 
-    // Добавляем налоговые поля
-    formData.append('annual_tax_amount', data.annual_tax_amount?.toString() || '');
-    formData.append('tax_due_date', data.tax_due_date || '');
+    // Добавляем налоговые поля (используем watched values)
+    formData.append('annual_tax_amount', taxAmount?.toString() || '');
+    formData.append('tax_due_date', taxDate || '');
 
     // Добавляем vehicle_type_id (пустая строка если не выбран для сброса значения)
     formData.append('vehicle_type_id', data.vehicle_type_id || '');
 
-    // DEBUG: Логирование для отладки
-    console.log('VehicleForm Debug:', {
-      showOrgSelect,
-      currentUserOrgId: currentUser.organization_id,
-      dataOrgId: data.organization_id,
-      currentUserRole: currentUser.role,
-    });
-
     // Для Super Admin - добавляем выбранный organization_id
     if (showOrgSelect && data.organization_id) {
       formData.append('organization_id', data.organization_id);
-      console.log('Added org_id for SuperAdmin:', data.organization_id);
     }
 
     // Для обычных админов/менеджеров - добавляем их organization_id
@@ -302,7 +325,9 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
             <Input
               id="year"
               type="number"
-              {...register('year', { valueAsNumber: true })}
+              {...register('year', {
+                setValueAs: (v) => v === '' || v === null || v === undefined ? null : parseInt(v, 10)
+              })}
               placeholder="2020"
               className={errors.year ? 'border-red-500' : ''}
             />
@@ -463,7 +488,9 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
                 id="rental_monthly_price"
                 type="number"
                 step="0.01"
-                {...register('rental_monthly_price', { valueAsNumber: true })}
+                {...register('rental_monthly_price', {
+                  setValueAs: (v) => v === '' || v === null || v === undefined ? null : parseFloat(v)
+                })}
                 placeholder="0.00"
                 className={errors.rental_monthly_price ? 'border-red-500' : ''}
               />
@@ -490,7 +517,9 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
               id="annual_tax_amount"
               type="number"
               step="0.01"
-              {...register('annual_tax_amount', { valueAsNumber: true })}
+              {...register('annual_tax_amount', {
+                setValueAs: (v) => v === '' || v === null || v === undefined ? null : parseFloat(v)
+              })}
               placeholder="0.00"
               className={errors.annual_tax_amount ? 'border-red-500' : ''}
             />
