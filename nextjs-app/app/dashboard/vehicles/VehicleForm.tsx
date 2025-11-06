@@ -66,6 +66,7 @@ interface VehicleFormProps {
     rental_end_date: string | null;
     rental_monthly_price: number | null;
     vehicle_type_id: string | null;
+    organization_id: string | null;
   };
   isEdit?: boolean;
   currentUser: User;
@@ -117,7 +118,7 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
       rental_start_date: vehicle?.rental_start_date || undefined,
       rental_end_date: vehicle?.rental_end_date || undefined,
       rental_monthly_price: vehicle?.rental_monthly_price || undefined,
-      organization_id: undefined,
+      organization_id: vehicle?.organization_id || undefined,
       vehicle_type_id: vehicle?.vehicle_type_id || undefined,
     },
   });
