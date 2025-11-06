@@ -56,39 +56,9 @@ export async function PATCH(
     // Получаем данные для обновления
     const body = await request.json();
 
-    // Если это водитель, он может обновить только свой fuel_card_id
+    // Водители не могут редактировать данные пользователей
     if (userRole === 'driver') {
-      // Водитель может обновлять только свои данные
-      if (user!.id !== id) {
-        return apiForbidden('Водители могут редактировать только свой профиль');
-      }
-
-      // Водитель может обновить только fuel_card_id
-      const allowedFields = ['fuel_card_id'];
-      const updates: any = {};
-
-      for (const field of allowedFields) {
-        if (field in body) {
-          updates[field] = body[field];
-        }
-      }
-
-      if (Object.keys(updates).length === 0) {
-        return apiForbidden('Нет разрешенных полей для обновления');
-      }
-
-      const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) {
-        return apiErrorFromUnknown(error, { context: 'updating user fuel_card_id', id, orgId: targetUser.organization_id });
-      }
-
-      return apiSuccess({ user: data });
+      return apiForbidden('Водители не могут редактировать данные пользователей');
     }
 
     // Для админов/менеджеров - могут обновлять больше полей

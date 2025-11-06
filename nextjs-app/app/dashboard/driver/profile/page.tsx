@@ -1,6 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { FuelCardForm } from './FuelCardForm';
 import { DriverDocumentsView } from './DriverDocumentsView';
 
 export default async function DriverProfilePage() {
@@ -79,18 +78,28 @@ export default async function DriverProfilePage() {
         </h2>
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-2">
-            Привяжите номер вашей заправочной карты для более быстрой регистрации заправок.
+            Номер вашей заправочной карты для регистрации заправок.
           </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-sm text-blue-800">
-              💡 <strong>Совет:</strong> Номер карты обычно указан на лицевой стороне заправочной карты.
+              💡 <strong>Информация:</strong> Для изменения номера карты обратитесь к администратору или менеджеру.
             </p>
           </div>
         </div>
-        <FuelCardForm
-          userId={user.id}
-          currentFuelCardId={user.fuel_card_id || ''}
-        />
+        {user.fuel_card_id ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-600 mb-1">Номер карты:</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {user.fuel_card_id}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              ⚠️ Номер заправочной карты не указан. Обратитесь к администратору для привязки карты.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Мои документы */}
