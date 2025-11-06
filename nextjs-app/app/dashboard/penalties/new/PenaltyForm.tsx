@@ -94,9 +94,14 @@ export function PenaltyForm({ vehicles, users, currentUser, organizations = [] }
     formData.append('description', data.description || '');
     formData.append('status', data.status);
 
-    // Для Super Admin - добавляем organization_id
+    // Для Super Admin - добавляем выбранный organization_id
     if (showOrgSelect && data.organization_id) {
       formData.append('organization_id', data.organization_id);
+    }
+
+    // Для обычных админов/менеджеров - добавляем их organization_id
+    if (!showOrgSelect && currentUser.organization_id) {
+      formData.append('organization_id', currentUser.organization_id);
     }
 
     // Добавляем фото если выбрано

@@ -118,6 +118,11 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
       submitData.organization_id = null;
     }
 
+    // Для обычных админов/менеджеров - добавляем их organization_id
+    if (!showOrgSelect && currentUser.organization_id) {
+      submitData.organization_id = currentUser.organization_id;
+    }
+
     await post(submitData);
   };
 

@@ -81,9 +81,14 @@ export function TeamForm({ users, currentUser, organizations = [] }: TeamFormPro
       name: data.name,
     };
 
-    // Для Super Admin - добавляем organization_id
+    // Для Super Admin - добавляем выбранный organization_id
     if (showOrgSelect && data.organization_id) {
       submitData.organization_id = data.organization_id;
+    }
+
+    // Для обычных админов/менеджеров - добавляем их organization_id
+    if (!showOrgSelect && currentUser.organization_id) {
+      submitData.organization_id = currentUser.organization_id;
     }
 
     await post(submitData);

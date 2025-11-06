@@ -127,9 +127,14 @@ export function CarExpenseForm({ vehicles, currentUser, organizations = [] }: Ca
       }
     }
 
-    // Для Super Admin - добавляем organization_id
+    // Для Super Admin - добавляем выбранный organization_id
     if (showOrgSelect && data.organization_id) {
       formData.append('organization_id', data.organization_id);
+    }
+
+    // Для обычных админов/менеджеров - добавляем их organization_id
+    if (!showOrgSelect && currentUser.organization_id) {
+      formData.append('organization_id', currentUser.organization_id);
     }
 
     // Добавляем фото чеков если выбраны (поддержка множественных фото)
