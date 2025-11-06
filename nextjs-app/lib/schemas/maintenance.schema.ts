@@ -32,6 +32,11 @@ export const maintenanceSchema = z.object({
     .max(1000, 'Описание слишком длинное (максимум 1000 символов)')
     .nullable()
     .optional(),
+
+  organization_id: z
+    .string()
+    .uuid('Некорректный ID организации')
+    .optional(),
 });
 
 // Type inference

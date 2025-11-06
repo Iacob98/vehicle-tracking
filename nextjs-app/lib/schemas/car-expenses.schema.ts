@@ -20,6 +20,7 @@ export const carExpenseCategorySchema = z.enum([
   'parking',
   'toll',
   'wash',
+  'rental',
   'other',
 ]);
 
@@ -111,5 +112,6 @@ export const CAR_EXPENSE_CATEGORY_OPTIONS = [
   { value: 'parking', label: '🅿️ Парковка / Parken' },
   { value: 'toll', label: '🛣️ Платные дороги / Maut' },
   { value: 'wash', label: '💧 Мойка / Autowäsche' },
+  { value: 'rental', label: '🏢 Аренда / Miete' },
   { value: 'other', label: '📦 Прочее / Sonstiges' },
 ] as const;
