@@ -84,24 +84,32 @@ export const vehicleSchema = z
       .optional(),
 
     // Annual tax fields
-    annual_tax_amount: z
-      .number()
-      .positive('Сумма налога должна быть положительной')
-      .max(999999.99, 'Сумма налога слишком большая')
-      .nullable()
-      .optional(),
+    annual_tax_amount: z.preprocess(
+      (val) => {
+        // Convert empty string or NaN to undefined
+        if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+          return undefined;
+        }
+        return val;
+      },
+      z
+        .number()
+        .positive('Сумма налога должна быть положительной')
+        .max(999999.99, 'Сумма налога слишком большая')
+        .optional()
+    ),
 
     tax_due_date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
-      .nullable()
-      .optional(),
+      .optional()
+      .or(z.literal('')),
 
     last_tax_created_date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
-      .nullable()
-      .optional(),
+      .optional()
+      .or(z.literal('')),
 
     vehicle_type_id: z
       .string()
