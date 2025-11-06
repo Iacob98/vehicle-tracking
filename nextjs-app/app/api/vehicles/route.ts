@@ -61,7 +61,17 @@ export async function POST(request: Request) {
     // Получаем контекст пользователя и определяем organization_id для создания
     const userContext = getUserQueryContext(user);
     const targetOrgId = formData.get('organization_id') as string | null;
+
+    // DEBUG: Логирование для отладки
+    console.log('POST /api/vehicles Debug:', {
+      userRole: user!.user_metadata?.role,
+      userOrgId: user!.user_metadata?.organization_id,
+      targetOrgId,
+      userContext,
+    });
+
     const finalOrgId = getOrgIdForCreate(userContext, targetOrgId);
+    console.log('finalOrgId from getOrgIdForCreate:', finalOrgId);
 
     // Owner должен явно указать organization_id
     if (!finalOrgId) {

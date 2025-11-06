@@ -156,14 +156,24 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     // Добавляем vehicle_type_id (пустая строка если не выбран для сброса значения)
     formData.append('vehicle_type_id', data.vehicle_type_id || '');
 
+    // DEBUG: Логирование для отладки
+    console.log('VehicleForm Debug:', {
+      showOrgSelect,
+      currentUserOrgId: currentUser.organization_id,
+      dataOrgId: data.organization_id,
+      currentUserRole: currentUser.role,
+    });
+
     // Для Super Admin - добавляем выбранный organization_id
     if (showOrgSelect && data.organization_id) {
       formData.append('organization_id', data.organization_id);
+      console.log('Added org_id for SuperAdmin:', data.organization_id);
     }
 
     // Для обычных админов/менеджеров - добавляем их organization_id
     if (!showOrgSelect && currentUser.organization_id) {
       formData.append('organization_id', currentUser.organization_id);
+      console.log('Added org_id for regular admin:', currentUser.organization_id);
     }
 
     // Добавляем фотографии

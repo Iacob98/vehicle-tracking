@@ -95,7 +95,7 @@ export async function PUT(
     }
 
     // Подготовка данных для обновления
-    const updateData = {
+    const updateData: any = {
       name,
       license_plate: licensePlate,
       vin: formData.get('vin') as string || null,
@@ -109,8 +109,23 @@ export async function PUT(
         : null,
       rental_start_date: formData.get('rental_start_date') as string || null,
       rental_end_date: formData.get('rental_end_date') as string || null,
-      vehicle_type_id: formData.get('vehicle_type_id') as string || null,
     };
+
+    // Обработка vehicle_type_id - пустая строка означает сброс (NULL)
+    const vehicleTypeId = formData.get('vehicle_type_id') as string;
+    if (vehicleTypeId === '') {
+      updateData.vehicle_type_id = null;
+    } else if (vehicleTypeId) {
+      updateData.vehicle_type_id = vehicleTypeId;
+    }
+
+    // Для Super Admin - разрешаем изменение organization_id
+    if (isSuperAdmin) {
+      const targetOrgId = formData.get('organization_id') as string | null;
+      if (targetOrgId) {
+        updateData.organization_id = targetOrgId;
+      }
+    }
 
     // Обновление в базе данных
     const { data: vehicle, error } = await supabase
