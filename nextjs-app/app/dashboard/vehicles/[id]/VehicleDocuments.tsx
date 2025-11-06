@@ -72,12 +72,17 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('list');
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading: addLoading, error: addError, post } = usePostFormData('/api/vehicle-documents', {
     onSuccess: (data) => {
       setDocuments([...documents, data.document]);
       setDocumentFiles([]);
+      setActiveTab('list'); // Переключаемся на вкладку со списком документов
+      setShowSuccessMessage(true);
+      setTimeout(() => setShowSuccessMessage(false), 5000); // Скрыть через 5 секунд
       router.refresh();
     },
   });
@@ -130,8 +135,9 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
 
     const formData = new FormData(e.currentTarget);
 
-    // Add vehicle_id and files to formData
+    // Add vehicle_id, organization_id and files to formData
     formData.append('vehicle_id', vehicle.id);
+    formData.append('organization_id', vehicle.organization_id);
 
     // Add all document files
     documentFiles.forEach((file) => {
@@ -178,6 +184,25 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
       {/* Показываем ошибки добавления и удаления */}
       {addError && <ErrorAlert error={addError} />}
       {deleteError && <ErrorAlert error={deleteError} />}
+
+      {/* Success message */}
+      {showSuccessMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+          <div className="text-green-600 text-xl">✅</div>
+          <div className="flex-1">
+            <p className="font-semibold text-green-900">Документ успешно добавлен!</p>
+            <p className="text-sm text-green-700 mt-1">
+              Документ сохранен и отображается в списке ниже.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowSuccessMessage(false)}
+            className="text-green-600 hover:text-green-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Breadcrumbs */}
       <Breadcrumbs
@@ -299,7 +324,7 @@ export function VehicleDocuments({ vehicle, initialDocuments }: VehicleDocuments
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="list" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="list">📄 Документы списком</TabsTrigger>
           <TabsTrigger value="add">➕ Добавить документ</TabsTrigger>

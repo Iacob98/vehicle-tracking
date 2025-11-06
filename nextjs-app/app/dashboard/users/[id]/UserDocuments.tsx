@@ -30,6 +30,7 @@ interface Document {
 interface UserDocumentsProps {
   userId: string;
   userName: string;
+  organizationId: string;
   initialDocuments: Document[];
 }
 
@@ -42,7 +43,7 @@ const DOCUMENT_TYPES = {
   insurance: { name: '🛡️ Страховка / Versicherung', value: 'insurance' },
 };
 
-export default function UserDocuments({ userId, userName, initialDocuments }: UserDocumentsProps) {
+export default function UserDocuments({ userId, userName, organizationId, initialDocuments }: UserDocumentsProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -50,6 +51,7 @@ export default function UserDocuments({ userId, userName, initialDocuments }: Us
   const [viewingDoc, setViewingDoc] = useState<{ url: string; name: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading: addLoading, error: addError, post } = usePostFormData('/api/user-documents', {
@@ -57,6 +59,8 @@ export default function UserDocuments({ userId, userName, initialDocuments }: Us
       setDocuments([data.document, ...documents]);
       setFile(null);
       setShowAddForm(false);
+      setShowSuccessMessage(true);
+      setTimeout(() => setShowSuccessMessage(false), 5000);
       router.refresh();
     },
   });
@@ -78,6 +82,7 @@ export default function UserDocuments({ userId, userName, initialDocuments }: Us
 
     const formData = new FormData(e.currentTarget);
     formData.append('user_id', userId);
+    formData.append('organization_id', organizationId);
 
     if (file) {
       formData.append('file', file);
@@ -132,6 +137,25 @@ export default function UserDocuments({ userId, userName, initialDocuments }: Us
       {/* Показываем ошибки добавления и удаления */}
       {addError && <ErrorAlert error={addError} />}
       {deleteError && <ErrorAlert error={deleteError} />}
+
+      {/* Success message */}
+      {showSuccessMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+          <div className="text-green-600 text-xl">✅</div>
+          <div className="flex-1">
+            <p className="font-semibold text-green-900">Документ успешно добавлен!</p>
+            <p className="text-sm text-green-700 mt-1">
+              Документ сохранен и отображается в списке ниже.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowSuccessMessage(false)}
+            className="text-green-600 hover:text-green-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">📄 Документы пользователя</h2>

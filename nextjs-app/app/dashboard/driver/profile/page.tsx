@@ -12,7 +12,10 @@ export default async function DriverProfilePage() {
 
   const { data: user } = await supabase
     .from('users')
-    .select('*, organizations(*)')
+    .select(`
+      *,
+      organization:organizations(id, name)
+    `)
     .eq('id', authUser.id)
     .single();
 
@@ -65,7 +68,7 @@ export default async function DriverProfilePage() {
           <div>
             <p className="text-sm text-gray-500">Организация</p>
             <p className="text-base font-medium text-gray-900">
-              {user.organizations?.name || 'Не указана'}
+              {user.organization?.name || 'Не указана'}
             </p>
           </div>
         </div>

@@ -107,6 +107,7 @@ export default async function UserDetailPage({ params }: PageProps) {
           <UserDocuments
             userId={id}
             userName={`${user.first_name} ${user.last_name}`}
+            organizationId={user.organization_id}
             initialDocuments={documents || []}
           />
         </TabsContent>
