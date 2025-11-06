@@ -28,6 +28,7 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 interface VehicleAssignmentsProps {
   vehicleId: string;
   vehicleName: string;
+  organizationId: string;
   teams: Array<{
     id: string;
     name: string;
@@ -46,6 +47,7 @@ interface VehicleAssignmentsProps {
 export function VehicleAssignments({
   vehicleId,
   vehicleName,
+  organizationId,
   teams,
   initialAssignments,
 }: VehicleAssignmentsProps) {
@@ -83,6 +85,7 @@ export function VehicleAssignments({
       team_id: formData.get('team_id') as string,
       start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string || null,
+      organization_id: organizationId,
     });
   };
 

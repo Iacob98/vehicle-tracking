@@ -67,6 +67,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
       <VehicleAssignments
         vehicleId={id}
         vehicleName={`${vehicle.license_plate} (${vehicle.model || vehicle.name})`}
+        organizationId={vehicle.organization_id}
         teams={teams || []}
         initialAssignments={assignments || []}
       />
