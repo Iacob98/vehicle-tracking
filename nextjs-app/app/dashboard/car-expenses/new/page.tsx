@@ -46,7 +46,7 @@ export default async function NewCarExpensePage() {
   );
 
   // Загружаем организации только для Super Admin
-  let organizations = [];
+  let organizations: Array<{ id: string; name: string }> = [];
   if (isSuperAdminUser) {
     const { data } = await supabase
       .from('organizations')

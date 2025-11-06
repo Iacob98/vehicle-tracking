@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostFormData } from '@/lib/api-client';
 import Link from 'next/link';
-import { carExpenseSchema, CAR_EXPENSE_CATEGORY_OPTIONS, type CarExpenseFormData } from '@/lib/schemas';
+import { carExpenseSchema, CAR_EXPENSE_CATEGORY_OPTIONS, type CarExpenseFormData } from '@/lib/schemas/car-expenses.schema';
 import { OrganizationSelect } from '@/components/OrganizationSelect';
 
 // User type definition (client-safe)
@@ -156,7 +156,7 @@ export function CarExpenseForm({ vehicles, currentUser, organizations = [] }: Ca
           <h2 className="text-lg font-semibold">🏢 Организация</h2>
           <OrganizationSelect
             organizations={organizations}
-            value={selectedOrgId}
+            value={selectedOrgId || undefined}
             onValueChange={(value) => setValue('organization_id', value)}
             error={errors.organization_id?.message}
             required={true}

@@ -95,7 +95,7 @@ export default async function DriverDashboardPage() {
 
       {/* Уведомления об аномалиях для водителя */}
       {driverAnomalies.length > 0 && (
-        <DriverAnomalyBanner anomalies={driverAnomalies} vehicleName={vehicleName} />
+        <DriverAnomalyBanner anomalyCount={driverAnomalies.length} />
       )}
 
       {/* Карточки быстрых действий */}

@@ -63,7 +63,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
 
     if (!result.success) {
       const errors: Record<string, string> = {};
-      result.error?.errors?.forEach((err) => {
+      result.error?.issues?.forEach((err) => {
         const field = err.path.join('.');
         errors[field] = err.message;
       });
@@ -89,7 +89,7 @@ export function OrganizationForm({ organization }: OrganizationFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6 bg-white border rounded-lg p-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
+          {error.message}
         </div>
       )}
 

@@ -8,7 +8,7 @@ export default async function NewVehiclePage() {
   const supabase = await createServerClient();
 
   // Загружаем организации только для Super Admin
-  let organizations = [];
+  let organizations: Array<{ id: string; name: string }> = [];
   if (isSuperAdminUser) {
     const { data } = await supabase
       .from('organizations')

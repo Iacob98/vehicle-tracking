@@ -26,7 +26,7 @@ export default async function NewMaintenancePage() {
   const { data: vehicles } = await vehiclesQuery;
 
   // Загружаем организации только для Super Admin
-  let organizations = [];
+  let organizations: Array<{ id: string; name: string }> = [];
   if (isSuperAdminUser) {
     const { data } = await supabase
       .from('organizations')
