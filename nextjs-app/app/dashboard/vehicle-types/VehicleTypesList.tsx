@@ -25,7 +25,7 @@ export function VehicleTypesList({ vehicleTypes }: VehicleTypesListProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const { loading: deleting, error: deleteError, del } = useDeleteJSON('', {
+  const { loading: deleting, error: deleteError, del } = useDeleteJSON('/api/vehicle-types', {
     onSuccess: () => {
       setDeletingId(null);
       router.refresh();
@@ -33,12 +33,12 @@ export function VehicleTypesList({ vehicleTypes }: VehicleTypesListProps) {
   });
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Вы уверены, что хотите удалить тип "${name}"?\n\nВнимание: Удаление невозможно, если этот тип используется в транспортных средствах.`)) {
+    if (!confirm(`Вы уверены, что хотите удалить тип "${name}"?\n\nВнимание: Если этот тип используется в автомобилях, у них будет сброшен тип (установлен в "Не выбран").`)) {
       return;
     }
 
     setDeletingId(id);
-    await del(`/api/vehicle-types/${id}`);
+    await del(id);
   };
 
   return (
@@ -127,7 +127,7 @@ export function VehicleTypesList({ vehicleTypes }: VehicleTypesListProps) {
           <li>• Расход топлива используется для расчета ожидаемого потребления</li>
           <li>• Система обнаружит аномалии, если фактический расход превышает ожидаемый более чем на 15%</li>
           <li>• Емкость бака проверяется при заправке (необязательное поле)</li>
-          <li>• Удаление типа возможно только если он не используется в транспортных средствах</li>
+          <li>• При удалении типа у всех автомобилей с этим типом он будет сброшен (установлен в NULL)</li>
         </ul>
       </div>
     </div>

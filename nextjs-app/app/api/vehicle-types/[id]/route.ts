@@ -165,12 +165,11 @@ export async function DELETE(
 
     const { id } = params;
 
-    // Check if any vehicles are using this type
+    // Проверяем сколько автомобилей используют этот тип (для информации)
     const { data: vehicles, error: vehiclesError } = await supabase
       .from('vehicles')
-      .select('id, name')
-      .eq('vehicle_type_id', id)
-      .limit(1);
+      .select('id')
+      .eq('vehicle_type_id', id);
 
     if (vehiclesError) {
       return apiErrorFromUnknown(vehiclesError, {
@@ -178,14 +177,11 @@ export async function DELETE(
       });
     }
 
-    if (vehicles && vehicles.length > 0) {
-      return apiBadRequest(
-        'Невозможно удалить тип автомобиля, так как он используется в транспортных средствах. ' +
-        'Сначала измените тип у всех автомобилей.'
-      );
-    }
+    const vehiclesCount = vehicles?.length || 0;
 
     // Delete vehicle type
+    // Note: ON DELETE SET NULL constraint will automatically set vehicle_type_id to NULL
+    // for all vehicles that were using this type
     const { error } = await supabase
       .from('vehicle_types')
       .delete()
@@ -198,7 +194,11 @@ export async function DELETE(
       });
     }
 
-    return apiSuccess({ message: 'Тип автомобиля успешно удален' });
+    const message = vehiclesCount > 0
+      ? `Тип автомобиля успешно удален. У ${vehiclesCount} автомобилей тип был сброшен.`
+      : 'Тип автомобиля успешно удален';
+
+    return apiSuccess({ message, affectedVehicles: vehiclesCount });
   } catch (error: any) {
     return apiErrorFromUnknown(error, { context: 'DELETE /api/vehicle-types/:id' });
   }

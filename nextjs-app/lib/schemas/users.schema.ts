@@ -10,8 +10,8 @@ import { z } from 'zod';
  * - role: admin | manager | driver | viewer (simplified from migration 008)
  */
 
-// Упрощенные роли (migration 008)
-export const userRoleSchema = z.enum(['admin', 'manager', 'driver', 'viewer']);
+// Роли пользователей
+export const userRoleSchema = z.enum(['owner', 'admin', 'manager', 'driver', 'viewer']);
 
 export const userSchema = z.object({
   email: z

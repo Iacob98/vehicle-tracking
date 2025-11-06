@@ -86,13 +86,19 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
   const selectedOrgId = watch('organization_id');
 
   const onSubmit = async (data: CreateUserFormData) => {
-    // Для Super Admin проверяем обязательность organization_id
+    // Для Super Admin:
+    // - owner/admin БЕЗ organization_id = супер-админ (может видеть все организации)
+    // - manager/viewer/driver ТРЕБУЮТ organization_id
     if (showOrgSelect && !data.organization_id) {
-      setError('organization_id', {
-        type: 'manual',
-        message: 'Organization ID обязателен для создания пользователя',
-      });
-      return;
+      // Проверяем, что для ролей кроме owner/admin требуется организация
+      if (data.role !== 'owner' && data.role !== 'admin') {
+        setError('organization_id', {
+          type: 'manual',
+          message: 'Организация обязательна для ролей manager, viewer и driver',
+        });
+        return;
+      }
+      // Для owner/admin без организации - это нормально (супер-админ)
     }
 
     const submitData: any = {
@@ -104,9 +110,12 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
       phone: data.phone || null,
     };
 
-    // Для Super Admin - добавляем organization_id
+    // Для Super Admin - добавляем organization_id если он выбран
     if (showOrgSelect && data.organization_id) {
       submitData.organization_id = data.organization_id;
+    } else if (showOrgSelect && !data.organization_id) {
+      // Явно устанавливаем NULL для супер-админа
+      submitData.organization_id = null;
     }
 
     await post(submitData);
@@ -132,10 +141,10 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
               value={selectedOrgId}
               onValueChange={(value) => setValue('organization_id', value)}
               error={errors.organization_id?.message}
-              required={true}
+              required={false}
             />
             <p className="text-sm text-gray-500">
-              Выберите организацию, для которой создаётся пользователь
+              Выберите организацию для пользователя. Оставьте пустым для создания супер-админа (owner/admin с доступом ко всем организациям)
             </p>
           </div>
         )}

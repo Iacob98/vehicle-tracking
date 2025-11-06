@@ -60,9 +60,14 @@ export async function POST(request: Request) {
     const userContext = getUserQueryContext(user);
     const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
 
-    // Owner должен явно указать organization_id
+    // Owner может создавать супер-админов БЕЗ organization_id (только для owner/admin ролей)
+    // Для остальных ролей (manager/driver/viewer) organization_id обязателен
     if (!finalOrgId) {
-      return apiBadRequest('Organization ID обязателен для создания пользователя');
+      // Для owner/admin разрешаем NULL organization_id (супер-админ)
+      if (role !== 'owner' && role !== 'admin') {
+        return apiBadRequest('Organization ID обязателен для ролей manager, driver и viewer');
+      }
+      // Для owner/admin без organization_id - это нормально (супер-админ)
     }
 
     // Создаем Supabase Admin client для создания пользователя в auth.users
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
         first_name,
         last_name,
         role: role || 'viewer',
-        organization_id: finalOrgId,
+        organization_id: finalOrgId || null, // Явно устанавливаем null для супер-админа
         phone: phone || null,
       }
     });
