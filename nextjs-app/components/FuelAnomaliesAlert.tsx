@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, User, Car, Fuel, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { usePutJSON } from '@/lib/api-client';
 
 interface FuelAnomaly {
   id: string;
@@ -34,18 +33,14 @@ export function FuelAnomaliesAlert({ anomalies, userRole }: FuelAnomaliesAlertPr
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
-
-  const { loading, error, put } = usePutJSON('', {
-    onSuccess: () => {
-      setMarkingId(null);
-      router.refresh();
-    },
-  });
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const uncheckedAnomalies = anomalies.filter(a => !a.anomaly_checked_by);
   const checkedAnomalies = anomalies.filter(a => a.anomaly_checked_by);
 
-  if (anomalies.length === 0) {
+  // Если нет непроверенных аномалий, скрываем alert
+  if (uncheckedAnomalies.length === 0) {
     return null;
   }
 
@@ -55,7 +50,31 @@ export function FuelAnomaliesAlert({ anomalies, userRole }: FuelAnomaliesAlertPr
     if (!canMarkAsChecked) return;
 
     setMarkingId(anomalyId);
-    await put(`/api/car-expenses/${anomalyId}/check-anomaly`, {});
+    setApiError(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/car-expenses/${anomalyId}/check-anomaly`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Не удалось отметить аномалию как проверенную');
+      }
+
+      setMarkingId(null);
+      router.refresh();
+    } catch (error: any) {
+      setApiError(error.message || 'Произошла ошибка');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -222,9 +241,9 @@ export function FuelAnomaliesAlert({ anomalies, userRole }: FuelAnomaliesAlertPr
             </div>
           )}
 
-          {error && (
+          {apiError && (
             <div className="bg-red-100 border border-red-300 rounded p-3 text-sm text-red-800">
-              Ошибка: {error}
+              Ошибка: {apiError}
             </div>
           )}
 

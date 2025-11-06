@@ -17,7 +17,7 @@ import { updateVehicleTypeSchema } from '@/lib/schemas/vehicle-types.schema';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -27,7 +27,7 @@ export async function GET(
     const authError = checkAuthentication(user);
     if (authError) return authError;
 
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch vehicle type
     const { data: vehicleType, error } = await supabase
@@ -53,7 +53,7 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -73,7 +73,7 @@ export async function PUT(
       return apiForbidden('У вас нет прав на изменение типов автомобилей');
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get existing vehicle type
     const { data: existing, error: fetchError } = await supabase
@@ -94,7 +94,7 @@ export async function PUT(
 
     if (!validation.success) {
       return apiBadRequest(
-        validation.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
+        validation.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
     }
 
@@ -143,7 +143,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -163,7 +163,7 @@ export async function DELETE(
       return apiForbidden('У вас нет прав на удаление типов автомобилей');
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Проверяем сколько автомобилей используют этот тип (для информации)
     const { data: vehicles, error: vehiclesError } = await supabase

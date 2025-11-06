@@ -96,6 +96,30 @@ export default async function AnalyticsPage() {
     stats: driverFuelStats.get(d.id)
   })).sort((a, b) => (b.stats?.totalAmount || 0) - (a.stats?.totalAmount || 0));
 
+  // Calculate rental statistics
+  const rentalExpenses = carExpenses?.filter(e => e.category === 'rental') || [];
+  const totalRentalExpenses = rentalExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+  // Group rental expenses by date (month)
+  const rentalByMonth = new Map<string, number>();
+  rentalExpenses.forEach(expense => {
+    const month = expense.date.substring(0, 7); // YYYY-MM
+    rentalByMonth.set(month, (rentalByMonth.get(month) || 0) + parseFloat(expense.amount || 0));
+  });
+
+  // Get rental vehicles info
+  let rentalVehiclesQuery = supabase
+    .from('vehicles')
+    .select('id, name, license_plate, rental_monthly_price, rental_start_date, rental_end_date, is_rental')
+    .eq('is_rental', true);
+  rentalVehiclesQuery = applyOrgFilter(rentalVehiclesQuery, userContext);
+  const { data: rentalVehicles } = await rentalVehiclesQuery;
+
+  const totalMonthlyRentalCost = rentalVehicles?.reduce(
+    (sum, v) => sum + (v.rental_monthly_price || 0),
+    0
+  ) || 0;
+
   return (
     <div className="space-y-6">
       <div>
@@ -212,6 +236,77 @@ export default async function AnalyticsPage() {
           <p className="text-gray-500">Нет данных по расходам водителей на топливо</p>
         )}
       </div>
+
+      {/* Rental Analytics Section */}
+      {rentalVehicles && rentalVehicles.length > 0 && (
+        <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">🏢 Аналитика аренды / Mietanalyse</h2>
+            <a
+              href="/dashboard/rental-analytics"
+              className="text-sm text-purple-600 hover:text-purple-700 font-medium hover:underline"
+            >
+              Подробнее →
+            </a>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600">Арендованных авто</p>
+              <p className="text-2xl font-bold text-purple-600">{rentalVehicles.length}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600">Плановый расход/мес</p>
+              <p className="text-2xl font-bold text-blue-600">€{totalMonthlyRentalCost.toFixed(2)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600">Всего расходов на аренду</p>
+              <p className="text-2xl font-bold text-green-600">€{totalRentalExpenses.toFixed(2)}</p>
+            </div>
+          </div>
+
+          {rentalByMonth.size > 0 && (
+            <div className="bg-white rounded-lg p-4">
+              <h3 className="font-semibold mb-3">Расходы на аренду по месяцам</h3>
+              <div className="space-y-2">
+                {Array.from(rentalByMonth.entries())
+                  .sort((a, b) => b[0].localeCompare(a[0]))
+                  .slice(0, 6)
+                  .map(([month, amount]) => (
+                    <div key={month} className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">{month}</span>
+                      <span className="font-semibold">€{amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {rentalVehicles.length > 0 && (
+            <div className="bg-white rounded-lg p-4 mt-4">
+              <h3 className="font-semibold mb-3">Арендованные автомобили</h3>
+              <div className="space-y-2">
+                {rentalVehicles.slice(0, 5).map(vehicle => (
+                  <div key={vehicle.id} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="font-medium">{vehicle.name}</span>
+                      <span className="text-gray-600 ml-2">({vehicle.license_plate})</span>
+                    </div>
+                    <span className="text-purple-600 font-semibold">
+                      €{vehicle.rental_monthly_price?.toFixed(2) || '0.00'}/мес
+                    </span>
+                  </div>
+                ))}
+                {rentalVehicles.length > 5 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    ...и еще {rentalVehicles.length - 5} автомобилей
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

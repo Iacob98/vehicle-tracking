@@ -15,7 +15,7 @@ import { type UserRole } from '@/lib/types/roles';
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -31,7 +31,7 @@ export async function PUT(
       return apiForbidden('У вас нет прав на проверку аномалий');
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get existing car expense
     const { data: existing, error: fetchError } = await supabase

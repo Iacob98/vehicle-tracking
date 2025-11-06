@@ -12,29 +12,46 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { ErrorType } from '@/lib/errors';
 import Link from 'next/link';
 
-// Zod schema для заправки
-const refuelSchema = z.object({
+// Создаем функцию для создания схемы с динамической валидацией одометра
+const createRefuelSchema = (minOdometer: number | null) => z.object({
   date: z.string().min(1, 'Дата обязательна'),
   amount: z
     .number()
     .positive('Сумма должна быть положительной')
     .max(999999.99, 'Сумма слишком большая'),
+  liters: z
+    .number()
+    .positive('Количество литров должно быть положительным')
+    .max(999.99, 'Количество литров слишком большое'),
   odometer: z
     .string()
     .min(1, 'Показания одометра обязательны')
-    .regex(/^\d+$/, 'Введите только цифры'),
+    .regex(/^\d+$/, 'Введите только цифры')
+    .refine(
+      (val) => {
+        if (minOdometer === null) return true;
+        const numVal = parseInt(val);
+        return numVal > minOdometer;
+      },
+      {
+        message: minOdometer !== null
+          ? `Показания одометра должны быть больше ${minOdometer} км`
+          : 'Введите корректные показания',
+      }
+    ),
   description: z.string().max(500, 'Описание слишком длинное').optional(),
 });
 
-type RefuelFormData = z.infer<typeof refuelSchema>;
+type RefuelFormData = z.infer<ReturnType<typeof createRefuelSchema>>;
 
 interface RefuelFormProps {
   vehicleId: string;
   vehicleName: string;
   fuelCardId: string | null;
+  lastOdometerReading: number | null;
 }
 
-export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormProps) {
+export function RefuelForm({ vehicleId, vehicleName, fuelCardId, lastOdometerReading }: RefuelFormProps) {
   const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,9 +64,10 @@ export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormPro
     handleSubmit,
     formState: { errors },
   } = useForm<RefuelFormData>({
-    resolver: zodResolver(refuelSchema),
+    resolver: zodResolver(createRefuelSchema(lastOdometerReading)),
     defaultValues: {
       date: new Date().toISOString().split('T')[0],
+      odometer: lastOdometerReading !== null ? lastOdometerReading.toString() : '',
     },
   });
 
@@ -81,8 +99,10 @@ export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormPro
       formData.append('vehicle_id', vehicleId);
       formData.append('category', 'fuel');
       formData.append('amount', data.amount.toString());
+      formData.append('liters', data.liters.toString());
+      formData.append('odometer_reading', data.odometer);
       formData.append('date', data.date);
-      formData.append('description', `Одометр: ${data.odometer} км${data.description ? `. ${data.description}` : ''}`);
+      formData.append('description', data.description || '');
       formData.append('receipt', selectedFile);
       if (fuelCardId) {
         formData.append('fuel_card_id', fuelCardId);
@@ -186,13 +206,42 @@ export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormPro
           )}
         </div>
 
+        {/* Литры */}
+        <div>
+          <Label htmlFor="liters">⛽ Количество литров *</Label>
+          <Input
+            id="liters"
+            type="number"
+            step="0.01"
+            placeholder="35.50"
+            {...register('liters', { valueAsNumber: true })}
+            className="mt-1"
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            Введите количество заправленных литров топлива
+          </p>
+          {errors.liters && (
+            <p className="text-red-500 text-sm mt-1">{errors.liters.message}</p>
+          )}
+        </div>
+
         {/* Показания одометра */}
         <div>
           <Label htmlFor="odometer">📊 Показания одометра (км) *</Label>
+          {lastOdometerReading !== null && (
+            <div className="mb-2 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+              <p className="text-sm text-blue-900">
+                ℹ️ Последнее показание: <span className="font-bold">{lastOdometerReading} км</span>
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                Новое значение должно быть больше {lastOdometerReading} км
+              </p>
+            </div>
+          )}
           <Input
             id="odometer"
             type="text"
-            placeholder="45320"
+            placeholder={lastOdometerReading !== null ? `> ${lastOdometerReading}` : "45320"}
             {...register('odometer')}
             className="mt-1"
           />
@@ -294,6 +343,7 @@ export function RefuelForm({ vehicleId, vehicleName, fuelCardId }: RefuelFormPro
             <ul className="mt-2 space-y-1 list-disc list-inside">
               <li>Укажите дату заправки</li>
               <li>Введите сумму расхода в евро</li>
+              <li>Введите количество литров топлива</li>
               <li>Введите показания одометра (пробег)</li>
               <li>Обязательно загрузите фото чека</li>
             </ul>

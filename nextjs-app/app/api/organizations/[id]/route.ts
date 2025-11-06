@@ -19,7 +19,7 @@ import { updateOrganizationSchema } from '@/lib/schemas/organizations.schema';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -33,12 +33,17 @@ export async function GET(
       return apiForbidden('User not authenticated');
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Проверяем является ли пользователь super admin
     const userForCheck = {
+      id: user.id,
+      email: user.email!,
+      first_name: user.user_metadata?.first_name || '',
+      last_name: user.user_metadata?.last_name || '',
       role: user.user_metadata?.role || 'viewer',
-      organization_id: user.user_metadata?.organization_id || null
+      organization_id: user.user_metadata?.organization_id || null,
+      phone: user.user_metadata?.phone || null
     };
 
     // Super admin может получить любую организацию
@@ -90,7 +95,7 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -104,7 +109,7 @@ export async function PUT(
       return apiForbidden('User not authenticated');
     }
 
-    const { id } = params;
+    const { id } = await params;
     const userRole = (user.user_metadata?.role || 'viewer') as UserRole;
 
     // Проверка прав - owner или admin
@@ -138,13 +143,10 @@ export async function PUT(
     const validationResult = updateOrganizationSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return apiBadRequest(
-        'Ошибка валидации',
-        validationResult.error.errors.map((e) => ({
-          field: e.path.join('.'),
-          message: e.message,
-        }))
-      );
+      const errorMessages = validationResult.error.issues
+        .map((e) => `${e.path.join('.')}: ${e.message}`)
+        .join(', ');
+      return apiBadRequest(errorMessages);
     }
 
     const updateData = validationResult.data;
@@ -164,7 +166,7 @@ export async function PUT(
       });
     }
 
-    return apiSuccess(organization, 'Организация успешно обновлена');
+    return apiSuccess(organization);
   } catch (error) {
     return apiErrorFromUnknown(error, {
       context: 'PUT /api/organizations/[id]',
@@ -180,7 +182,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerClient();
@@ -194,7 +196,7 @@ export async function DELETE(
       return apiForbidden('User not authenticated');
     }
 
-    const { id } = params;
+    const { id } = await params;
     const userRole = (user.user_metadata?.role || 'viewer') as UserRole;
 
     // Проверка прав - только owner
@@ -283,10 +285,7 @@ export async function DELETE(
       });
     }
 
-    return apiSuccess(
-      { id },
-      `Организация "${existingOrg.name}" успешно удалена`
-    );
+    return apiSuccess({ id, message: `Организация "${existingOrg.name}" успешно удалена` });
   } catch (error) {
     return apiErrorFromUnknown(error, {
       context: 'DELETE /api/organizations/[id]',

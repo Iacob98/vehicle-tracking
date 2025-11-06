@@ -35,8 +35,13 @@ export async function GET(request: Request) {
     // Проверяем является ли пользователь super admin
     // Super admin = owner ИЛИ (admin с organization_id = NULL)
     const userForCheck = {
+      id: user.id,
+      email: user.email!,
+      first_name: user.user_metadata?.first_name || '',
+      last_name: user.user_metadata?.last_name || '',
       role: user.user_metadata?.role || 'viewer',
-      organization_id: user.user_metadata?.organization_id || null
+      organization_id: user.user_metadata?.organization_id || null,
+      phone: user.user_metadata?.phone || null
     };
 
     // Super admin видит все организации
@@ -101,8 +106,13 @@ export async function POST(request: Request) {
 
     // Проверка прав - только super admin может создавать организации
     const userForCheck = {
+      id: user.id,
+      email: user.email!,
+      first_name: user.user_metadata?.first_name || '',
+      last_name: user.user_metadata?.last_name || '',
       role: user.user_metadata?.role || 'viewer',
-      organization_id: user.user_metadata?.organization_id || null
+      organization_id: user.user_metadata?.organization_id || null,
+      phone: user.user_metadata?.phone || null
     };
     if (!isSuperAdmin(userForCheck)) {
       return apiForbidden('Только super admin может создавать организации');
@@ -113,13 +123,10 @@ export async function POST(request: Request) {
     const validationResult = createOrganizationSchema.safeParse(body);
 
     if (!validationResult.success) {
-      return apiBadRequest(
-        'Ошибка валидации',
-        validationResult.error.errors.map((e) => ({
-          field: e.path.join('.'),
-          message: e.message,
-        }))
-      );
+      const errorMessages = validationResult.error.issues
+        .map((e) => `${e.path.join('.')}: ${e.message}`)
+        .join(', ');
+      return apiBadRequest(errorMessages);
     }
 
     const organizationData = validationResult.data;

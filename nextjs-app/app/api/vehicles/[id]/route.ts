@@ -109,6 +109,7 @@ export async function PUT(
         : null,
       rental_start_date: formData.get('rental_start_date') as string || null,
       rental_end_date: formData.get('rental_end_date') as string || null,
+      vehicle_type_id: formData.get('vehicle_type_id') as string || null,
     };
 
     // Обновление в базе данных

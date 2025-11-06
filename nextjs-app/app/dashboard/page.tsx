@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth-helpers';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
 import { FuelAnomaliesAlert } from '@/components/FuelAnomaliesAlert';
 import { DriverAnomalyBanner } from '@/components/DriverAnomalyBanner';
+import { RentalAnalyticsWidget } from '@/components/RentalAnalyticsWidget';
 import { type UserRole } from '@/lib/types/roles';
 
 export default async function DashboardPage() {
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
   const userRole = (user?.role || 'viewer') as UserRole;
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Fetch fuel anomalies (unchecked first)
+  // Fetch fuel anomalies with vehicle info using JOIN (unchecked first)
   let anomaliesQuery = supabase
     .from('car_expenses')
     .select(`
@@ -30,7 +31,11 @@ export default async function DashboardPage() {
       consumption_difference,
       vehicle_id,
       anomaly_checked_by,
-      anomaly_checked_at
+      anomaly_checked_at,
+      vehicles (
+        name,
+        license_plate
+      )
     `)
     .eq('category', 'fuel')
     .eq('has_anomaly', true)
@@ -39,30 +44,48 @@ export default async function DashboardPage() {
   anomaliesQuery = applyOrgFilter(anomaliesQuery, userContext);
   const { data: anomaliesData } = await anomaliesQuery;
 
-  // Enrich anomalies with vehicle and driver information
+  // Enrich anomalies with driver information
   const anomalies = await Promise.all(
-    (anomaliesData || []).map(async (anomaly) => {
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('name, license_plate, current_driver_id')
-        .eq('id', anomaly.vehicle_id)
-        .single();
+    (anomaliesData || []).map(async (anomaly: any) => {
+      const vehicle = anomaly.vehicles;
 
       let driverName = null;
-      if (vehicle?.current_driver_id) {
-        const { data: driver } = await supabase
+      // Get driver through vehicle_assignments -> team -> users
+      const { data: assignment } = await supabase
+        .from('vehicle_assignments')
+        .select('team_id')
+        .eq('vehicle_id', anomaly.vehicle_id)
+        .is('end_date', null)
+        .single();
+
+      if (assignment?.team_id) {
+        // Get users from the team (there might be multiple, we take the first one)
+        const { data: teamUsers } = await supabase
           .from('users')
           .select('first_name, last_name')
-          .eq('id', vehicle.current_driver_id)
-          .single();
+          .eq('team_id', assignment.team_id)
+          .limit(1);
 
-        if (driver) {
+        if (teamUsers && teamUsers.length > 0) {
+          const driver = teamUsers[0];
           driverName = `${driver.first_name} ${driver.last_name}`;
         }
       }
 
       return {
-        ...anomaly,
+        id: anomaly.id,
+        date: anomaly.date,
+        amount: anomaly.amount,
+        liters: anomaly.liters,
+        odometer_reading: anomaly.odometer_reading,
+        previous_odometer_reading: anomaly.previous_odometer_reading,
+        distance_traveled: anomaly.distance_traveled,
+        expected_consumption: anomaly.expected_consumption,
+        actual_consumption: anomaly.actual_consumption,
+        consumption_difference: anomaly.consumption_difference,
+        vehicle_id: anomaly.vehicle_id,
+        anomaly_checked_by: anomaly.anomaly_checked_by,
+        anomaly_checked_at: anomaly.anomaly_checked_at,
         vehicle_name: vehicle?.name || 'Unknown',
         license_plate: vehicle?.license_plate || 'N/A',
         driver_name: driverName,
@@ -95,6 +118,56 @@ export default async function DashboardPage() {
     ),
   ]);
 
+  // Fetch rental analytics data
+  // Only fetch if user has permission to view rental analytics
+  let rentalVehiclesQuery = supabase
+    .from('vehicles')
+    .select('id, rental_monthly_price, rental_end_date')
+    .eq('is_rental', true);
+  rentalVehiclesQuery = applyOrgFilter(rentalVehiclesQuery, userContext);
+  const { data: rentalVehiclesData } = await rentalVehiclesQuery;
+
+  const rentalVehicles = rentalVehiclesData || [];
+  const rentalVehiclesCount = rentalVehicles.length;
+
+  // Calculate monthly rental cost (sum of all rental_monthly_price)
+  const monthlyRentalCost = rentalVehicles.reduce(
+    (sum, vehicle) => sum + (vehicle.rental_monthly_price || 0),
+    0
+  );
+
+  // Calculate expiring contracts (within 30 days)
+  const expiringContracts = rentalVehicles.filter((vehicle) => {
+    if (!vehicle.rental_end_date) return false;
+    const endDate = new Date(vehicle.rental_end_date);
+    const now = new Date();
+    const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return endDate >= now && endDate <= thirtyDaysLater;
+  }).length;
+
+  // Fetch last month rental expenses from car_expenses
+  const lastMonthStart = new Date();
+  lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+  lastMonthStart.setDate(1);
+  lastMonthStart.setHours(0, 0, 0, 0);
+  const lastMonthEnd = new Date();
+  lastMonthEnd.setDate(0);
+  lastMonthEnd.setHours(23, 59, 59, 999);
+
+  let rentalExpensesQuery = supabase
+    .from('car_expenses')
+    .select('amount')
+    .eq('category', 'rental')
+    .gte('date', lastMonthStart.toISOString().split('T')[0])
+    .lte('date', lastMonthEnd.toISOString().split('T')[0]);
+  rentalExpensesQuery = applyOrgFilter(rentalExpensesQuery, userContext);
+  const { data: rentalExpensesData } = await rentalExpensesQuery;
+
+  const lastMonthRentalExpenses = (rentalExpensesData || []).reduce(
+    (sum, expense) => sum + expense.amount,
+    0
+  );
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div>
@@ -110,6 +183,16 @@ export default async function DashboardPage() {
       {/* Driver Anomaly Banner - For Drivers */}
       {userRole === 'driver' && anomalies.length > 0 && (
         <DriverAnomalyBanner anomalyCount={anomalies.length} />
+      )}
+
+      {/* Rental Analytics Widget - For Admins and Managers */}
+      {['owner', 'admin', 'manager'].includes(userRole) && (
+        <RentalAnalyticsWidget
+          rentalVehicles={rentalVehiclesCount}
+          monthlyRentalCost={monthlyRentalCost}
+          lastMonthRentalExpenses={lastMonthRentalExpenses}
+          expiringContracts={expiringContracts}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

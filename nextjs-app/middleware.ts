@@ -31,33 +31,32 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user }, error } = await supabase.auth.getUser();
 
-  console.log('🔐 Middleware - Path:', request.nextUrl.pathname);
-  console.log('👤 Middleware - User:', user?.id || 'NOT LOGGED IN');
-  console.log('❌ Middleware - Error:', error?.message || 'none');
+  // Removed console.log statements for production readiness
+  // Original logs kept for reference in development if needed:
+  // console.log('🔐 Middleware - Path:', request.nextUrl.pathname);
+  // console.log('👤 Middleware - User:', user?.id || 'NOT LOGGED IN');
+  // console.log('❌ Middleware - Error:', error?.message || 'none');
 
-  if (error) {
+  // Keep error logging for debugging
+  if (error && process.env.NODE_ENV === 'development') {
     console.error('🚨 Auth error in middleware:', error);
   }
 
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    console.log('⚠️ No user, redirecting to /login');
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
   if (user && request.nextUrl.pathname === '/login') {
-    console.log('✅ User logged in, redirecting based on role');
     const url = request.nextUrl.clone();
 
     // Redirect based on role
     const userRole = user.user_metadata?.role;
     if (userRole === 'driver') {
       url.pathname = '/dashboard/driver';
-      console.log('🚗 Driver detected, redirecting to /dashboard/driver');
     } else {
       url.pathname = '/dashboard';
-      console.log('👔 Admin/Manager detected, redirecting to /dashboard');
     }
 
     return NextResponse.redirect(url);
@@ -67,11 +66,9 @@ export async function middleware(request: NextRequest) {
   if (user && user.user_metadata?.role === 'driver') {
     // Allow driver to access their own panel
     if (request.nextUrl.pathname.startsWith('/dashboard/driver')) {
-      console.log('✅ Driver accessing driver panel');
       return supabaseResponse; // Important: return here to stop processing
     } else if (request.nextUrl.pathname.startsWith('/dashboard')) {
       // Block access to any admin dashboard page
-      console.log('🚫 Driver blocked from admin page, redirecting to /dashboard/driver');
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard/driver';
       return NextResponse.redirect(url);
@@ -80,13 +77,10 @@ export async function middleware(request: NextRequest) {
 
   // If non-driver tries to access driver panel, redirect to admin dashboard
   if (user && request.nextUrl.pathname.startsWith('/dashboard/driver') && user.user_metadata?.role !== 'driver') {
-    console.log('👔 Non-driver accessing /dashboard/driver, redirecting to /dashboard');
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
-
-  console.log('✅ Middleware passed, continuing to:', request.nextUrl.pathname);
 
   return supabaseResponse;
 }

@@ -96,6 +96,18 @@ export default async function NewRefuelPage() {
 
   const vehicle = assignment.vehicles as any;
 
+  // Получаем последнее показание одометра для этого автомобиля
+  const { data: lastExpense } = await supabase
+    .from('car_expenses')
+    .select('odometer_reading')
+    .eq('vehicle_id', vehicle.id)
+    .not('odometer_reading', 'is', null)
+    .order('odometer_reading', { ascending: false })
+    .limit(1)
+    .single();
+
+  const lastOdometerReading = lastExpense?.odometer_reading || null;
+
   // Получаем лимиты и текущие расходы
   const orgId = user.organization_id;
   const fuelCardId = user.fuel_card_id;
@@ -234,7 +246,12 @@ export default async function NewRefuelPage() {
         </div>
       )}
 
-      <RefuelForm vehicleId={vehicle.id} vehicleName={vehicle.name} fuelCardId={fuelCardId} />
+      <RefuelForm
+        vehicleId={vehicle.id}
+        vehicleName={vehicle.name}
+        fuelCardId={fuelCardId}
+        lastOdometerReading={lastOdometerReading}
+      />
     </div>
   );
 }

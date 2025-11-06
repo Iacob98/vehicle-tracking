@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { uploadMultipleFiles } from '@/lib/storage';
-import { apiSuccess, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
+import { apiSuccess, apiBadRequest, apiErrorFromUnknown, checkAuthentication, checkOwnerOrOrganizationId } from '@/lib/api-response';
 import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 
 export async function POST(request: Request) {
@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     // Upload files
     let fileUrls: string[] = [];
     if (files.length > 0) {
+      if (!finalOrgId) {
+        return apiBadRequest('Organization ID is required');
+      }
       console.log('📤 Uploading team member document files...');
       fileUrls = await uploadMultipleFiles(files, 'documents', finalOrgId);
       console.log('✅ Uploaded URLs:', fileUrls);

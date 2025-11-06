@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import { DriverAnomalyBanner } from '@/components/DriverAnomalyBanner';
 
 export default async function DriverDashboardPage() {
   const supabase = await createServerClient();
@@ -42,6 +43,32 @@ export default async function DriverDashboardPage() {
     }
   }
 
+  // Получаем аномалии топлива для этого водителя
+  let driverAnomalies: any[] = [];
+  if (vehicleId) {
+    const { data: anomaliesData } = await supabase
+      .from('car_expenses')
+      .select(`
+        id,
+        date,
+        amount,
+        liters,
+        expected_consumption,
+        actual_consumption,
+        consumption_difference,
+        distance_traveled,
+        anomaly_checked_by
+      `)
+      .eq('vehicle_id', vehicleId)
+      .eq('category', 'fuel')
+      .eq('has_anomaly', true)
+      .is('anomaly_checked_by', null)
+      .order('date', { ascending: false })
+      .limit(5);
+
+    driverAnomalies = anomaliesData || [];
+  }
+
   // Подсчитываем штрафы водителя
   let penaltiesQuery = supabase
     .from('penalties')
@@ -65,6 +92,11 @@ export default async function DriverDashboardPage() {
             : 'Автомобиль пока не назначен. Обратитесь к менеджеру.'}
         </p>
       </div>
+
+      {/* Уведомления об аномалиях для водителя */}
+      {driverAnomalies.length > 0 && (
+        <DriverAnomalyBanner anomalies={driverAnomalies} vehicleName={vehicleName} />
+      )}
 
       {/* Карточки быстрых действий */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

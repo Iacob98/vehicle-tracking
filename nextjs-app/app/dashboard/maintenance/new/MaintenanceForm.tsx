@@ -83,9 +83,13 @@ export function MaintenanceForm({ vehicles, currentUser, organizations = [] }: M
       description: data.description || null,
     };
 
-    // Для Super Admin - добавляем organization_id
+    // Для Super Admin - добавляем выбранный organization_id из формы
     if (showOrgSelect && data.organization_id) {
       submitData.organization_id = data.organization_id;
+    }
+    // Для обычного admin/manager - добавляем их organization_id
+    else if (currentUser.organization_id) {
+      submitData.organization_id = currentUser.organization_id;
     }
 
     await post(submitData);

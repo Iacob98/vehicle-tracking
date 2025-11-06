@@ -153,10 +153,8 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     formData.append('rental_start_date', data.rental_start_date || '');
     formData.append('rental_end_date', data.rental_end_date || '');
 
-    // Добавляем vehicle_type_id если выбран
-    if (data.vehicle_type_id) {
-      formData.append('vehicle_type_id', data.vehicle_type_id);
-    }
+    // Добавляем vehicle_type_id (пустая строка если не выбран для сброса значения)
+    formData.append('vehicle_type_id', data.vehicle_type_id || '');
 
     // Для Super Admin - добавляем organization_id
     if (showOrgSelect && data.organization_id) {

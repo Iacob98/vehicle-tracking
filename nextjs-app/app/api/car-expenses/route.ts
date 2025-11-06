@@ -12,6 +12,7 @@ import { getUserQueryContext, getOrgIdForCreate } from '@/lib/query-helpers';
 import { createFileUploadError } from '@/lib/errors';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import { checkFuelLimits } from '@/lib/fuel-limits';
+import { validateImageFile } from '@/lib/file-validation';
 
 // Create Supabase client with Service Role key for bypassing RLS
 const supabaseAdmin = createClient(
@@ -146,16 +147,16 @@ export async function POST(request: Request) {
       }
 
       // Validate odometer reading
-      if (lastRefuel && lastRefuel.odometer_reading) {
+      if (lastRefuel && lastRefuel.odometer_reading !== null && lastRefuel.odometer_reading !== undefined) {
         previousOdometerReading = lastRefuel.odometer_reading;
 
-        if (odometerReading < previousOdometerReading) {
+        if (odometerReading! < previousOdometerReading!) {
           return apiBadRequest(
-            `Показания одометра (${odometerReading} км) не могут быть меньше предыдущего значения (${previousOdometerReading} км)`
+            `Показания одометра (${odometerReading} км) не могут быть меньше предыдущего значения (${previousOdometerReading!} км)`
           );
         }
 
-        distanceTraveled = odometerReading - previousOdometerReading;
+        distanceTraveled = odometerReading! - previousOdometerReading!;
 
         // Sanity check: distance traveled should be reasonable
         if (distanceTraveled > 5000) {
@@ -223,6 +224,15 @@ export async function POST(request: Request) {
     let receiptUrl: string | null = null;
 
     if (receiptFile && receiptFile.size > 0) {
+      // Validate file before upload
+      const validation = validateImageFile(receiptFile);
+      if (!validation.valid) {
+        return apiErrorFromUnknown(validation.error!, {
+          context: 'validating receipt file',
+          orgId: finalOrgId,
+        });
+      }
+
       try {
         // Generate file path
         const fileExt = receiptFile.name.split('.').pop();

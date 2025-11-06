@@ -113,6 +113,21 @@ export function VehiclesTable({
     );
   };
 
+  const getRentalStatus = (vehicle: Vehicle) => {
+    if (!vehicle.is_rental || !vehicle.rental_end_date) return null;
+
+    const endDate = new Date(vehicle.rental_end_date);
+    const now = new Date();
+    const daysUntilEnd = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilEnd < 0) {
+      return { type: 'expired', label: '❌ Истек', days: Math.abs(daysUntilEnd) };
+    } else if (daysUntilEnd <= 30) {
+      return { type: 'expiring', label: '⚠️ Истекает', days: daysUntilEnd };
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -217,6 +232,30 @@ export function VehiclesTable({
                         💰 {vehicle.rental_monthly_price}€/мес
                       </p>
                     )}
+                    {(() => {
+                      const rentalStatus = getRentalStatus(vehicle);
+                      if (rentalStatus) {
+                        return (
+                          <div className="mt-2">
+                            <span
+                              className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                rentalStatus.type === 'expired'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-orange-100 text-orange-800'
+                              }`}
+                            >
+                              {rentalStatus.label}
+                            </span>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {rentalStatus.type === 'expired'
+                                ? `${rentalStatus.days} дн. назад`
+                                : `через ${rentalStatus.days} дн.`}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   {/* Actions */}
