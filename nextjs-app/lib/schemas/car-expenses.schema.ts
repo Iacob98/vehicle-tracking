@@ -71,36 +71,20 @@ export const carExpenseSchema = z.object({
     .optional(),
 
   // Fuel tracking fields
-  liters: z.preprocess(
-    (val) => {
-      // Convert empty string or NaN to undefined
-      if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
-        return undefined;
-      }
-      return val;
-    },
-    z
-      .number()
-      .positive('Количество литров должно быть положительным')
-      .max(1000, 'Количество литров слишком большое (максимум 1000)')
-      .optional()
-  ),
+  liters: z
+    .number()
+    .positive('Количество литров должно быть положительным')
+    .max(1000, 'Количество литров слишком большое (максимум 1000)')
+    .nullable()
+    .optional(),
 
-  odometer_reading: z.preprocess(
-    (val) => {
-      // Convert empty string or NaN to undefined
-      if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
-        return undefined;
-      }
-      return val;
-    },
-    z
-      .number()
-      .int('Показания одометра должны быть целым числом')
-      .positive('Показания одометра должны быть положительными')
-      .max(9999999, 'Показания одометра слишком большие')
-      .optional()
-  ),
+  odometer_reading: z
+    .number()
+    .int('Показания одометра должны быть целым числом')
+    .positive('Показания одометра должны быть положительными')
+    .max(9999999, 'Показания одометра слишком большие')
+    .nullable()
+    .optional(),
 
   organization_id: z
     .string()

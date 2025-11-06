@@ -21,6 +21,13 @@ import { vehicleSchema, VEHICLE_STATUS_OPTIONS, type VehicleFormData } from '@/l
 import { OrganizationSelect } from '@/components/OrganizationSelect';
 import Image from 'next/image';
 
+// Extended VehicleFormData type with annual tax fields
+type ExtendedVehicleFormData = VehicleFormData & {
+  annual_tax_amount?: number | null;
+  tax_due_date?: string | null;
+  last_tax_created_date?: string | null;
+};
+
 // User type definition (client-safe, без server-only зависимостей)
 type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'driver';
 
@@ -109,8 +116,8 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     setValue,
     reset,
     formState: { errors },
-  } = useForm<VehicleFormData>({
-    resolver: zodResolver(vehicleSchema),
+  } = useForm<ExtendedVehicleFormData>({
+    resolver: zodResolver(vehicleSchema) as any,
     defaultValues: {
       name: vehicle?.name || '',
       license_plate: vehicle?.license_plate || '',
@@ -172,7 +179,7 @@ export function VehicleForm({ vehicle, isEdit = false, currentUser, organization
     setPhotoPreview(previews);
   };
 
-  const onSubmit = async (data: VehicleFormData) => {
+  const onSubmit = async (data: ExtendedVehicleFormData) => {
     // WORKAROUND: Get tax fields directly from watch() since they're not coming through validation
     const taxAmount = watchedTaxAmount;
     const taxDate = watchedTaxDate;

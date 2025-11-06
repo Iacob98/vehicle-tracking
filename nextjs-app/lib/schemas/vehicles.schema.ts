@@ -88,13 +88,14 @@ export const vehicleSchema = z
       .number()
       .positive('Сумма налога должна быть положительной')
       .max(999999.99, 'Сумма налога слишком большая')
-      .nullish()
-      .default(null),
+      .nullable()
+      .optional(),
 
     tax_due_date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата должна быть в формате YYYY-MM-DD')
-      .default(''),
+      .nullable()
+      .optional(),
 
     last_tax_created_date: z
       .string()

@@ -3,7 +3,7 @@
  * Provides server-side validation for uploaded files
  */
 
-import { createFileUploadError, createFileTypeError, createFileSizeError } from './errors';
+import { createFileUploadError } from './errors';
 
 // ============================================================================
 // CONSTANTS
@@ -63,7 +63,7 @@ export const ALLOWED_DOCUMENT_EXTENSIONS = [
 
 export interface FileValidationResult {
   valid: boolean;
-  error?: ReturnType<typeof createFileUploadError | typeof createFileTypeError | typeof createFileSizeError>;
+  error?: ReturnType<typeof createFileUploadError>;
   file?: File;
 }
 
@@ -142,10 +142,9 @@ export function validateImageFile(
     const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(0);
     return {
       valid: false,
-      error: createFileSizeError(
+      error: createFileUploadError(
         `Файл слишком большой (${sizeMB}MB). Максимум ${maxSizeMB}MB`,
-        file.size,
-        maxSize
+        `Размер файла: ${file.size} bytes, Максимум: ${maxSize} bytes`
       ),
     };
   }
@@ -154,10 +153,9 @@ export function validateImageFile(
   if (!validateFileMimeType(file, ALLOWED_IMAGE_MIME_TYPES)) {
     return {
       valid: false,
-      error: createFileTypeError(
+      error: createFileUploadError(
         `Недопустимый тип файла: ${file.type}. Разрешены только изображения (JPG, PNG, GIF, WebP, HEIC)`,
-        file.type,
-        ALLOWED_IMAGE_MIME_TYPES as unknown as string[]
+        `Тип файла: ${file.type}`
       ),
     };
   }
@@ -167,10 +165,9 @@ export function validateImageFile(
     const ext = getFileExtension(file.name);
     return {
       valid: false,
-      error: createFileTypeError(
+      error: createFileUploadError(
         `Недопустимое расширение файла: .${ext}. Разрешены: ${ALLOWED_IMAGE_EXTENSIONS.join(', ')}`,
-        ext,
-        ALLOWED_IMAGE_EXTENSIONS as unknown as string[]
+        `Расширение: .${ext}`
       ),
     };
   }
@@ -210,10 +207,9 @@ export function validateDocumentFile(
     const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(0);
     return {
       valid: false,
-      error: createFileSizeError(
+      error: createFileUploadError(
         `Файл слишком большой (${sizeMB}MB). Максимум ${maxSizeMB}MB`,
-        file.size,
-        maxSize
+        `Размер файла: ${file.size} bytes, Максимум: ${maxSize} bytes`
       ),
     };
   }
@@ -222,10 +218,9 @@ export function validateDocumentFile(
   if (!validateFileMimeType(file, ALLOWED_DOCUMENT_MIME_TYPES)) {
     return {
       valid: false,
-      error: createFileTypeError(
+      error: createFileUploadError(
         `Недопустимый тип файла: ${file.type}. Разрешены: изображения и PDF`,
-        file.type,
-        ALLOWED_DOCUMENT_MIME_TYPES as unknown as string[]
+        `Тип файла: ${file.type}`
       ),
     };
   }
@@ -235,10 +230,9 @@ export function validateDocumentFile(
     const ext = getFileExtension(file.name);
     return {
       valid: false,
-      error: createFileTypeError(
+      error: createFileUploadError(
         `Недопустимое расширение файла: .${ext}. Разрешены: ${ALLOWED_DOCUMENT_EXTENSIONS.join(', ')}`,
-        ext,
-        ALLOWED_DOCUMENT_EXTENSIONS as unknown as string[]
+        `Расширение: .${ext}`
       ),
     };
   }
