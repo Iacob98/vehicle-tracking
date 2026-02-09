@@ -64,7 +64,19 @@ export async function POST(request: Request) {
 
     // Получаем контекст пользователя и определяем organization_id для создания
     const userContext = getUserQueryContext(user);
-    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+    let finalOrgId = getOrgIdForCreate(userContext, body.organization_id || null);
+
+    // Если organization_id не определён, но есть team_id — берём org из бригады
+    if (!finalOrgId && team_id) {
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('organization_id')
+        .eq('id', team_id)
+        .single();
+      if (teamData?.organization_id) {
+        finalOrgId = teamData.organization_id;
+      }
+    }
 
     // Owner может создавать супер-админов БЕЗ organization_id (только для owner/admin ролей)
     // Для остальных ролей (manager/driver/viewer) organization_id обязателен
