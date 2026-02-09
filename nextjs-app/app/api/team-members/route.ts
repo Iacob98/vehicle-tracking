@@ -35,9 +35,20 @@ export async function POST(request: Request) {
 
     // Получаем контекст пользователя и определяем organization_id для создания
     const userContext = getUserQueryContext(user);
-    const finalOrgId = getOrgIdForCreate(userContext, body.organization_id);
+    let finalOrgId = getOrgIdForCreate(userContext, body.organization_id || null);
 
-    // Owner должен явно указать organization_id
+    // Если organization_id не определён — берём из бригады
+    if (!finalOrgId && team_id) {
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('organization_id')
+        .eq('id', team_id)
+        .single();
+      if (teamData?.organization_id) {
+        finalOrgId = teamData.organization_id;
+      }
+    }
+
     if (!finalOrgId) {
       return apiBadRequest('Organization ID обязателен для создания члена бригады');
     }
