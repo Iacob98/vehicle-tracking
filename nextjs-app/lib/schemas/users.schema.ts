@@ -67,6 +67,30 @@ export const createUserSchema = userSchema.extend({
 
 export type CreateUserFormData = z.infer<typeof createUserSchema>;
 
+// Schema for creating a driver from the Teams section (role is hardcoded as 'driver')
+export const createDriverSchema = userSchema.extend({
+  password: z
+    .string().min(1)
+    .min(8, 'Пароль должен содержать минимум 8 символов')
+    .max(100, 'Пароль слишком длинный')
+    .regex(/[A-Z]/, 'Пароль должен содержать хотя бы одну заглавную букву')
+    .regex(/[a-z]/, 'Пароль должен содержать хотя бы одну строчную букву')
+    .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру'),
+
+  confirmPassword: z.string().min(1),
+
+  fuel_card_id: z
+    .string()
+    .max(50, 'Номер топливной карты слишком длинный')
+    .optional()
+    .or(z.literal('')),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Пароли не совпадают',
+  path: ['confirmPassword'],
+});
+
+export type CreateDriverFormData = z.infer<typeof createDriverSchema>;
+
 // Schema for user update (password optional)
 export const updateUserSchema = userSchema.partial().required({ email: true, first_name: true, last_name: true });
 

@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TeamMembers from './TeamMembers';
 import TeamVehicles from './TeamVehicles';
+import TeamDrivers from './TeamDrivers';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import { type UserRole } from '@/lib/types/roles';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -22,6 +24,7 @@ export default async function TeamDetailPage({ params }: PageProps) {
   }
 
   const userContext = getUserQueryContext(user);
+  const userRole = (user?.user_metadata?.role || 'viewer') as UserRole;
 
   // Fetch team details
   let teamQuery = supabase
@@ -122,28 +125,12 @@ export default async function TeamDetailPage({ params }: PageProps) {
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
-          {teamUsers && teamUsers.length > 0 ? (
-            <div className="bg-white border rounded-lg">
-              {teamUsers.map((user) => (
-                <div key={user.id} className="p-4 border-b last:border-b-0">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-semibold">{user.first_name} {user.last_name}</h3>
-                      <p className="text-sm text-gray-600">{user.email}</p>
-                      <p className="text-sm text-gray-500">Роль: {user.role}</p>
-                    </div>
-                    <Link href={`/dashboard/users/${user.id}`}>
-                      <Button variant="outline" size="sm">Просмотр</Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 border rounded-lg bg-white">
-              <p className="text-gray-500">Нет пользователей в этой бригаде</p>
-            </div>
-          )}
+          <TeamDrivers
+            teamId={id}
+            orgId={userContext.organizationId || ''}
+            userRole={userRole}
+            initialUsers={teamUsers || []}
+          />
         </TabsContent>
 
         <TabsContent value="members" className="space-y-4">

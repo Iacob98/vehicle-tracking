@@ -9,6 +9,7 @@ import { RoleGuard } from '@/components/RoleGuard';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { type UserRole } from '@/lib/types/roles';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import AddDriverDialog from './AddDriverDialog';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -192,6 +193,11 @@ export default async function TeamsPage({
 
                       <div className="flex gap-2">
                         <RoleGuard allowedRoles={['owner', 'admin', 'manager']} userRole={userRole}>
+                          <AddDriverDialog
+                            teamId={team.id}
+                            teamName={team.name}
+                            orgId={userContext.organizationId || team.organization_id || ''}
+                          />
                           <Link href={`/dashboard/teams/${team.id}/edit`}>
                             <Button variant="outline" size="sm">✏️</Button>
                           </Link>

@@ -36,15 +36,21 @@ export async function POST(request: Request) {
     const { orgId, isSuperAdmin, error: orgError } = checkOwnerOrOrganizationId(user);
     if (orgError) return orgError;
 
-    // Проверка прав доступа (только admin может создавать пользователей)
-    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
-    if (!Permissions.canManageUsers(userRole)) {
-      return apiForbidden('У вас нет прав на создание пользователей');
-    }
-
     // Получаем JSON
     const body = await request.json();
-    const { email, password, first_name, last_name, role, phone } = body;
+    const { email, password, first_name, last_name, role, phone, team_id, fuel_card_id } = body;
+
+    // Проверка прав доступа
+    const userRole = (user!.user_metadata?.role || 'viewer') as UserRole;
+    if (role === 'driver') {
+      if (!Permissions.canCreateDrivers(userRole)) {
+        return apiForbidden('У вас нет прав на создание водителей');
+      }
+    } else {
+      if (!Permissions.canManageUsers(userRole)) {
+        return apiForbidden('У вас нет прав на создание пользователей');
+      }
+    }
 
     // Валидация обязательных полей
     if (!email || !password || !first_name || !last_name) {
@@ -94,6 +100,8 @@ export async function POST(request: Request) {
         role: role || 'viewer',
         organization_id: finalOrgId || null, // Явно устанавливаем null для супер-админа
         phone: phone || null,
+        team_id: team_id || null,
+        fuel_card_id: fuel_card_id || null,
       }
     });
 
@@ -136,6 +144,8 @@ export async function POST(request: Request) {
           last_name,
           role: role || 'viewer',
           phone: phone || null,
+          team_id: team_id || null,
+          fuel_card_id: fuel_card_id || null,
           created_at: new Date().toISOString(),
         })
         .select()
@@ -150,6 +160,24 @@ export async function POST(request: Request) {
       }
 
       return apiSuccess({ user: newPublicUser });
+    }
+
+    // If trigger created the record, update team_id and fuel_card_id if provided
+    if (team_id || fuel_card_id) {
+      const updateData: Record<string, any> = {};
+      if (team_id) updateData.team_id = team_id;
+      if (fuel_card_id) updateData.fuel_card_id = fuel_card_id;
+
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', authUser.user.id)
+        .select()
+        .single();
+
+      if (!updateError && updatedUser) {
+        return apiSuccess({ user: updatedUser });
+      }
     }
 
     return apiSuccess({ user: publicUser });

@@ -218,7 +218,7 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
                     <SelectValue placeholder="Выберите роль" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_OPTIONS.map((role) => (
+                    {ROLE_OPTIONS.filter((role) => role.value !== 'driver').map((role) => (
                       <SelectItem key={role.value} value={role.value}>
                         {role.label}
                       </SelectItem>
@@ -232,6 +232,9 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
             )}
             <p className="text-xs text-gray-500 mt-1">
               {ROLE_OPTIONS.find((r) => r.value === 'admin')?.description}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Для создания водителей используйте раздел Бригады
             </p>
           </div>
 

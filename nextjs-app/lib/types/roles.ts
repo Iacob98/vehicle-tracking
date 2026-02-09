@@ -77,6 +77,13 @@ export const Permissions = {
   },
 
   /**
+   * Может ли пользователь создавать водителей (через раздел Бригады)
+   */
+  canCreateDrivers: (role: UserRole): boolean => {
+    return role === 'owner' || role === 'admin' || role === 'manager';
+  },
+
+  /**
    * Может ли пользователь управлять бригадами
    */
   canManageTeams: (role: UserRole): boolean => {
