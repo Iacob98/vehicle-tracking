@@ -3,6 +3,7 @@ import Link from 'next/link';
 interface RentalAnalyticsWidgetProps {
   rentalVehicles: number;
   monthlyRentalCost: number;
+  totalRentalCost: number;
   lastMonthRentalExpenses: number;
   expiringContracts: number;
 }
@@ -10,6 +11,7 @@ interface RentalAnalyticsWidgetProps {
 export function RentalAnalyticsWidget({
   rentalVehicles,
   monthlyRentalCost,
+  totalRentalCost,
   lastMonthRentalExpenses,
   expiringContracts,
 }: RentalAnalyticsWidgetProps) {
@@ -32,7 +34,7 @@ export function RentalAnalyticsWidget({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Active rental vehicles */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <p className="text-xs text-gray-600 mb-1">Арендовано</p>
@@ -50,6 +52,18 @@ export function RentalAnalyticsWidget({
             })}€
           </p>
           <p className="text-xs text-gray-500 mt-1">в месяц</p>
+        </div>
+
+        {/* Total rental cost (calculated from start date to now) */}
+        <div className="bg-white rounded-lg p-4 shadow-sm">
+          <p className="text-xs text-gray-600 mb-1">Всего за аренду</p>
+          <p className="text-2xl font-bold text-indigo-600">
+            {totalRentalCost.toLocaleString('de-DE', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}€
+          </p>
+          <p className="text-xs text-gray-500 mt-1">с начала аренды</p>
         </div>
 
         {/* Last month actual expenses */}

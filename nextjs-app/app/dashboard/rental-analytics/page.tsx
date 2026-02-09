@@ -43,6 +43,25 @@ export default async function RentalAnalyticsPage() {
     0
   ) || 0;
 
+  // Calculate total rental cost from start date to now (or end date)
+  const calculateRentalMonths = (startDate: string, endDate: string | null) => {
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : now;
+    const effectiveEnd = end < now ? end : now;
+    if (effectiveEnd < start) return 0;
+    const months =
+      (effectiveEnd.getFullYear() - start.getFullYear()) * 12 +
+      (effectiveEnd.getMonth() - start.getMonth()) +
+      (effectiveEnd.getDate() >= start.getDate() ? 1 : 0);
+    return Math.max(0, months);
+  };
+
+  const totalRentalCost = rentalVehicles?.reduce((sum, v) => {
+    if (!v.rental_start_date || !v.rental_monthly_price) return sum;
+    const months = calculateRentalMonths(v.rental_start_date, v.rental_end_date);
+    return sum + months * v.rental_monthly_price;
+  }, 0) || 0;
+
   // Group expenses by month
   const expensesByMonth = new Map<string, number>();
   rentalExpenses?.forEach(expense => {
@@ -105,7 +124,7 @@ export default async function RentalAnalyticsPage() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white border-2 border-purple-200 rounded-lg p-6">
           <p className="text-sm text-gray-600">Арендованных авто</p>
           <p className="text-3xl font-bold text-purple-600">{rentalVehicles?.length || 0}</p>
@@ -115,6 +134,13 @@ export default async function RentalAnalyticsPage() {
           <p className="text-3xl font-bold text-blue-600">
             €{totalMonthlyRentalCost.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
           </p>
+        </div>
+        <div className="bg-white border-2 border-indigo-200 rounded-lg p-6">
+          <p className="text-sm text-gray-600">Всего за аренду</p>
+          <p className="text-3xl font-bold text-indigo-600">
+            €{totalRentalCost.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">с начала аренды</p>
         </div>
         <div className="bg-white border-2 border-green-200 rounded-lg p-6">
           <p className="text-sm text-gray-600">Факт за прошлый месяц</p>
@@ -225,6 +251,7 @@ export default async function RentalAnalyticsPage() {
                   <th className="text-left py-3 px-4">Автомобиль</th>
                   <th className="text-left py-3 px-4">Гос. номер</th>
                   <th className="text-right py-3 px-4">Аренда/мес</th>
+                  <th className="text-right py-3 px-4">Всего за аренду</th>
                   <th className="text-right py-3 px-4">Факт расходы</th>
                   <th className="text-left py-3 px-4">Начало</th>
                   <th className="text-left py-3 px-4">Окончание</th>
@@ -238,6 +265,10 @@ export default async function RentalAnalyticsPage() {
                   const endDate = vehicle.rental_end_date ? new Date(vehicle.rental_end_date) : null;
                   const isExpiring = endDate && endDate >= now && endDate <= thirtyDaysLater;
                   const isExpired = endDate && endDate < now;
+                  const rentalMonths = vehicle.rental_start_date
+                    ? calculateRentalMonths(vehicle.rental_start_date, vehicle.rental_end_date)
+                    : 0;
+                  const vehicleTotalRentalCost = rentalMonths * (vehicle.rental_monthly_price || 0);
 
                   return (
                     <tr key={vehicle.id} className="border-b hover:bg-gray-50">
@@ -245,6 +276,12 @@ export default async function RentalAnalyticsPage() {
                       <td className="py-3 px-4">{vehicle.license_plate}</td>
                       <td className="py-3 px-4 text-right">
                         €{vehicle.rental_monthly_price?.toLocaleString('de-DE', { minimumFractionDigits: 2 }) || '0.00'}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="font-semibold text-indigo-600">
+                          €{vehicleTotalRentalCost.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-1">({rentalMonths} мес.)</span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         €{totalExpenses.toLocaleString('de-DE', { minimumFractionDigits: 2 })}

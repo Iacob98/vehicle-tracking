@@ -122,7 +122,7 @@ export default async function DashboardPage() {
   // Only fetch if user has permission to view rental analytics
   let rentalVehiclesQuery = supabase
     .from('vehicles')
-    .select('id, rental_monthly_price, rental_end_date')
+    .select('id, rental_monthly_price, rental_start_date, rental_end_date')
     .eq('is_rental', true);
   rentalVehiclesQuery = applyOrgFilter(rentalVehiclesQuery, userContext);
   const { data: rentalVehiclesData } = await rentalVehiclesQuery;
@@ -135,6 +135,21 @@ export default async function DashboardPage() {
     (sum, vehicle) => sum + (vehicle.rental_monthly_price || 0),
     0
   );
+
+  // Calculate total rental cost (from start date to now or end date)
+  const now = new Date();
+  const totalRentalCost = rentalVehicles.reduce((sum, vehicle) => {
+    if (!vehicle.rental_start_date || !vehicle.rental_monthly_price) return sum;
+    const start = new Date(vehicle.rental_start_date);
+    const end = vehicle.rental_end_date ? new Date(vehicle.rental_end_date) : now;
+    const effectiveEnd = end < now ? end : now;
+    if (effectiveEnd < start) return sum;
+    const months =
+      (effectiveEnd.getFullYear() - start.getFullYear()) * 12 +
+      (effectiveEnd.getMonth() - start.getMonth()) +
+      (effectiveEnd.getDate() >= start.getDate() ? 1 : 0);
+    return sum + Math.max(0, months) * vehicle.rental_monthly_price;
+  }, 0);
 
   // Calculate expiring contracts (within 30 days)
   const expiringContracts = rentalVehicles.filter((vehicle) => {
@@ -190,6 +205,7 @@ export default async function DashboardPage() {
         <RentalAnalyticsWidget
           rentalVehicles={rentalVehiclesCount}
           monthlyRentalCost={monthlyRentalCost}
+          totalRentalCost={totalRentalCost}
           lastMonthRentalExpenses={lastMonthRentalExpenses}
           expiringContracts={expiringContracts}
         />
