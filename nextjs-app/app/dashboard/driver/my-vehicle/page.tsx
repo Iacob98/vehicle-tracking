@@ -98,12 +98,13 @@ export default async function MyVehiclePage() {
   const vehicle = assignment.vehicles as any;
   const vehicleId = assignment.vehicle_id;
 
-  // Получаем документы автомобиля
+  // Получаем документы автомобиля (только Fahrzeugschein, TÜV, Versicherung)
   const { data: documents } = await supabase
     .from('vehicle_documents')
     .select('*')
     .eq('vehicle_id', vehicleId)
     .eq('is_active', true)
+    .in('document_type', ['registration', 'inspection', 'insurance'])
     .order('date_expiry', { ascending: true });
 
   // Проверяем истекающие документы (< 30 дней)
