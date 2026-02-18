@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
-import { createDriverSchema, type CreateDriverFormData } from '@/lib/schemas/users.schema';
+import { createDriverSchema, generateDriverPin, type CreateDriverFormData } from '@/lib/schemas/users.schema';
 import { Permissions, type UserRole } from '@/lib/types/roles';
 import Link from 'next/link';
 
@@ -34,6 +34,7 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
   const router = useRouter();
   const [users, setUsers] = useState<TeamUser[]>(initialUsers);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [pin, setPin] = useState(generateDriverPin);
 
   const { loading, error, post } = usePostJSON('/api/users', {
     onSuccess: (data) => {
@@ -42,6 +43,7 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
       }
       setShowAddForm(false);
       reset();
+      setPin(generateDriverPin());
       router.refresh();
     },
   });
@@ -50,10 +52,12 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<CreateDriverFormData>({
     resolver: zodResolver(createDriverSchema),
     defaultValues: {
+      password: pin,
       phone: '',
       fuel_card_id: '',
     },
@@ -62,7 +66,7 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
   const onSubmit = async (data: CreateDriverFormData) => {
     await post({
       email: data.email,
-      password: data.password,
+      password: pin,
       first_name: data.first_name,
       last_name: data.last_name,
       role: 'driver',
@@ -82,7 +86,7 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Пользователи бригады</h2>
         {canAdd && (
-          <Button onClick={() => { setShowAddForm(!showAddForm); if (showAddForm) reset(); }}>
+          <Button onClick={() => { setShowAddForm(!showAddForm); if (showAddForm) reset(); else { const newPin = generateDriverPin(); setPin(newPin); setValue('password', newPin); } }}>
             {showAddForm ? 'Отмена' : '+ Добавить водителя'}
           </Button>
         )}
@@ -142,30 +146,22 @@ export default function TeamDrivers({ teamId, orgId, userRole, initialUsers }: T
               )}
             </div>
             <div>
-              <Label htmlFor="driver_password">Пароль *</Label>
-              <Input
-                id="driver_password"
-                type="password"
-                {...register('password')}
-                placeholder="Минимум 8 символов"
-                className={errors.password ? 'border-red-500' : ''}
-              />
-              {errors.password && (
-                <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="driver_confirmPassword">Подтверждение пароля *</Label>
-              <Input
-                id="driver_confirmPassword"
-                type="password"
-                {...register('confirmPassword')}
-                placeholder="Повторите пароль"
-                className={errors.confirmPassword ? 'border-red-500' : ''}
-              />
-              {errors.confirmPassword && (
-                <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
-              )}
+              <Label>PIN-код *</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={pin}
+                  readOnly
+                  className="font-mono text-lg tracking-widest"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { const newPin = generateDriverPin(); setPin(newPin); setValue('password', newPin); }}
+                >
+                  Новый
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">6-значный PIN для входа водителя</p>
             </div>
             <div>
               <Label htmlFor="driver_fuel_card">Топливная карта</Label>

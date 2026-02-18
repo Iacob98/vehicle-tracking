@@ -1,11 +1,13 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { redirect, notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { ROLE_OPTIONS } from '@/lib/types/roles';
+import { ROLE_OPTIONS, Permissions, type UserRole } from '@/lib/types/roles';
 import { getUserQueryContext, applyOrgFilter } from '@/lib/query-helpers';
+import PinInput from './PinInput';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -22,6 +24,8 @@ export default async function EditUserPage({ params }: PageProps) {
   }
 
   const userContext = getUserQueryContext(currentUser);
+  const currentRole = (currentUser.user_metadata?.role || 'viewer') as UserRole;
+  const canChangePassword = Permissions.canManageUsers(currentRole) || Permissions.canCreateDrivers(currentRole);
 
   // Fetch user details
   let userQuery = supabase
@@ -56,9 +60,39 @@ export default async function EditUserPage({ params }: PageProps) {
     const role = formData.get('role') as string;
     const teamId = formData.get('team_id') as string;
     const fuelCardId = formData.get('fuel_card_id') as string;
+    const newPassword = formData.get('new_password') as string;
 
     if (!firstName || !lastName) {
       return;
+    }
+
+    // Handle password change if provided
+    const isDriver = role === 'driver';
+    const passwordValid = isDriver
+      ? (newPassword && /^\d{6}$/.test(newPassword))
+      : (newPassword && newPassword.length >= 8);
+
+    if (passwordValid) {
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        password: newPassword,
+      });
+
+      if (authError) {
+        console.error('Error updating auth password:', authError);
+        return;
+      }
+
+      // Update plain_password
+      await supabase
+        .from('users')
+        .update({ plain_password: newPassword })
+        .eq('id', id);
     }
 
     let updateQuery = supabase
@@ -111,6 +145,27 @@ export default async function EditUserPage({ params }: PageProps) {
               ℹ️ Email нельзя изменить. Для смены email создайте нового пользователя.
             </p>
           </div>
+
+          {canChangePassword && (
+            user.role === 'driver' ? (
+              <PinInput currentPin={user.plain_password} />
+            ) : (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2">
+                  Новый пароль
+                </label>
+                <Input
+                  type="text"
+                  name="new_password"
+                  placeholder="Оставьте пустым, чтобы не менять"
+                  minLength={8}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Минимум 8 символов. Текущий пароль: <span className="font-mono">{user.plain_password || 'не задан'}</span>
+                </p>
+              </div>
+            )
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2">

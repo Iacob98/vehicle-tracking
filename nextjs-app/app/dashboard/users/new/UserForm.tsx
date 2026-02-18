@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +17,8 @@ import {
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
 import Link from 'next/link';
-import { createUserSchema, type CreateUserFormData } from '@/lib/schemas/users.schema';
+import { createUserSchema, userSchema, userRoleSchema, generateDriverPin, type CreateUserFormData } from '@/lib/schemas/users.schema';
+import { z } from 'zod';
 import { ROLE_OPTIONS } from '@/lib/types/roles';
 import { OrganizationSelect } from '@/components/OrganizationSelect';
 
@@ -53,9 +55,18 @@ interface UserFormProps {
   organizations?: Organization[];
 }
 
+// Schema for driver creation from UserForm (PIN instead of password)
+const createDriverUserSchema = userSchema.extend({
+  role: userRoleSchema,
+  password: z.string().regex(/^\d{6}$/, 'PIN-код должен содержать ровно 6 цифр'),
+  confirmPassword: z.string(),
+  organization_id: z.string().optional(),
+});
+
 export function UserForm({ teams, currentUser, organizations = [] }: UserFormProps) {
   const router = useRouter();
   const showOrgSelect = isSuperAdmin(currentUser);
+  const [pin, setPin] = useState(generateDriverPin);
 
   // Используем централизованную обработку ошибок через API hooks
   const { loading, error, post } = usePostJSON('/api/users', {
@@ -64,6 +75,14 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
       router.refresh();
     },
   });
+
+  // Custom resolver that switches validation based on role
+  const dynamicResolver = async (values: any, context: any, options: any) => {
+    if (values.role === 'driver') {
+      return zodResolver(createDriverUserSchema)(values, context, options);
+    }
+    return zodResolver(createUserSchema)(values, context, options);
+  };
 
   // Setup react-hook-form with Zod validation
   const {
@@ -75,15 +94,18 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
     setError,
     formState: { errors },
   } = useForm<CreateUserFormData>({
-    resolver: zodResolver(createUserSchema),
+    resolver: dynamicResolver,
     defaultValues: {
       role: 'viewer' as const,
       phone: '',
+      password: '',
+      confirmPassword: '',
       organization_id: undefined,
     } as Partial<CreateUserFormData>,
   });
 
   const selectedOrgId = watch('organization_id');
+  const selectedRole = watch('role');
 
   const onSubmit = async (data: CreateUserFormData) => {
     // Для Super Admin:
@@ -103,7 +125,7 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
 
     const submitData: any = {
       email: data.email,
-      password: data.password,
+      password: data.role === 'driver' ? pin : data.password,
       first_name: data.first_name,
       last_name: data.last_name,
       role: data.role,
@@ -171,37 +193,60 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
             )}
           </div>
 
-          <div>
-            <Label htmlFor="password">
-              Пароль *
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              {...register('password')}
-              placeholder="Минимум 8 символов"
-              className={errors.password ? 'border-red-500' : ''}
-            />
-            {errors.password && (
-              <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
-            )}
-          </div>
+          {selectedRole === 'driver' ? (
+            <div>
+              <Label>PIN-код *</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={pin}
+                  readOnly
+                  className="font-mono text-lg tracking-widest"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { const newPin = generateDriverPin(); setPin(newPin); setValue('password', newPin); }}
+                >
+                  Новый
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">6-значный PIN для входа водителя</p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="password">
+                  Пароль *
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  {...register('password')}
+                  placeholder="Минимум 8 символов"
+                  className={errors.password ? 'border-red-500' : ''}
+                />
+                {errors.password && (
+                  <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
+                )}
+              </div>
 
-          <div>
-            <Label htmlFor="confirmPassword">
-              Подтверждение пароля *
-            </Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              {...register('confirmPassword')}
-              placeholder="Повторите пароль"
-              className={errors.confirmPassword ? 'border-red-500' : ''}
-            />
-            {errors.confirmPassword && (
-              <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
-            )}
-          </div>
+              <div>
+                <Label htmlFor="confirmPassword">
+                  Подтверждение пароля *
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  {...register('confirmPassword')}
+                  placeholder="Повторите пароль"
+                  className={errors.confirmPassword ? 'border-red-500' : ''}
+                />
+                {errors.confirmPassword && (
+                  <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -213,12 +258,12 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
               name="role"
               control={control}
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select onValueChange={(val) => { field.onChange(val); if (val === 'driver') { setValue('password', pin); setValue('confirmPassword', ''); } else { setValue('password', ''); setValue('confirmPassword', ''); } }} value={field.value}>
                   <SelectTrigger className={errors.role ? 'border-red-500' : ''}>
                     <SelectValue placeholder="Выберите роль" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_OPTIONS.filter((role) => role.value !== 'driver').map((role) => (
+                    {ROLE_OPTIONS.map((role) => (
                       <SelectItem key={role.value} value={role.value}>
                         {role.label}
                       </SelectItem>
@@ -232,9 +277,6 @@ export function UserForm({ teams, currentUser, organizations = [] }: UserFormPro
             )}
             <p className="text-xs text-gray-500 mt-1">
               {ROLE_OPTIONS.find((r) => r.value === 'admin')?.description}
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              Для создания водителей используйте раздел Бригады
             </p>
           </div>
 

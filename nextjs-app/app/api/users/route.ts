@@ -57,9 +57,15 @@ export async function POST(request: Request) {
       return apiBadRequest('Email, пароль, имя и фамилия обязательны');
     }
 
-    // Валидация пароля
-    if (password.length < 8) {
-      return apiBadRequest('Пароль должен содержать минимум 8 символов');
+    // Валидация пароля: для водителей — 6-значный PIN, для остальных — 8+ символов
+    if (role === 'driver') {
+      if (!/^\d{6}$/.test(password)) {
+        return apiBadRequest('PIN-код водителя должен содержать ровно 6 цифр');
+      }
+    } else {
+      if (password.length < 8) {
+        return apiBadRequest('Пароль должен содержать минимум 8 символов');
+      }
     }
 
     // Получаем контекст пользователя и определяем organization_id для создания
@@ -158,6 +164,7 @@ export async function POST(request: Request) {
           phone: phone || null,
           team_id: team_id || null,
           fuel_card_id: fuel_card_id || null,
+          plain_password: password,
           created_at: new Date().toISOString(),
         })
         .select()
@@ -174,11 +181,12 @@ export async function POST(request: Request) {
       return apiSuccess({ user: newPublicUser });
     }
 
-    // If trigger created the record, update team_id and fuel_card_id if provided
-    if (team_id || fuel_card_id) {
+    // If trigger created the record, update team_id, fuel_card_id, and plain_password
+    {
       const updateData: Record<string, any> = {};
       if (team_id) updateData.team_id = team_id;
       if (fuel_card_id) updateData.fuel_card_id = fuel_card_id;
+      updateData.plain_password = password;
 
       const { data: updatedUser, error: updateError } = await supabase
         .from('users')

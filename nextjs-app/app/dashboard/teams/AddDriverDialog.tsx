@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { usePostJSON } from '@/lib/api-client';
-import { createDriverSchema, type CreateDriverFormData } from '@/lib/schemas/users.schema';
+import { createDriverSchema, generateDriverPin, type CreateDriverFormData } from '@/lib/schemas/users.schema';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ interface AddDriverDialogProps {
 export default function AddDriverDialog({ teamId, teamName, orgId }: AddDriverDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState(generateDriverPin);
 
   const { loading, error, post, clearError } = usePostJSON('/api/users', {
     onSuccess: () => {
@@ -40,10 +41,12 @@ export default function AddDriverDialog({ teamId, teamName, orgId }: AddDriverDi
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<CreateDriverFormData>({
     resolver: zodResolver(createDriverSchema),
     defaultValues: {
+      password: pin,
       phone: '',
       fuel_card_id: '',
     },
@@ -52,7 +55,7 @@ export default function AddDriverDialog({ teamId, teamName, orgId }: AddDriverDi
   const onSubmit = async (data: CreateDriverFormData) => {
     await post({
       email: data.email,
-      password: data.password,
+      password: pin,
       first_name: data.first_name,
       last_name: data.last_name,
       role: 'driver',
@@ -68,6 +71,10 @@ export default function AddDriverDialog({ teamId, teamName, orgId }: AddDriverDi
     if (!newOpen) {
       reset();
       clearError();
+    } else {
+      const newPin = generateDriverPin();
+      setPin(newPin);
+      setValue('password', newPin);
     }
   };
 
@@ -127,33 +134,23 @@ export default function AddDriverDialog({ teamId, teamName, orgId }: AddDriverDi
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor={`dlg_password_${teamId}`}>Пароль *</Label>
+          <div>
+            <Label>PIN-код *</Label>
+            <div className="flex gap-2">
               <Input
-                id={`dlg_password_${teamId}`}
-                type="password"
-                {...register('password')}
-                placeholder="Минимум 8 символов"
-                className={errors.password ? 'border-red-500' : ''}
+                value={pin}
+                readOnly
+                className="font-mono text-lg tracking-widest"
               />
-              {errors.password && (
-                <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { const newPin = generateDriverPin(); setPin(newPin); setValue('password', newPin); }}
+              >
+                Новый
+              </Button>
             </div>
-            <div>
-              <Label htmlFor={`dlg_confirm_${teamId}`}>Подтверждение *</Label>
-              <Input
-                id={`dlg_confirm_${teamId}`}
-                type="password"
-                {...register('confirmPassword')}
-                placeholder="Повторите пароль"
-                className={errors.confirmPassword ? 'border-red-500' : ''}
-              />
-              {errors.confirmPassword && (
-                <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
-              )}
-            </div>
+            <p className="text-xs text-gray-500 mt-1">6-значный PIN для входа водителя</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

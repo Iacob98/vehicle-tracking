@@ -67,26 +67,22 @@ export const createUserSchema = userSchema.extend({
 
 export type CreateUserFormData = z.infer<typeof createUserSchema>;
 
+// Генерация 6-значного PIN-кода для водителя
+export function generateDriverPin(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // Schema for creating a driver from the Teams section (role is hardcoded as 'driver')
 export const createDriverSchema = userSchema.extend({
   password: z
-    .string().min(1)
-    .min(8, 'Пароль должен содержать минимум 8 символов')
-    .max(100, 'Пароль слишком длинный')
-    .regex(/[A-Z]/, 'Пароль должен содержать хотя бы одну заглавную букву')
-    .regex(/[a-z]/, 'Пароль должен содержать хотя бы одну строчную букву')
-    .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру'),
-
-  confirmPassword: z.string().min(1),
+    .string()
+    .regex(/^\d{6}$/, 'PIN-код должен содержать ровно 6 цифр'),
 
   fuel_card_id: z
     .string()
     .max(50, 'Номер топливной карты слишком длинный')
     .optional()
     .or(z.literal('')),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Пароли не совпадают',
-  path: ['confirmPassword'],
 });
 
 export type CreateDriverFormData = z.infer<typeof createDriverSchema>;
