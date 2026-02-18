@@ -57,9 +57,9 @@ interface VehicleDocumentsProps {
 }
 
 const DOCUMENT_TYPES = [
-  { value: 'insurance', label: '🛡️ Страховка / Versicherung' },
-  { value: 'inspection', label: '🔧 Техосмотр / TÜV' },
-  { value: 'registration', label: '📋 Регистрация / Zulassung' },
+  { value: 'registration', label: '📋 Fahrzeugschein' },
+  { value: 'insurance', label: '🛡️ Versicherung' },
+  { value: 'inspection', label: '🔧 TÜV' },
   { value: 'license', label: '📜 Лицензия / Lizenz' },
   { value: 'permit', label: '✅ Разрешение / Genehmigung' },
   { value: 'rental_contract', label: '🏢 Договор аренды / Mietvertrag' },
